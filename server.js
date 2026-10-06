@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const crypto = require('crypto');
 const admin = require('firebase-admin');
@@ -13,6 +14,7 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(cors({ origin: ALLOWED_ORIGIN === '*' ? true : ALLOWED_ORIGIN.split(',') }));
 app.use(express.json({ limit: '100kb' }));
+app.use(express.static(__dirname));
 
 // ---- tokens (signed, 7 days) ----
 const eq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
@@ -121,5 +123,5 @@ app.post('/api/import', auth, h(async (req, res) => {
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: 'Server error' }); });
-app.use(express.static(__dirname));
+app.get('/', (req,res)=> {res.sendFile(path.join(__dirname,'index.html'));});
 app.listen(PORT, () => console.log('Hockey attendance API on port ' + PORT));
