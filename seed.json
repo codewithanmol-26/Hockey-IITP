@@ -1,0 +1,284 @@
+{
+ "players": [
+  {
+   "name": "Rachit Singh Rathore",
+   "roll": "2501CE01",
+   "pos": "Forward",
+   "joined": "2025-11-10"
+  },
+  {
+   "name": "Krish Kumar",
+   "roll": "2501MM09",
+   "pos": "Goalie",
+   "joined": "2025-11-10"
+  },
+  {
+   "name": "Sachin Kumar",
+   "roll": "2501MC44",
+   "pos": "Forward/ right wing / center forward/left wing",
+   "joined": "2025-11-10"
+  },
+  {
+   "name": "Samarth Kushe",
+   "roll": "2501EE17",
+   "pos": "Full Back/Half Back",
+   "joined": "2025-11-10"
+  },
+  {
+   "name": "Kushagra Singh",
+   "roll": "2401PH07",
+   "pos": "Centre Forward/Centre Back",
+   "joined": "2026-01-06"
+  },
+  {
+   "name": "Anmol Kumar",
+   "roll": "2501CE69",
+   "pos": "left wing/forward",
+   "joined": "2026-01-06"
+  },
+  {
+   "name": "S.Satvik",
+   "roll": "2501CB44",
+   "pos": "Forward (left wing)",
+   "joined": "2026-01-06"
+  },
+  {
+   "name": "Amitabh Anand",
+   "roll": "2501ES13",
+   "pos": "Center Forward",
+   "joined": "2026-01-10"
+  },
+  {
+   "name": "Nani R",
+   "roll": "2501MM22",
+   "pos": "Forward / left wing",
+   "joined": "2026-01-17"
+  },
+  {
+   "name": "Amit Kumar",
+   "roll": "2501ME71",
+   "pos": "Full back/center forward / left wing/half back",
+   "joined": "2026-01-17"
+  },
+  {
+   "name": "Rathod Govardhan",
+   "roll": "2501ES08",
+   "pos": "Right wing",
+   "joined": "2026-01-17"
+  },
+  {
+   "name": "Tangella Rakesh Reddy",
+   "roll": "2501CT33",
+   "pos": "Full Back/Half Back",
+   "joined": "2026-03-10"
+  },
+  {
+   "name": "L Sai Deepak",
+   "roll": "2501MM38",
+   "pos": "Full Back/Half Back",
+   "joined": "2026-03-11"
+  },
+  {
+   "name": "Aditya Raj",
+   "roll": "2501ME22",
+   "pos": "Full Back/ Half Back/ Left or Right wing",
+   "joined": "2026-03-11"
+  },
+  {
+   "name": "Belli Abhinandhan Goud",
+   "roll": "2501AI42",
+   "pos": "Center forward or goal keeper",
+   "joined": "2026-03-11"
+  },
+  {
+   "name": "p.prem vardhan",
+   "roll": "2501CE11",
+   "pos": "centre forward/ right wing",
+   "joined": "2026-03-16"
+  },
+  {
+   "name": "Saurabh Kumar",
+   "roll": "2521CE12",
+   "pos": "Right out(forward)",
+   "joined": "2026-04-09"
+  }
+ ],
+ "months": {
+  "2025-11": {
+   "days": 3,
+   "att": [
+    3,
+    3,
+    3,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "2026-01": {
+   "days": 12,
+   "att": [
+    10,
+    8,
+    10,
+    7,
+    5,
+    8,
+    5,
+    10,
+    4,
+    8,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "2026-02": {
+   "days": 4,
+   "att": [
+    4,
+    4,
+    3,
+    2,
+    1,
+    4,
+    2,
+    3,
+    0,
+    3,
+    4,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "2026-03": {
+   "days": 13,
+   "att": [
+    10,
+    11,
+    9,
+    7,
+    9,
+    9,
+    4,
+    10,
+    4,
+    11,
+    5,
+    4,
+    4,
+    6,
+    3,
+    2,
+    0
+   ]
+  },
+  "2026-04": {
+   "days": 8,
+   "att": [
+    8,
+    8,
+    8,
+    5,
+    4,
+    5,
+    2,
+    7,
+    3,
+    7,
+    4,
+    5,
+    4,
+    3,
+    3,
+    5,
+    2
+   ]
+  },
+  "2026-07": {
+   "days": 3,
+   "att": [
+    3,
+    2,
+    3,
+    2,
+    2,
+    3,
+    0,
+    2,
+    1,
+    2,
+    2,
+    0,
+    1,
+    3,
+    1,
+    1,
+    0
+   ]
+  },
+  "2026-08": {
+   "days": 16,
+   "att": [
+    16,
+    15,
+    13,
+    9,
+    13,
+    12,
+    7,
+    16,
+    10,
+    14,
+    9,
+    13,
+    14,
+    9,
+    11,
+    10,
+    0
+   ]
+  },
+  "2026-09": {
+   "days": 8,
+   "att": [
+    7,
+    5,
+    6,
+    4,
+    6,
+    5,
+    0,
+    6,
+    6,
+    4,
+    1,
+    5,
+    6,
+    3,
+    3,
+    6,
+    0
+   ]
+  }
+ }
+}
