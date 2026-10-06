@@ -121,4 +121,5 @@ app.post('/api/import', auth, h(async (req, res) => {
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: 'Server error' }); });
+app.use(express.static(__dirname));
 app.listen(PORT, () => console.log('Hockey attendance API on port ' + PORT));
