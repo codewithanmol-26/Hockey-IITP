@@ -291,3 +291,8 @@ dialog input {
   padding: 2px 8px;
   font-size: 0.8rem;
 }
+.card a {
+  color: var(--p);
+  font-weight: 600;
+  white-space: nowrap;
+}

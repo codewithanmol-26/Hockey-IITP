@@ -20,7 +20,7 @@ async function api(path, o = {}) {
   }
   return j;
 }
-const SCH = {
+let SCH = {
   team: [
     ["Monday", "Rest day", "Recovery, no scheduled session", ""],
     [
@@ -100,6 +100,7 @@ const SCH = {
     ],
   ],
 };
+const SCH0 = JSON.stringify(SCH);
 let P = [],
   SS = {},
   L = {},
@@ -188,7 +189,10 @@ function stats(m) {
 }
 
 let RL = [],
-  openR = new Set([0]),
+  WL = [],
+  ADM = [],
+  owner = false,
+  openS = { rules: new Set([0]), warmup: new Set([0]) },
   lastJs = "";
 async function load(force) {
   try {
@@ -211,6 +215,10 @@ async function load(force) {
     L = d.legacy;
     PL = d.plans;
     RL = d.rules || [];
+    WL = d.warmup || [];
+    ADM = d.admins || [];
+    owner = d.role === "captain" || d.role === "vice";
+    SCH = d.schedule && d.schedule.team ? d.schedule : JSON.parse(SCH0);
     loaded = true;
     err = "";
     render();
@@ -240,6 +248,11 @@ $("auth").onclick = () => {
     return;
   }
   $("er").textContent = "";
+  $("em").innerHTML =
+    '<option value="captain">Captain: Rachit Singh Rathore</option><option value="vice">Vice-captain: Sachin Kumar</option>' +
+    ADM.map(
+      (a) => `<option value="a:${esc(a.id)}">Admin: ${esc(a.name)}</option>`,
+    ).join("");
   $("dlg").showModal();
 };
 $("cx").onclick = () => $("dlg").close();
@@ -540,13 +553,37 @@ function vSched() {
   const ti = dayIdx(today());
   $("view").innerHTML =
     `<div class="card"><h2>Weekly practice schedule</h2><div class="ctl"><button class="${sch === "team" ? "pri" : ""}" data-s="team">Team</button><button class="${sch === "gk" ? "pri" : ""}" data-s="gk">Goalkeepers</button></div>
-  ${SCH[sch].map((r, i) => `<div class="row ${i === ti ? "today" : ""}"><span><b>${r[0]}</b> · ${esc(r[1])}<br><span class="mute">${esc(r[2])}</span></span><span class="n">${r[3] || "–"}</span></div>`).join("")}
+  ${SCH[sch].map((r, i) => `<div class="row ${i === ti ? "today" : ""}"><span><b>${r[0]}</b> · ${esc(r[1])}<br><span class="mute">${esc(r[2])}</span></span><span class="n">${r[3] || "–"}${admin ? `<br><button class="mini" data-e="${i}">Edit</button>` : ""}</span></div>`).join("")}
   <p class="mute">Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: Kiran Chaudhary.</p></div>`;
   document.querySelectorAll("[data-s]").forEach(
     (b) =>
       (b.onclick = () => {
         sch = b.dataset.s;
         vSched();
+      }),
+  );
+  document.querySelectorAll("[data-e]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const i = +b.dataset.e,
+          r = SCH[sch][i];
+        const t = prompt(r[0] + ": session name", r[1]);
+        if (t === null) return;
+        const x = prompt("Details", r[2]);
+        if (x === null) return;
+        const m = prompt(
+          "Timing, for example 6:30–8:30 PM (leave empty for a rest day)",
+          r[3],
+        );
+        if (m === null) return;
+        SCH[sch][i] = [r[0], t.trim(), x.trim(), m.trim()];
+        run(async () => {
+          await api("/api/schedule", {
+            method: "PUT",
+            body: { team: SCH.team, gk: SCH.gk },
+          });
+          await load();
+        });
       }),
   );
 }
@@ -759,20 +796,39 @@ const lst = (a, tag, d) =>
         : `<li>${i}<span>${x}</span></li>`;
     })
     .join("")}</${tag}>`;
+const emptyItem = (x) => {
+  const [h, ...b] = x.split("|");
+  return { h, b: b.join("|"), img: "", yt: "" };
+};
 const defRules = () =>
   RULES.map((r, i) => ({
     id: "s" + String(i + 1).padStart(2, "0"),
     order: i + 1,
     title: r[0],
     icon: DEF[i],
-    items: r[1].map((x) => {
-      const [h, ...b] = x.split("|");
-      return { h, b: b.join("|"), img: "" };
-    }),
+    items: r[1].map(emptyItem),
   }));
-const saveSec = (sec) =>
+const defWarm = () =>
+  WARM.map((r, i) => ({
+    id: "w" + (i + 1),
+    order: i + 1,
+    title: r[0],
+    icon: i ? "🧘" : "🏃",
+    items: [
+      ...r[1].map(emptyItem),
+      {
+        h: "Tip",
+        b: i
+          ? "Hold each stretch 20 to 30 seconds per side, breathe normally, no bouncing. Ease off if you feel pain."
+          : "Do dynamic moves like these before play and save static stretching for after.",
+        img: "",
+        yt: "",
+      },
+    ],
+  }));
+const saveSec = (col, sec) =>
   run(async () => {
-    await api("/api/rules/" + sec.id, {
+    await api("/api/" + col + "/" + sec.id, {
       method: "PUT",
       body: {
         title: sec.title,
@@ -806,20 +862,24 @@ function pickImg(cb) {
   };
   f.click();
 }
-function vRules() {
-  const secs = RL.length ? RL : defRules(),
-    ed = admin && RL.length > 0;
+const okYt = (v) => !v || /^https?:\/\/\S+$/i.test(v);
+function vSections(col) {
+  const rules = col === "rules",
+    list = rules ? RL : WL,
+    secs = list.length ? list : rules ? defRules() : defWarm(),
+    ed = admin && list.length > 0,
+    open = openS[col];
   $("view").innerHTML =
-    `<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>
-  ${admin && !RL.length ? '<div class="note">Captain tools: <button class="pri" id="rl-on">Enable editing and signal photos</button></div>' : ""}
+    `${rules ? '<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>' : ""}
+  ${admin && !list.length ? `<div class="note">Admin tools: <button class="pri" id="rl-on">Enable editing${rules ? " and signal photos" : ", photos and video links"}</button></div>` : ""}
   ${ed ? '<div class="ctl"><button id="rl-add">+ Add section</button></div>' : ""}` +
     secs
       .map(
         (
           r,
           si,
-        ) => `<details class="card" data-si="${si}" ${openR.has(si) ? "open" : ""}><summary>${esc(r.icon)} ${esc(r.title)}</summary>
-  <ul class="ico">${r.items.map((it, ii) => `<li>${it.img ? `<img class="sig" src="${it.img}" alt="">` : `<span class="ic">${ic(it.h, r.icon)}</span>`}<span><b>${esc(it.h)}</b>${it.b ? ": " + esc(it.b) : ""}${ed ? `<span class="chips" style="margin:4px 0 0"><button class="mini" data-a="e" data-s="${si}" data-i="${ii}">Edit</button><button class="mini" data-a="p" data-s="${si}" data-i="${ii}">${it.img ? "Change photo" : "Add photo"}</button>${it.img ? `<button class="mini" data-a="x" data-s="${si}" data-i="${ii}">Remove photo</button>` : ""}<button class="mini dng" data-a="d" data-s="${si}" data-i="${ii}">Delete</button></span>` : ""}</span></li>`).join("")}</ul>
+        ) => `<details class="card" data-si="${si}" ${open.has(si) ? "open" : ""}><summary>${esc(r.icon)} ${esc(r.title)}</summary>
+  <ul class="ico">${r.items.map((it, ii) => `<li>${it.img ? `<img class="sig" src="${it.img}" alt="">` : `<span class="ic">${rules ? ic(it.h, r.icon) : esc(r.icon)}</span>`}<span><b>${esc(it.h)}</b>${it.b ? ": " + esc(it.b) : ""}${it.yt ? ` <a href="${esc(it.yt)}" target="_blank" rel="noopener noreferrer">▶ Watch video</a>` : ""}${ed ? `<span class="chips" style="margin:4px 0 0"><button class="mini" data-a="e" data-s="${si}" data-i="${ii}">Edit</button><button class="mini" data-a="p" data-s="${si}" data-i="${ii}">${it.img ? "Change photo" : "Add photo"}</button>${it.img ? `<button class="mini" data-a="x" data-s="${si}" data-i="${ii}">Remove photo</button>` : ""}<button class="mini dng" data-a="d" data-s="${si}" data-i="${ii}">Delete</button></span>` : ""}</span></li>`).join("")}</ul>
   ${ed ? `<div class="chips"><button class="mini" data-a="+" data-s="${si}">+ Add item</button><button class="mini" data-a="r" data-s="${si}">Rename section</button><button class="mini dng" data-a="ds" data-s="${si}">Delete section</button></div>` : ""}</details>`,
       )
       .join("");
@@ -827,15 +887,15 @@ function vRules() {
     (d) =>
       (d.ontoggle = () => {
         const i = +d.dataset.si;
-        d.open ? openR.add(i) : openR.delete(i);
+        d.open ? open.add(i) : open.delete(i);
       }),
   );
   if (!admin) return;
   if ($("rl-on"))
     $("rl-on").onclick = () =>
       run(async () => {
-        for (const s of defRules())
-          await api("/api/rules/" + s.id, {
+        for (const s of rules ? defRules() : defWarm())
+          await api("/api/" + col + "/" + s.id, {
             method: "PUT",
             body: {
               title: s.title,
@@ -850,9 +910,9 @@ function vRules() {
     $("rl-add").onclick = () => {
       const t = prompt("Section name");
       if (t && t.trim())
-        saveSec({
+        saveSec(col, {
           id: "s" + Date.now().toString(36),
-          order: Math.max(0, ...RL.map((x) => x.order || 0)) + 1,
+          order: Math.max(0, ...list.map((x) => x.order || 0)) + 1,
           title: t.trim(),
           icon: "📌",
           items: [],
@@ -861,7 +921,7 @@ function vRules() {
   document.querySelectorAll("[data-a]").forEach(
     (b) =>
       (b.onclick = () => {
-        const sec = RL[+b.dataset.s],
+        const sec = list[+b.dataset.s],
           i = +b.dataset.i,
           a = b.dataset.a,
           it = sec.items[i];
@@ -870,51 +930,62 @@ function vRules() {
           if (h === null) return;
           const t = prompt("Description", it.b);
           if (t === null) return;
+          const y = prompt(
+            "YouTube link (optional, leave empty for none)",
+            it.yt || "",
+          );
+          if (y === null) return;
+          if (!okYt(y.trim()))
+            return alert("The link must start with http:// or https://");
           it.h = h.trim();
           it.b = t.trim();
-          saveSec(sec);
+          it.yt = y.trim();
+          saveSec(col, sec);
         } else if (a === "p")
           pickImg((d) => {
             it.img = d;
-            saveSec(sec);
+            saveSec(col, sec);
           });
         else if (a === "x") {
           it.img = "";
-          saveSec(sec);
+          saveSec(col, sec);
         } else if (a === "d") {
           if (confirm('Delete "' + it.h + '"?')) {
             sec.items.splice(i, 1);
-            saveSec(sec);
+            saveSec(col, sec);
           }
         } else if (a === "+") {
           const h = prompt("Title");
           if (!h || !h.trim()) return;
           const t = prompt("Description (optional)") || "";
-          sec.items.push({ h: h.trim(), b: t.trim(), img: "" });
-          saveSec(sec);
+          const y = prompt("YouTube link (optional)") || "";
+          if (!okYt(y.trim()))
+            return alert("The link must start with http:// or https://");
+          sec.items.push({ h: h.trim(), b: t.trim(), img: "", yt: y.trim() });
+          saveSec(col, sec);
         } else if (a === "r") {
           const t = prompt("Section name", sec.title);
           if (t && t.trim()) {
             sec.title = t.trim();
-            saveSec(sec);
+            saveSec(col, sec);
           }
         } else if (a === "ds") {
           if (
             confirm('Delete the section "' + sec.title + '" and all its items?')
           )
             run(async () => {
-              await api("/api/rules/" + sec.id, { method: "DELETE" });
+              await api("/api/" + col + "/" + sec.id, { method: "DELETE" });
               await load();
             });
         }
       }),
   );
 }
+function vRules() {
+  vSections("rules");
+}
 function vWarm() {
-  $("view").innerHTML = WARM.map(
-    (r) =>
-      `<div class="card"><h2>${r[0]}</h2>${lst(r[1], "ol")}${r[0].startsWith("Stretching") ? '<p class="mute">Hold each stretch 20 to 30 seconds per side, breathe normally, no bouncing. Ease off if you feel pain.</p>' : '<p class="mute">Do dynamic moves like these before play and save static stretching for after.</p>'}</div>`,
-  ).join("");
+  vSections("warmup");
 }
 let me = "";
 try {
@@ -1046,8 +1117,64 @@ function vPlayers() {
   $("view").innerHTML = `<div class="card"><h2>Players (${P.length})</h2>
   ${admin ? `<div class="ctl"><input id="nm" placeholder="Name" maxlength="40"><input id="rl" placeholder="Roll no" maxlength="12" size="10"><input id="ps" placeholder="Position" maxlength="40"><button class="pri" id="add">Add player</button></div>` : '<div class="note mute">Log in as captain or vice-captain to add or remove players.</div>'}
   ${admin && !P.length ? '<div class="note">Team list is empty. <button id="imp">Import team and past attendance from the register</button></div>' : ""}
-  ${P.map((p) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${esc(p.roll)} · ${esc(p.position)}</span></span>${admin ? `<button class="dng" data-id="${p.id}">Remove</button>` : ""}</div>`).join("") || '<p class="mute">No players yet.</p>'}</div>`;
+  ${P.map((p) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${esc(p.roll)} · ${esc(p.position)}</span></span>${admin ? `<span class="chips" style="margin:0"><button data-ed="${p.id}">Edit</button><button class="dng" data-id="${p.id}">Remove</button></span>` : ""}</div>`).join("") || '<p class="mute">No players yet.</p>'}</div>`;
   if (!admin) return;
+  if (owner) {
+    $("view").insertAdjacentHTML(
+      "beforeend",
+      `<div class="card"><h2>Other admins</h2><p class="mute">Admins can take attendance and edit everything except this list. Only the captain and vice-captain manage it.</p>
+    <div class="ctl"><input id="an" placeholder="Name" maxlength="40"><input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30"><button class="pri" id="aadd">Add admin</button></div>
+    ${ADM.map((a) => `<div class="row"><span>${esc(a.name)}</span><button class="dng" data-adm="${esc(a.id)}">Remove</button></div>`).join("") || '<p class="mute">No extra admins yet.</p>'}</div>`,
+    );
+    $("aadd").onclick = () => {
+      const name = $("an").value.trim(),
+        code = $("ac").value;
+      if (!name || code.length < 4)
+        return alert("Enter a name and a code of at least 4 characters.");
+      run(async () => {
+        await api("/api/admins", { method: "POST", body: { name, code } });
+        await load();
+      });
+    };
+    document.querySelectorAll("[data-adm]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          if (confirm("Remove this admin? They will be logged out."))
+            run(async () => {
+              await api("/api/admins/" + b.dataset.adm, { method: "DELETE" });
+              await load();
+            });
+        }),
+    );
+  }
+  document.querySelectorAll("[data-ed]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const p = P.find((x) => x.id === b.dataset.ed);
+        const name = prompt("Name", p.name || "");
+        if (name === null || !name.trim()) return;
+        const roll = prompt("Roll number", p.roll || "");
+        if (roll === null) return;
+        const pos = prompt("Position", p.position || "");
+        if (pos === null) return;
+        const j = prompt("Joined date (YYYY-MM-DD)", p.joined || "");
+        if (j === null) return;
+        if (j.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(j.trim()))
+          return alert("Use the date format YYYY-MM-DD");
+        run(async () => {
+          await api("/api/players/" + p.id, {
+            method: "PUT",
+            body: {
+              name: name.trim(),
+              roll: roll.trim(),
+              position: pos.trim(),
+              joined: j.trim(),
+            },
+          });
+          await load();
+        });
+      }),
+  );
   const add = () => {
     const n = $("nm").value.trim();
     if (!n) return;
