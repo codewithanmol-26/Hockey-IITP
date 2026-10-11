@@ -1,20 +1,23 @@
 const express = require('express');
-const path = require('path');
 const cors = require('cors');
 const crypto = require('crypto');
 const admin = require('firebase-admin');
 const seed = require('./seed.json');
 
 const { CAPTAIN_CODE, VICE_CODE, TOKEN_SECRET, FIREBASE_SERVICE_ACCOUNT, ALLOWED_ORIGIN = '*', PORT = 3000 } = process.env;
-if (!CAPTAIN_CODE || !VICE_CODE || !TOKEN_SECRET) throw new Error('Set CAPTAIN_CODE, VICE_CODE and TOKEN_SECRET');
-
-admin.initializeApp(FIREBASE_SERVICE_ACCOUNT ? { credential: admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT)) } : undefined);
-const db = admin.firestore();
+let initError = null;
+try {
+  const missing = ['CAPTAIN_CODE', 'VICE_CODE', 'TOKEN_SECRET', 'FIREBASE_SERVICE_ACCOUNT'].filter(k => !process.env[k]);
+  if (missing.length) throw new Error('missing environment variables: ' + missing.join(', '));
+  admin.initializeApp({ credential: admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT)) });
+} catch (e) { initError = e.message; }
+const db = initError ? null : admin.firestore();
 const app = express();
 app.set('trust proxy', 1);
 app.use(cors({ origin: ALLOWED_ORIGIN === '*' ? true : ALLOWED_ORIGIN.split(',') }));
-app.use(express.json({ limit: '100kb' }));
-app.use(express.static(__dirname));
+app.use(express.static(require('path').join(__dirname, '../frontend'))); // used when running locally; Vercel serves the frontend itself
+app.use(express.json({ limit: '2mb' }));
+app.use((req, res, next) => initError ? res.status(500).json({ error: 'Backend not configured: ' + initError }) : next());
 
 // ---- tokens (signed, 7 days) ----
 const eq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
@@ -45,11 +48,12 @@ let cache = null, cacheAt = 0;
 const bust = () => { cache = null; };
 async function readAll() {
   if (cache && Date.now() - cacheAt < 10000) return cache;
-  const [pl, se, le, pn] = await Promise.all(['players', 'sessions', 'legacy', 'plans'].map(c => db.collection(c).get()));
-  const out = { players: pl.docs.map(d => ({ id: d.id, ...d.data() })), sessions: {}, legacy: {}, plans: {} };
+  const [pl, se, le, pn, rl] = await Promise.all(['players', 'sessions', 'legacy', 'plans', 'rules'].map(c => db.collection(c).get()));
+  const out = { players: pl.docs.map(d => ({ id: d.id, ...d.data() })), sessions: {}, legacy: {}, plans: {}, rules: [] };
   se.forEach(d => out.sessions[d.id] = d.data().r || {});
   le.forEach(d => out.legacy[d.id] = d.data());
   pn.forEach(d => out.plans[d.id] = d.data());
+  out.rules = rl.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0));
   cache = out; cacheAt = Date.now();
   return out;
 }
@@ -71,7 +75,7 @@ app.get('/api/data', h(async (req, res) => {
   for (const d in all.sessions) sessions[d] = all.sessions[d][me] !== undefined ? { [me]: all.sessions[d][me] } : {};
   const legacy = {};
   for (const m in all.legacy) legacy[m] = { days: all.legacy[m].days, att: all.legacy[m].att[me] !== undefined ? { [me]: all.legacy[m].att[me] } : {} };
-  res.json({ role: null, players, sessions, legacy, plans: all.plans });
+  res.json({ role: null, players, sessions, legacy, plans: all.plans, rules: all.rules });
 }));
 
 // ---- writing data (captain / vice-captain only) ----
@@ -121,7 +125,21 @@ app.post('/api/import', auth, h(async (req, res) => {
   await b.commit(); done(res);
 }));
 
+// Rules and umpire-signal pictures, editable by captain / vice-captain
+const imgOk = v => typeof v === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(v) && v.length < 45000;
+app.put('/api/rules/:id', auth, h(async (req, res) => {
+  if (!/^[a-z0-9]{1,20}$/.test(req.params.id)) return res.status(400).json({ error: 'Bad id' });
+  const b = req.body || {};
+  const items = (Array.isArray(b.items) ? b.items : []).slice(0, 40).map(i => ({ h: str(i.h, 80), b: str(i.b, 400), img: imgOk(i.img) ? i.img : '' }));
+  if (items.reduce((n, i) => n + i.img.length, 0) > 800000) return res.status(413).json({ error: 'Too many pictures in one section' });
+  await db.collection('rules').doc(req.params.id).set({ title: str(b.title, 80), icon: str(b.icon, 8), order: Number(b.order) || 0, items });
+  done(res);
+}));
+app.delete('/api/rules/:id', auth, h(async (req, res) => {
+  await db.collection('rules').doc(req.params.id).delete(); done(res);
+}));
+
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: 'Server error' }); });
-app.get('/', (req,res)=> {res.sendFile(path.join(__dirname,'index.html'));});
-app.listen(PORT, () => console.log('Hockey attendance API on port ' + PORT));
+if (require.main === module) app.listen(PORT, () => console.log('Hockey attendance running on http://localhost:' + PORT));
+module.exports = app;

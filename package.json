@@ -1,8 +1,17 @@
 {
-  "name": "hockey-attendance-backend",
+  "name": "hockey-attendance",
   "version": "1.0.0",
-  "main": "server.js",
-  "scripts": { "start": ".env server.js", "dev": "node --env-file=.env server.js" },
-  "engines": { "node": ">=18" },
-  "dependencies": { "cors": "^2.8.5", "express": "^4.19.2", "firebase-admin": "^12.3.0" }
+  "private": true,
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "node --env-file=.env backend/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.3.0"
+  }
 }

@@ -18,35 +18,37 @@ const mfmt=m=>new Date(m+'-01T00:00').toLocaleDateString(undefined,{month:'long'
 const dates=()=>Object.keys(SS).sort();
 const months=()=>[...new Set([...Object.keys(L),...dates().map(d=>d.slice(0,7))])].sort();
 const rdays=m=>(m==='all'?Object.keys(L).reduce((a,k)=>a+L[k].days,0)+dates().length:(L[m]?L[m].days:0)+dates().filter(d=>d.startsWith(m)).length);
-async function run(fn){try{await fn()}catch(e){if(e.status===401){alert('Please log in again as captain or vice-captain.');load()}else alert('Could not save: '+e.message)}}
+async function run(fn){try{await fn()}catch(e){if(e.status===401){alert('Please log in again as captain or vice-captain.');load(true)}else alert('Could not save: '+e.message)}}
 
 function stats(m){return P.map(p=>{let t=0,pr=0;const j=(p.joined||'0000-00').slice(0,7);
   for(const k in L)if((m==='all'||k===m)&&j<=k){t+=L[k].days;pr+=(L[k].att[p.id]||0)}
   for(const d in SS)if(m==='all'||d.startsWith(m)){const r=SS[d][p.id];if(r!==undefined){t++;if(r)pr++}}
   return{p,pr,t,pct:t?Math.round(pr*100/t):0}})}
 
-async function load(){
+let RL=[],openR=new Set([0]),lastJs='';
+async function load(force){
   try{
     const d=await api('/api/data'+(token||!me?'':'?me='+encodeURIComponent(me)));
+    const key=JSON.stringify(d);if(!force&&key===lastJs&&loaded&&!err)return;lastJs=key;
     const was=admin;admin=!!d.role;
     if(admin&&!was)tab='take';
     if(!admin&&(tab==='take'||tab==='players'))tab='me';
     P=d.players.sort((a,b)=>(a.n||999)-(b.n||999)||String(a.name).localeCompare(String(b.name)));
-    SS=d.sessions;L=d.legacy;PL=d.plans;loaded=true;err='';render();
+    SS=d.sessions;L=d.legacy;PL=d.plans;RL=d.rules||[];loaded=true;err='';render();
   }catch(e){
-    if(e.status===401){token='';try{localStorage.removeItem('hk_token')}catch(x){}return load()}
-    err='Cannot reach the server. Check your connection and try again.';render();
+    if(e.status===401){token='';try{localStorage.removeItem('hk_token')}catch(x){}return load(true)}
+    err=e.status?'The server replied: '+e.message:'Cannot reach the server. Check your connection and try again.';render();
   }
 }
 $('auth').onclick=()=>{
-  if(admin){token='';try{localStorage.removeItem('hk_token')}catch(x){}admin=false;tab='me';load();return}
+  if(admin){token='';try{localStorage.removeItem('hk_token')}catch(x){}admin=false;tab='me';load(true);return}
   $('er').textContent='';$('dlg').showModal();
 };
 $('cx').onclick=()=>$('dlg').close();
 $('lf').onsubmit=async e=>{e.preventDefault();
   try{const r=await api('/api/login',{method:'POST',body:{role:$('em').value,code:$('pw').value.trim()}});
     token=r.token;try{localStorage.setItem('hk_token',token)}catch(x){}
-    $('dlg').close();$('pw').value='';await load();
+    $('dlg').close();$('pw').value='';await load(true);
   }catch(x){$('er').textContent=x.status===429?'Too many tries. Wait a minute.':x.status===401?'Wrong code.':'Cannot reach the server.'}
 };
 
@@ -149,7 +151,32 @@ const DEF=['🧑‍⚖️','🧑‍⚖️','🧑‍⚖️','🚩','🟨','👕',
 const IC=[[/^start time/i,'▶️'],[/^stop time/i,'⏹️'],[/minute/i,'⏱️'],[/bully/i,'🤝'],[/^goals?$/i,'🥅'],[/ball out/i,'↗️'],[/dangerous/i,'⚠️'],[/misconduct/i,'✋'],[/kick/i,'🦶'],[/raised ball|aerial|flick/i,'⤴️'],[/obstruct/i,'🚧'],[/5 metres/i,'📏'],[/advantage/i,'👍'],[/free hit/i,'🏑'],[/penalty corner/i,'🚩'],[/penalty stroke/i,'🎯'],[/green card/i,'🟩'],[/yellow card/i,'🟨'],[/red card/i,'🟥'],[/caution/i,'🗣️'],[/captain/i,'🎖️'],[/stick/i,'🏑'],[/ball/i,'⚪'],[/knee|safety|mask|hand protect/i,'🛡️'],[/uniform/i,'👕'],[/glove|gear|shirt|size/i,'🧤'],[/tackl/i,'🏃'],[/substitut|where to swap/i,'🔁'],[/length|half-time/i,'⏱️'],[/^team$/i,'👥'],[/taker|attackers|defenders/i,'👥'],[/scoring/i,'🥅'],[/umpire/i,'🧑‍⚖️'],[/where they play/i,'📍']];
 const ic=(h,d)=>{const f=IC.find(r=>r[0].test(h));return f?f[1]:d};
 const lst=(a,tag,d)=>`<${tag}${d?' class="ico"':''}>${a.map(x=>{const[h,b]=x.split('|'),i=d?`<span class="ic">${ic(h,d)}</span>`:'';return b?`<li>${i}<span><b>${h}</b>: ${b}</span></li>`:`<li>${i}<span>${x}</span></li>`}).join('')}</${tag}>`;
-function vRules(){$('view').innerHTML='<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>'+RULES.map((r,i)=>`<details class="card" ${i===0?'open':''}><summary>${DEF[i]} ${r[0]}</summary>${lst(r[1],'ul',DEF[i])}</details>`).join('')}
+const defRules=()=>RULES.map((r,i)=>({id:'s'+String(i+1).padStart(2,'0'),order:i+1,title:r[0],icon:DEF[i],items:r[1].map(x=>{const[h,...b]=x.split('|');return{h,b:b.join('|'),img:''}})}));
+const saveSec=sec=>run(async()=>{await api('/api/rules/'+sec.id,{method:'PUT',body:{title:sec.title,icon:sec.icon,order:sec.order,items:sec.items}});await load()});
+function pickImg(cb){const f=document.createElement('input');f.type='file';f.accept='image/*';
+  f.onchange=()=>{const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const w=Math.min(200,im.width),h=Math.round(im.height*w/im.width),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);cb(c.toDataURL('image/jpeg',.7))};im.src=rd.result};if(f.files[0])rd.readAsDataURL(f.files[0])};f.click()}
+function vRules(){
+  const secs=RL.length?RL:defRules(),ed=admin&&RL.length>0;
+  $('view').innerHTML=`<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>
+  ${admin&&!RL.length?'<div class="note">Captain tools: <button class="pri" id="rl-on">Enable editing and signal photos</button></div>':''}
+  ${ed?'<div class="ctl"><button id="rl-add">+ Add section</button></div>':''}`+secs.map((r,si)=>`<details class="card" data-si="${si}" ${openR.has(si)?'open':''}><summary>${esc(r.icon)} ${esc(r.title)}</summary>
+  <ul class="ico">${r.items.map((it,ii)=>`<li>${it.img?`<img class="sig" src="${it.img}" alt="">`:`<span class="ic">${ic(it.h,r.icon)}</span>`}<span><b>${esc(it.h)}</b>${it.b?': '+esc(it.b):''}${ed?`<span class="chips" style="margin:4px 0 0"><button class="mini" data-a="e" data-s="${si}" data-i="${ii}">Edit</button><button class="mini" data-a="p" data-s="${si}" data-i="${ii}">${it.img?'Change photo':'Add photo'}</button>${it.img?`<button class="mini" data-a="x" data-s="${si}" data-i="${ii}">Remove photo</button>`:''}<button class="mini dng" data-a="d" data-s="${si}" data-i="${ii}">Delete</button></span>`:''}</span></li>`).join('')}</ul>
+  ${ed?`<div class="chips"><button class="mini" data-a="+" data-s="${si}">+ Add item</button><button class="mini" data-a="r" data-s="${si}">Rename section</button><button class="mini dng" data-a="ds" data-s="${si}">Delete section</button></div>`:''}</details>`).join('');
+  document.querySelectorAll('details[data-si]').forEach(d=>d.ontoggle=()=>{const i=+d.dataset.si;d.open?openR.add(i):openR.delete(i)});
+  if(!admin)return;
+  if($('rl-on'))$('rl-on').onclick=()=>run(async()=>{for(const s of defRules())await api('/api/rules/'+s.id,{method:'PUT',body:{title:s.title,icon:s.icon,order:s.order,items:s.items}});await load()});
+  if($('rl-add'))$('rl-add').onclick=()=>{const t=prompt('Section name');if(t&&t.trim())saveSec({id:'s'+Date.now().toString(36),order:Math.max(0,...RL.map(x=>x.order||0))+1,title:t.trim(),icon:'📌',items:[]})};
+  document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
+    const sec=RL[+b.dataset.s],i=+b.dataset.i,a=b.dataset.a,it=sec.items[i];
+    if(a==='e'){const h=prompt('Title',it.h);if(h===null)return;const t=prompt('Description',it.b);if(t===null)return;it.h=h.trim();it.b=t.trim();saveSec(sec)}
+    else if(a==='p')pickImg(d=>{it.img=d;saveSec(sec)});
+    else if(a==='x'){it.img='';saveSec(sec)}
+    else if(a==='d'){if(confirm('Delete "'+it.h+'"?')){sec.items.splice(i,1);saveSec(sec)}}
+    else if(a==='+'){const h=prompt('Title');if(!h||!h.trim())return;const t=prompt('Description (optional)')||'';sec.items.push({h:h.trim(),b:t.trim(),img:''});saveSec(sec)}
+    else if(a==='r'){const t=prompt('Section name',sec.title);if(t&&t.trim()){sec.title=t.trim();saveSec(sec)}}
+    else if(a==='ds'){if(confirm('Delete the section "'+sec.title+'" and all its items?'))run(async()=>{await api('/api/rules/'+sec.id,{method:'DELETE'});await load()})}
+  });
+}
 function vWarm(){$('view').innerHTML=WARM.map(r=>`<div class="card"><h2>${r[0]}</h2>${lst(r[1],'ol')}${r[0].startsWith('Stretching')?'<p class="mute">Hold each stretch 20 to 30 seconds per side, breathe normally, no bouncing. Ease off if you feel pain.</p>':'<p class="mute">Do dynamic moves like these before play and save static stretching for after.</p>'}</div>`).join('')}
 let me='';try{me=localStorage.getItem('hk_me')||''}catch(e){}
 function vMe(){
@@ -169,8 +196,8 @@ function vMe(){
   ${me?'<button id="clr" style="width:100%;margin-bottom:8px">Clear selection</button>':''}
   <p class="mute">Your selection is saved on this device so it is here next time you open this page.</p>${body}</div>`;
   const keep=()=>{try{localStorage.setItem('hk_me',me)}catch(x){}};
-  $('me').onchange=e=>{me=e.target.value;keep();load()};
-  if($('clr'))$('clr').onclick=()=>{me='';keep();load()};
+  $('me').onchange=e=>{me=e.target.value;keep();load(true)};
+  if($('clr'))$('clr').onclick=()=>{me='';keep();load(true)};
 }
 function nextPlan(){const d=Object.keys(PL).sort().find(x=>x>=today()&&PL[x].status!=='cancelled');return d?`<p class="note">Next playing day: <b>${fmt(d)}</b>${PL[d].time?', '+esc(PL[d].time):''}${PL[d].note?' · '+esc(PL[d].note):''}</p>`:''}
 function vPlan(){
