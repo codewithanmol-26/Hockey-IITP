@@ -102,6 +102,10 @@ let SCH = {
 };
 const SCH0 = JSON.stringify(SCH);
 let P = [],
+  RM = [],
+  me = "",
+  WHO = "",
+  role = "",
   SS = {},
   L = {},
   PL = {},
@@ -160,7 +164,7 @@ async function run(fn) {
     await fn();
   } catch (e) {
     if (e.status === 401) {
-      alert("Please log in again as captain or vice-captain.");
+      alert("Your login expired or was switched off. Please log in again.");
       load(true);
     } else alert("Could not save: " + e.message);
   }
@@ -197,90 +201,54 @@ let RL = [],
   owner = false,
   openS = { rules: new Set([0]), warmup: new Set([0]) },
   lastJs = "";
-async function load(force) {
-  try {
-    const d = await api(
-      "/api/data" + (token || !me ? "" : "?me=" + encodeURIComponent(me)),
-    );
-    const key = JSON.stringify(d);
-    if (!force && key === lastJs && loaded && !err) return;
-    lastJs = key;
-    const was = admin;
-    admin = ["captain", "vice", "admin"].includes(d.role);
-    pl = d.role === "player";
-    if (pl && d.me) {
-      me = d.me;
-      try {
-        localStorage.setItem("hk_me", me);
-      } catch (x) {}
-    }
-    if (admin && !was) tab = "take";
-    if (!admin && (tab === "take" || tab === "players")) tab = "me";
-    P = d.players.sort(
-      (a, b) =>
-        (a.n || 999) - (b.n || 999) ||
-        String(a.name).localeCompare(String(b.name)),
-    );
-    SS = d.sessions;
-    L = d.legacy;
-    PL = d.plans;
-    RL = d.rules || [];
-    WL = d.warmup || [];
-    ADM = d.admins || [];
-    ACC = d.accounts || [];
-    TPL = d.template || "";
-    owner = d.role === "captain" || d.role === "vice";
-    SCH = d.schedule && d.schedule.team ? d.schedule : JSON.parse(SCH0);
-    loaded = true;
-    err = "";
-    render();
-    checkAlerts();
-  } catch (e) {
-    if (e.status === 401) {
-      token = "";
-      try {
-        localStorage.removeItem("hk_token");
-      } catch (x) {}
-      return load(true);
-    }
-    err = e.status
-      ? "The server replied: " + e.message
-      : "Cannot reach the server. Check your connection and try again.";
-    render();
-  }
-}
-const loggedIn = () => admin || pl;
-function logout() {
-  token = "";
-  try {
-    localStorage.removeItem("hk_token");
-  } catch (e) {}
-  admin = false;
-  pl = false;
-  tab = "me";
-  load(true);
-}
-function saveToken(t) {
-  token = t;
-  try {
-    localStorage.setItem("hk_token", t);
-  } catch (x) {}
-}
-function openLogin(mode) {
-  $("er").textContent = "";
-  $("pe").textContent = "";
-  $("pw").value = "";
+
+// ---- all tabs. [id, icon, full name, who sees it (a = admins, o = captain/vice only), short name for the bar] ----
+const TABS = [
+  ["me", "🏠", "Home", "", "Home"],
+  ["take", "✅", "Take attendance", "a", "Take"],
+  ["plan", "📅", "Playing days", "", "Days"],
+  ["stats", "📊", "Attendance", "", "Stats"],
+  ["schedule", "⏰", "Schedule", "", "Schedule"],
+  ["rules", "📖", "Rules", "", ""],
+  ["warmup", "🔥", "Warm-up", "", ""],
+  ["players", "👥", "Players", "a", ""],
+  ["removed", "🗑️", "Removed students", "a", ""],
+  ["admins", "🛡️", "Admins", "o", ""],
+];
+const PRIMARY = ["me", "take", "plan", "stats", "schedule"];
+const tabsFor = () =>
+  TABS.filter(
+    (t) => !t[3] || (t[3] === "a" && admin) || (t[3] === "o" && owner),
+  );
+const go = (t) => {
+  tab = t;
+  render();
+  window.scrollTo(0, 0);
+};
+const empty = (e, t) =>
+  `<div class="empty"><span class="e">${e}</span>${t}</div>`;
+
+// ---- screens: login page first, then the app ----
+function showLogin() {
+  $("app").hidden = true;
+  $("login").hidden = false;
+  $("menu").hidden = true;
   $("pr").value = "";
   $("pa").innerHTML = "";
   $("pgo").hidden = false;
+  $("pe").textContent = "";
+  $("er").textContent = "";
+  $("pw").value = "";
+  $("an").value = "";
   pStep = "roll";
-  $("em").innerHTML =
-    '<option value="captain">Captain: Rachit Singh Rathore</option><option value="vice">Vice-captain: Sachin Kumar</option>' +
-    ADM.map(
-      (a) => `<option value="a:${esc(a.id)}">Admin: ${esc(a.name)}</option>`,
-    ).join("");
-  loginTab(mode);
-  if (!$("dlg").open) $("dlg").showModal();
+  loginTab("player");
+  document.title = "Hockey Attendance · Log in";
+  syncInstall();
+}
+function showApp() {
+  $("login").hidden = true;
+  $("app").hidden = false;
+  document.title = "Hockey Attendance";
 }
 function loginTab(m) {
   const pm = m !== "admin";
@@ -289,34 +257,130 @@ function loginTab(m) {
   $("t1").classList.toggle("on", pm);
   $("t2").classList.toggle("on", !pm);
 }
-$("auth").onclick = () => (loggedIn() ? logout() : openLogin("player"));
 $("t1").onclick = () => loginTab("player");
 $("t2").onclick = () => loginTab("admin");
-document
-  .querySelectorAll(".cx")
-  .forEach((b) => (b.onclick = () => $("dlg").close()));
+$("em").onchange = () => {
+  $("anw").hidden = $("em").value !== "admin";
+};
+function saveToken(t) {
+  token = t;
+  try {
+    localStorage.setItem("hk_token", t);
+  } catch (x) {}
+}
+function logout() {
+  token = "";
+  try {
+    localStorage.removeItem("hk_token");
+  } catch (e) {}
+  loaded = false;
+  lastJs = "";
+  admin = false;
+  pl = false;
+  owner = false;
+  me = "";
+  tab = "me";
+  P = [];
+  RM = [];
+  SS = {};
+  L = {};
+  PL = {};
+  showLogin();
+}
+function boot() {
+  if (!token) return showLogin();
+  showApp();
+  render();
+  load(true);
+}
+
+async function load(force) {
+  if (!token) return;
+  try {
+    const d = await api("/api/data");
+    const key = JSON.stringify(d);
+    if (!force && key === lastJs && loaded && !err) return;
+    lastJs = key;
+    role = d.role;
+    admin = ["captain", "vice", "admin"].includes(role);
+    pl = role === "player";
+    me = d.me || "";
+    owner = role === "captain" || role === "vice";
+    WHO =
+      d.name ||
+      (role === "captain"
+        ? "Captain"
+        : role === "vice"
+          ? "Vice-captain"
+          : "Admin");
+    const by = (a, b) =>
+        (a.n || 999) - (b.n || 999) ||
+        String(a.name).localeCompare(String(b.name)),
+      all = d.players || [];
+    P = all.filter((p) => !p.removed).sort(by);
+    RM = all
+      .filter((p) => p.removed)
+      .sort((a, b) => (b.removedAt || 0) - (a.removedAt || 0));
+    SS = d.sessions;
+    L = d.legacy;
+    PL = d.plans;
+    RL = d.rules || [];
+    WL = d.warmup || [];
+    ADM = d.admins || [];
+    ACC = d.accounts || [];
+    TPL = d.template || "";
+    SCH = d.schedule && d.schedule.team ? d.schedule : JSON.parse(SCH0);
+    loaded = true;
+    err = "";
+    showApp();
+    render();
+    checkAlerts();
+  } catch (e) {
+    if (e.status === 401) {
+      token = "";
+      try {
+        localStorage.removeItem("hk_token");
+      } catch (x) {}
+      loaded = false;
+      lastJs = "";
+      showLogin();
+      return;
+    }
+    err = e.status
+      ? "The server replied: " + e.message
+      : "Cannot reach the server. Check your connection and try again.";
+    showApp();
+    render();
+  }
+}
+
+// ---- staff login ----
 $("lf").onsubmit = async (e) => {
   e.preventDefault();
+  $("er").textContent = "";
   try {
     const r = await api("/api/login", {
       method: "POST",
-      body: { role: $("em").value, code: $("pw").value.trim() },
+      body: {
+        role: $("em").value,
+        name: $("an").value.trim(),
+        code: $("pw").value.trim(),
+      },
     });
     saveToken(r.token);
-    $("dlg").close();
-    $("pw").value = "";
-    await load(true);
+    tab = "me";
+    boot();
   } catch (x) {
     $("er").textContent =
       x.status === 429
         ? "Too many tries. Wait a minute."
         : x.status === 401
-          ? "Wrong code."
+          ? "Wrong name or code."
           : "Cannot reach the server.";
   }
 };
 
-// ---- player sign up / login ----
+// ---- player login / first-time signup ----
 let pStep = "roll";
 const pErr = (x) => {
   $("pe").textContent =
@@ -326,12 +390,12 @@ const pErr = (x) => {
         ? x.message
         : "Cannot reach the server.";
 };
-function pForm(hasAcc, name) {
+function pForm(hasAcc) {
   pStep = hasAcc ? "login" : "signup";
   $("pgo").hidden = true;
   $("pa").innerHTML = hasAcc
-    ? `<p><b>${esc(name)}</b></p><p><input id="pc" type="password" placeholder="Your code" autocomplete="current-password" required></p><div class="ctl"><button class="pri" id="plg">Log in</button></div><p class="mute">Forgot your code? Ask the captain to press <b>Reset code</b> for you, then sign up again.</p>`
-    : `<p><b>${esc(name)}</b></p><p class="mute">First time. Type the contact number you gave the captain, then choose your own unique code. You will use that code to log in next time.</p><p><input id="po" inputmode="tel" placeholder="Your contact number" autocomplete="tel" maxlength="15" required></p><p><input id="pc" type="password" placeholder="Set your unique code (4+ characters)" maxlength="30" autocomplete="new-password" required></p><div class="ctl"><button class="pri" id="plg">Sign up</button></div>`;
+    ? `<label class="fl">Your code<input id="pc" type="password" placeholder="Your unique code" autocomplete="current-password" required></label><button class="pri big" id="plg">Log in</button><p class="hint">Forgot your code? Ask the captain to press <b>Reset code</b> for you, then sign up again.</p>`
+    : `<p class="note">First time here. Confirm the contact number you gave the captain, then choose your own unique code. You will use it to log in next time.</p><label class="fl">Contact number<input id="po" inputmode="tel" placeholder="Your contact number" autocomplete="tel" maxlength="15" required></label><label class="fl">Choose your unique code<input id="pc" type="password" placeholder="4 or more characters" maxlength="30" autocomplete="new-password" required></label><button class="pri big" id="plg">Create account &amp; log in</button>`;
   $("pe").textContent = "";
   ($("po") || $("pc")).focus();
 }
@@ -345,7 +409,7 @@ $("pf").onsubmit = async (e) => {
         method: "POST",
         body: { roll },
       });
-      pForm(r.hasAccount, r.name);
+      pForm(r.hasAccount);
       return;
     }
     const r =
@@ -359,13 +423,8 @@ $("pf").onsubmit = async (e) => {
             body: { roll, contact: $("po").value.trim(), code: $("pc").value },
           });
     saveToken(r.token);
-    me = r.id;
-    try {
-      localStorage.setItem("hk_me", me);
-    } catch (x) {}
-    $("dlg").close();
     tab = "me";
-    await load(true);
+    boot();
   } catch (x) {
     pErr(x);
   }
@@ -378,7 +437,99 @@ $("pr").oninput = () => {
   }
 };
 
-// ---- 3-dot menu ----
+// ---- install as an app ----
+let deferred = null;
+const standalone = () =>
+  matchMedia("(display-mode: standalone)").matches ||
+  navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+function syncInstall() {
+  $("inst").hidden = standalone();
+}
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferred = e;
+  syncInstall();
+});
+window.addEventListener("appinstalled", () => {
+  deferred = null;
+  syncInstall();
+  $("menu").hidden = true;
+});
+async function installApp() {
+  if (deferred) {
+    deferred.prompt();
+    try {
+      await deferred.userChoice;
+    } catch (e) {}
+    deferred = null;
+    syncInstall();
+    return;
+  }
+  alert(
+    isIOS
+      ? 'To install on iPhone/iPad: open this page in Safari, tap the Share button, then "Add to Home Screen".'
+      : 'To install: open your browser menu (⋮ or the install icon in the address bar) and choose "Install app" or "Add to Home screen".',
+  );
+}
+$("inst").onclick = installApp;
+
+// ---- the 3-dot menu: every tab, tools and settings, each option once ----
+let menuActs = [];
+function drawMenu() {
+  menuActs = [];
+  const m = $("menu");
+  const mi = (ic, label, fn, o = {}) => {
+    menuActs.push(fn);
+    return `<button class="mi ${o.on ? "on" : ""} ${o.cls || ""}" data-k="${menuActs.length - 1}"${o.sw !== undefined ? ' role="switch" aria-checked="' + o.sw + '"' : ""}><span class="i">${ic}</span><span class="t">${label}</span>${o.sw !== undefined ? `<span class="sw ${o.sw ? "on" : ""}"></span>` : ""}</button>`;
+  };
+  const roleName =
+    role === "captain"
+      ? "Captain"
+      : role === "vice"
+        ? "Vice-captain"
+        : role === "admin"
+          ? "Admin"
+          : "Player";
+  let h = `<div class="mu"><span class="av">${esc((WHO || "?")[0].toUpperCase())}</span><span><b>${esc(WHO)}</b>${WHO === roleName ? "" : `<span class="mute">${roleName}</span>`}</span></div><div class="ms">Go to</div>`;
+  h += tabsFor()
+    .map((t) => mi(t[1], t[2], () => go(t[0]), { on: t[0] === tab }))
+    .join("");
+  if (admin)
+    h +=
+      `<div class="ms">Admin tools</div>` +
+      mi("➕", "Add students", openAdd) +
+      mi("✉️", "Edit WhatsApp message template", openTpl);
+  h +=
+    `<div class="ms">App</div>` +
+    mi(
+      alertOn ? "🔔" : "🔕",
+      "Alerts 15 min before practice",
+      async () => {
+        await setAlert(!alertOn);
+        drawMenu();
+      },
+      { sw: alertOn },
+    ) +
+    mi("📅", "Add schedule to calendar", icsDownload);
+  if (!standalone()) h += mi("⬇️", "Install app", installApp);
+  if (GROUP)
+    h += mi("💬", "Hockey WhatsApp group", () =>
+      window.open(GROUP, "_blank", "noopener"),
+    );
+  h += `<div class="ms"></div>` + mi("🚪", "Log out", logout, { cls: "out" });
+  m.innerHTML = h;
+  m.querySelectorAll(".mi").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const k = +b.dataset.k,
+          keep = b.hasAttribute("role");
+        if (!keep) m.hidden = true;
+        $("mb").setAttribute("aria-expanded", String(keep));
+        menuActs[k]();
+      }),
+  );
+}
 $("mb").onclick = (e) => {
   e.stopPropagation();
   const m = $("menu");
@@ -386,51 +537,19 @@ $("mb").onclick = (e) => {
     m.hidden = true;
     return;
   }
-  const it = [];
-  if (admin)
-    it.push(
-      ["Add students", openAdd],
-      [
-        "Players list",
-        () => {
-          tab = "players";
-          render();
-        },
-      ],
-      ["Edit WhatsApp message template", openTpl],
-    );
-  else if (!pl) it.push(["Player log in / sign up", () => openLogin("player")]);
-  it.push(
-    [
-      alertOn
-        ? "🔔 Alerts: ON (tap to turn off)"
-        : "🔕 Alerts: OFF (tap to turn on)",
-      () => setAlert(!alertOn),
-    ],
-    ["📅 Add schedule to calendar (15 min reminder)", icsDownload],
-  );
-  if (GROUP)
-    it.push([
-      "💬 Hockey WhatsApp group",
-      () => window.open(GROUP, "_blank", "noopener"),
-    ]);
-  if (admin) it.push(["Log out", logout]);
-  else if (pl) it.push(["Log out", logout]);
-  else it.push(["Captain / admin login", () => openLogin("admin")]);
-  m.innerHTML = it
-    .map((x, i) => `<button data-i="${i}">${x[0]}</button>`)
-    .join("");
-  m.querySelectorAll("button").forEach(
-    (b) =>
-      (b.onclick = () => {
-        m.hidden = true;
-        it[+b.dataset.i][1]();
-      }),
-  );
+  drawMenu();
   m.hidden = false;
+  $("mb").setAttribute("aria-expanded", "true");
 };
 document.addEventListener("click", (e) => {
-  if (!e.target.closest("#menu")) $("menu").hidden = true;
+  if (
+    !e.composedPath().includes($("menu")) &&
+    !e.composedPath().includes($("mb"))
+  )
+    $("menu").hidden = true;
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") $("menu").hidden = true;
 });
 
 // ---- add students (captain / admin) ----
@@ -447,7 +566,7 @@ const bulk = async (path, body, btn) => {
     $("sm").textContent =
       `Added ${r.added} new, updated ${r.updated} existing` +
       (r.skipped.length
-        ? `, skipped ${r.skipped.length} (missing name or roll no): ${r.skipped.join(", ")}`
+        ? `, skipped ${r.skipped.length}: ${r.skipped.join(", ")}`
         : "") +
       ".";
     await load(true);
@@ -472,7 +591,7 @@ $("sf").onsubmit = async (e) => {
           { name: $("sn").value, roll: $("sr").value, contact: $("sc").value },
         ],
       },
-      e.submitter || $("sf").querySelector("button"),
+      $("sf").querySelector("button"),
     )
   ) {
     $("sn").value = $("sr").value = $("sc").value = "";
@@ -727,39 +846,37 @@ function icsDownload() {
 }
 
 function render() {
-  const t = [
-    ["me", "My progress"],
-    ["plan", "Playing days"],
-    ["stats", "Attendance"],
-    ["schedule", "Schedule"],
-    ["rules", "Rules"],
-    ["warmup", "Warm-up"],
-  ];
-  if (admin) t.unshift(["take", "Take attendance"]);
-  if (admin) t.push(["players", "Players"]);
-  if (!t.some((x) => x[0] === tab)) tab = t[0][0];
-  $("nav").innerHTML = t
+  if (!token) return;
+  const tl = tabsFor();
+  if (!tl.some((x) => x[0] === tab)) tab = "me";
+  $("nav").innerHTML = tl
+    .filter((t) => PRIMARY.includes(t[0]))
     .map(
       (x) =>
-        `<button class="${x[0] === tab ? "on" : ""}" data-t="${x[0]}">${x[1]}</button>`,
+        `<button class="${x[0] === tab ? "on" : ""}" data-t="${x[0]}" ${x[0] === tab ? 'aria-current="page"' : ""}><span class="i">${x[1]}</span><span class="l">${x[4] || x[2]}</span></button>`,
     )
     .join("");
   $("nav")
     .querySelectorAll("button")
-    .forEach(
-      (b) =>
-        (b.onclick = () => {
-          tab = b.dataset.t;
-          render();
-        }),
-    );
-  $("auth").textContent = loggedIn() ? "Log out" : "Log in";
+    .forEach((b) => (b.onclick = () => go(b.dataset.t)));
+  const rn =
+    role === "captain"
+      ? "Captain"
+      : role === "vice"
+        ? "Vice-captain"
+        : role === "admin"
+          ? "Admin"
+          : "Player";
+  $("who").textContent = loaded ? (WHO === rn ? rn : WHO + " · " + rn) : "";
+  if (!$("menu").hidden) drawMenu();
   if (err) {
-    $("view").innerHTML = `<div class="card">${esc(err)}</div>`;
+    $("view").innerHTML =
+      `<div class="card">${empty("📡", esc(err))}<div class="ctl" style="justify-content:center"><button class="pri" id="rt">Try again</button></div></div>`;
+    $("rt").onclick = () => load(true);
     return;
   }
   if (!loaded) {
-    $("view").innerHTML = '<p class="mute">Loading…</p>';
+    $("view").innerHTML = empty("🏑", "Loading…");
     return;
   }
   ({
@@ -771,6 +888,8 @@ function render() {
     rules: vRules,
     warmup: vWarm,
     players: vPlayers,
+    removed: vRemoved,
+    admins: vAdmins,
   })[tab]();
 }
 const dayIdx = (d) => (new Date(d + "T00:00").getDay() + 6) % 7;
@@ -799,7 +918,7 @@ function vTake() {
   <button class="a ${draft[p.id] === false ? "on" : ""}" data-id="${p.id}" data-v="0">Absent</button></span></div>`,
       )
       .join("") ||
-    '<p class="mute">No players yet. Add them in the Players tab.</p>'
+    '<p class="mute">No players yet. Add students from the ⋮ menu.</p>'
   }
   <div class="ctl" style="margin-top:12px"><button class="pri" id="sv">Save attendance</button>${SS[takeDate] ? '<button id="wat">Send on WhatsApp</button><button class="dng" id="del">Delete this day</button>' : ""}</div></div>`;
   $("td").onchange = (e) => {
@@ -900,11 +1019,7 @@ function vStats() {
   if (!dsel && dates().length) selDate = dates()[dates().length - 1];
   if (!admin && !P.some((p) => p.id === me)) {
     $("view").innerHTML =
-      '<div class="card"><h2>Attendance</h2><p class="mute">Select your roll number (or log in) in My progress to see your attendance.</p><button class="pri" id="gm2">Go to My progress</button></div>';
-    $("gm2").onclick = () => {
-      tab = "me";
-      render();
-    };
+      '<div class="card"><h2>Attendance</h2><p class="mute">Your record was not found. Ask the captain.</p></div>';
     return;
   }
   const vis = (x) => admin || x.p.id === me;
@@ -1007,9 +1122,8 @@ function vSched() {
     `<div class="card"><h2>Weekly practice schedule</h2><div class="ctl"><button class="${sch === "team" ? "pri" : ""}" data-s="team">Team</button><button class="${sch === "gk" ? "pri" : ""}" data-s="gk">Goalkeepers</button></div>
   ${SCH[sch].map((r, i) => `<div class="row ${i === ti ? "today" : ""}"><span><b>${r[0]}</b> · ${esc(r[1])}<br><span class="mute">${esc(r[2])}</span></span><span class="n">${r[3] || "–"}${admin ? `<br><button class="mini" data-e="${i}">Edit</button>` : ""}</span></div>`).join("")}
   <p class="mute">Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: Kiran Chaudhary.</p>
-  <div class="chips">${admin ? '<button id="wsch">Send schedule on WhatsApp</button><button id="wtpl">Edit message template</button>' : ""}${GROUP ? `<a href="${esc(GROUP)}" target="_blank" rel="noopener noreferrer">💬 Join the hockey WhatsApp group</a>` : ""}</div></div>`;
+  ${admin ? '<div class="chips"><button id="wsch">Send schedule on WhatsApp</button></div>' : ""}</div>`;
   if ($("wsch")) $("wsch").onclick = () => wa(weekMsg(sch));
-  if ($("wtpl")) $("wtpl").onclick = openTpl;
   document.querySelectorAll("[data-s]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -1442,69 +1556,103 @@ function vRules() {
 function vWarm() {
   vSections("warmup");
 }
-let me = "";
-try {
-  me = localStorage.getItem("hk_me") || "";
-} catch (e) {}
+const dlabel = (d) => {
+  const n = Math.round(
+    (new Date(d + "T00:00") - new Date(today() + "T00:00")) / 864e5,
+  );
+  return n === 0 ? "Today" : n === 1 ? "Tomorrow" : "In " + n + " days";
+};
+function nextCard() {
+  const d = Object.keys(PL)
+      .sort()
+      .find((x) => x >= today() && PL[x].status !== "cancelled"),
+    c = Object.keys(PL)
+      .sort()
+      .find(
+        (x) => x >= today() && PL[x].status === "cancelled" && (!d || x < d),
+      );
+  if (!d)
+    return `<div class="card"><h2>Next playing day</h2>${empty("🗓️", "No playing day is fixed yet.")}</div>`;
+  const p = PL[d],
+    r = SCH.team[dayIdx(d)];
+  return `<div class="card"><h2>Next playing day <span class="pill g">${dlabel(d)}</span></h2><p style="margin:0"><b style="font-size:1.15rem">${dlong(d)}</b></p>
+  <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p><p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}
+  ${c ? `<p class="mute" style="margin:8px 0 0">${fmt(c)} is cancelled.</p>` : ""}</div>`;
+}
 function vMe() {
-  if (!P.some((p) => p.id === me)) me = "";
-  let body =
-    '<p class="mute">Select your roll number to see your attendance.</p>';
-  if (me) {
-    const a = stats("all").find((x) => x.p.id === me);
-    const rows = months()
-      .map((m) => {
-        const s = stats(m).find((x) => x.p.id === me);
-        return s && s.t
-          ? `<tr><td>${mfmt(m)}</td><td class="n">${s.pr}/${s.t}</td><td><div class="bar"><i style="width:${s.pct}%"></i></div>${s.pct}%</td></tr>`
-          : "";
-      })
-      .join("");
-    const recent = dates()
-      .reverse()
-      .filter((d) => SS[d][me] !== undefined)
-      .slice(0, 10)
-      .map(
-        (d) =>
-          `<div class="row"><span>${fmt(d)}</span><span class="tag ${SS[d][me] ? "p" : "a"}">${SS[d][me] ? "Present" : "Absent"}</span></div>`,
-      )
-      .join("");
-    body = `<p style="margin:0 0 10px"><b>${esc(a.p.name)}</b><br><span class="mute">${esc(a.p.position)}</span></p><div class="stats"><div><b>${a.pct}%</b>Overall</div><div><b>${a.pr}</b>Days attended</div><div><b>${a.t}</b>Playing days</div></div>
-    <table><tr><th>Month</th><th class="n">Present</th><th>%</th></tr>${rows}</table>
-    <h2 style="margin-top:16px">Recent days</h2>${recent || '<p class="mute">No day-by-day records yet.</p>'}`;
+  admin ? homeAdmin() : homePlayer();
+}
+function homePlayer() {
+  const a = stats("all").find((x) => x.p.id === me);
+  if (!a) {
+    $("view").innerHTML =
+      `<div class="card">${empty("🏑", "Your record was not found. Ask the captain.")}</div>`;
+    return;
   }
-  const key = (p) => String(p.roll || p.name);
-  const picker = pl
-    ? `<p class="note">Logged in as <b>${esc((P.find((p) => p.id === me) || {}).name || me)}</b> (${esc(key(P.find((p) => p.id === me) || {}))}). You can log in from any device with your roll number and code.</p>`
-    : `<p style="margin:0 0 6px"><b>Select your roll number</b></p>
-  <select id="me" style="width:100%;margin-bottom:8px"><option value="">Choose roll number</option>${P.map((p) => `<option value="${p.id}" ${p.id === me ? "selected" : ""}>${esc(key(p))}</option>`).join("")}</select>
-  ${me ? '<button id="clr" style="width:100%;margin-bottom:8px">Clear selection</button>' : ""}
-  <p class="mute">Option 1, no login: your selection is saved on this device only.</p>
-  ${admin ? "" : '<p class="mute">Option 2: <a href="#" id="lg">log in or sign up</a> with your roll number and personal code to use any device.</p>'}`;
+  const rows = months()
+    .map((m) => {
+      const s = stats(m).find((x) => x.p.id === me);
+      return s && s.t
+        ? `<tr><td>${mfmt(m)}</td><td class="n">${s.pr}/${s.t}</td><td><div class="bar"><i style="width:${s.pct}%"></i></div>${s.pct}%</td></tr>`
+        : "";
+    })
+    .join("");
+  const recent = dates()
+    .reverse()
+    .filter((d) => SS[d][me] !== undefined)
+    .slice(0, 10)
+    .map(
+      (d) =>
+        `<div class="row"><span>${fmt(d)}</span><span class="tag ${SS[d][me] ? "p" : "a"}">${SS[d][me] ? "Present" : "Absent"}</span></div>`,
+    )
+    .join("");
   $("view").innerHTML =
-    `<div class="card"><h2>My progress</h2>${nextPlan()}${picker}${body}</div>`;
-  const keep = () => {
-    try {
-      localStorage.setItem("hk_me", me);
-    } catch (x) {}
-  };
-  if ($("me"))
-    $("me").onchange = (e) => {
-      me = e.target.value;
-      keep();
-      load(true);
-    };
-  if ($("clr"))
-    $("clr").onclick = () => {
-      me = "";
-      keep();
-      load(true);
-    };
-  if ($("lg"))
-    $("lg").onclick = (e) => {
-      e.preventDefault();
-      openLogin("player");
-    };
+    `<div class="card hero"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div><div class="hi"><h2>Hi, ${esc(a.p.name.split(" ")[0])} 👋</h2><span class="mute">${esc(a.p.position || "Hockey player")} · ${esc(a.p.roll)}</span></div>
+  <div class="stats" style="width:100%;margin:0"><div><b>${a.pr}</b>Days attended</div><div><b>${a.t}</b>Playing days</div><div><b>${a.t - a.pr}</b>Missed</div></div></div>
+  <div class="grid">${nextCard()}<div class="card"><h2>Recent days</h2>${recent || empty("📋", "No day-by-day records yet.")}</div>
+  <div class="card span2"><h2>Month by month</h2>${rows ? `<table><tr><th>Month</th><th class="n">Present</th><th>%</th></tr>${rows}</table>` : empty("📊", "No attendance recorded yet.")}</div></div>`;
+}
+function homeAdmin() {
+  const st = stats("all").filter((x) => x.t),
+    tp = st.reduce((a, x) => a + x.t, 0),
+    all = tp ? Math.round((st.reduce((a, x) => a + x.pr, 0) * 100) / tp) : 0;
+  const last = dates().pop(),
+    lv = last ? Object.values(SS[last]) : [],
+    lt = lv.length
+      ? Math.round((lv.filter(Boolean).length * 100) / lv.length)
+      : 0;
+  const pend = Object.keys(PL)
+    .sort()
+    .filter((d) => !SS[d] && PL[d].status !== "cancelled" && d <= today());
+  const lo = [...st]
+      .filter((x) => x.t >= 3 && x.pct < 75)
+      .sort((a, b) => a.pct - b.pct)
+      .slice(0, 5),
+    hi = [...st]
+      .filter((x) => x.t >= 3)
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 5);
+  const list = (a) =>
+    a.length
+      ? a
+          .map(
+            (x) =>
+              `<div class="row"><span>${esc(x.p.name)}</span><span class="tag ${x.pct >= 75 ? "p" : x.pct < 50 ? "a" : ""}">${x.pct}%</span></div>`,
+          )
+          .join("")
+      : empty("📊", "Not enough data yet.");
+  $("view").innerHTML =
+    `<div class="card hero"><div class="ring" style="--v:${lt}"><b>${lt}%</b></div><div class="hi"><h2>Welcome, ${esc(WHO.split(" ")[0])} 🏑</h2><span class="mute">${last ? "Last session " + fmt(last) + " turnout" : "No attendance taken yet"}</span></div>
+  <div class="stats" style="width:100%;margin:0"><div><b>${P.length}</b>Players</div><div><b>${rdays("all")}</b>Playing days</div><div><b>${all}%</b>Overall turnout</div><div><b>${pend.length}</b>Waiting for attendance</div></div></div>
+  <div class="grid">${nextCard()}<div class="card"><h2>Attendance waiting</h2>${pend.length ? `<p class="mute">Tap a day to take attendance.</p><div class="chips" style="margin:0">${pend.map((d) => `<button class="pri" data-pd="${d}">${fmt(d)}</button>`).join("")}</div>` : empty("✅", "All planned days are done.")}</div>
+  <div class="card"><h2>Best attendance</h2>${list(hi)}</div><div class="card"><h2>Needs a nudge</h2>${lo.length ? list(lo) : empty("🎉", "Everyone is above 75%.")}</div></div>`;
+  document.querySelectorAll("[data-pd]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        takeDate = b.dataset.pd;
+        go("take");
+      }),
+  );
 }
 function nextPlan() {
   const d = Object.keys(PL)
@@ -1579,40 +1727,52 @@ function vPlan() {
       }),
   );
 }
+const when = (t) =>
+  t
+    ? new Date(t).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "";
 function vPlayers() {
+  const imp = !P.length && !RM.length;
   $("view").innerHTML = `<div class="card"><h2>Players (${P.length})</h2>
-  ${admin ? `<div class="ctl"><input id="nm" placeholder="Name" maxlength="40"><input id="rl" placeholder="Roll no" maxlength="12" size="10"><input id="ct" placeholder="Contact no" maxlength="15" size="12" inputmode="tel"><input id="ps" placeholder="Position" maxlength="40"><button class="pri" id="add">Add player</button></div><div class="ctl"><button id="addm">Add many students / import jersey list</button></div>` : '<div class="note mute">Log in as captain or vice-captain to add or remove players.</div>'}
-  ${admin && !P.length ? '<div class="note">Team list is empty. <button id="imp">Import team and past attendance from the register</button></div>' : ""}
-  ${P.map((p) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${[esc(p.roll), esc(p.position), admin && p.contact ? '<a href="tel:' + esc(p.contact) + '">' + esc(p.contact) + "</a>" : "", admin ? (ACC.includes(p.id) ? '<span class="tag p">signed up</span>' : "not signed up") : ""].filter(Boolean).join(" · ")}</span></span>${admin ? `<span class="chips" style="margin:0">${ACC.includes(p.id) ? `<button data-rst="${p.id}">Reset code</button>` : ""}<button data-ed="${p.id}">Edit</button><button class="dng" data-id="${p.id}">Remove</button></span>` : ""}</div>`).join("") || '<p class="mute">No players yet.</p>'}</div>`;
-  if (!admin) return;
-  if (owner) {
-    $("view").insertAdjacentHTML(
-      "beforeend",
-      `<div class="card"><h2>Other admins</h2><p class="mute">Admins can take attendance and edit everything except this list. Only the captain and vice-captain manage it.</p>
-    <div class="ctl"><input id="an" placeholder="Name" maxlength="40"><input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30"><button class="pri" id="aadd">Add admin</button></div>
-    ${ADM.map((a) => `<div class="row"><span>${esc(a.name)}</span><button class="dng" data-adm="${esc(a.id)}">Remove</button></div>`).join("") || '<p class="mute">No extra admins yet.</p>'}</div>`,
-    );
-    $("aadd").onclick = () => {
-      const name = $("an").value.trim(),
-        code = $("ac").value;
-      if (!name || code.length < 4)
-        return alert("Enter a name and a code of at least 4 characters.");
+  ${imp ? '<div class="note">Team list is empty. <button id="imp">Import team and past attendance from the register</button></div>' : ""}
+  ${
+    P.map(
+      (
+        p,
+      ) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${[esc(p.roll), esc(p.position), p.contact ? '<a href="tel:' + esc(p.contact) + '">' + esc(p.contact) + "</a>" : "<i>no contact</i>"].filter(Boolean).join(" · ")}</span><br>${ACC.includes(p.id) ? '<span class="pill g">signed up</span>' : '<span class="pill">not signed up</span>'}</span>
+  <span class="chips" style="margin:0;justify-content:flex-end">${ACC.includes(p.id) ? `<button data-rst="${p.id}">Reset code</button>` : ""}<button data-ed="${p.id}">Edit</button><button class="dng" data-rm="${p.id}">Remove</button></span></div>`,
+    ).join("") || (imp ? "" : empty("👥", "No players yet."))
+  }
+  ${P.length ? "" : '<p class="mute" style="text-align:center">Add students from the ⋮ menu → Add students.</p>'}</div>`;
+  if ($("imp"))
+    $("imp").onclick = () =>
       run(async () => {
-        await api("/api/admins", { method: "POST", body: { name, code } });
+        await api("/api/import", { method: "POST" });
         await load();
       });
-    };
-    document.querySelectorAll("[data-adm]").forEach(
-      (b) =>
-        (b.onclick = () => {
-          if (confirm("Remove this admin? They will be logged out."))
-            run(async () => {
-              await api("/api/admins/" + b.dataset.adm, { method: "DELETE" });
-              await load();
+  document.querySelectorAll("[data-rst]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const p = P.find((x) => x.id === b.dataset.rst);
+        if (
+          confirm(
+            "Reset the login code for " +
+              p.name +
+              "? They will sign up again with roll number + contact number and choose a new code.",
+          )
+        )
+          run(async () => {
+            await api("/api/players/" + p.id + "/account", {
+              method: "DELETE",
             });
-        }),
-    );
-  }
+            await load();
+          });
+      }),
+  );
   document.querySelectorAll("[data-ed]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -1644,59 +1804,15 @@ function vPlayers() {
         });
       }),
   );
-  const add = () => {
-    const n = $("nm").value.trim();
-    if (!n) return;
-    if (P.some((p) => p.name.toLowerCase() === n.toLowerCase()))
-      return alert("That player is already added.");
-    run(async () => {
-      await api("/api/players", {
-        method: "POST",
-        body: {
-          n: P.length + 1,
-          name: n,
-          roll: $("rl").value.trim(),
-          position: $("ps").value.trim(),
-          contact: $("ct").value.trim(),
-          joined: today(),
-        },
-      });
-      await load();
-    });
-  };
-  $("addm").onclick = openAdd;
-  document.querySelectorAll("[data-rst]").forEach(
+  document.querySelectorAll("[data-rm]").forEach(
     (b) =>
       (b.onclick = () => {
-        const p = P.find((x) => x.id === b.dataset.rst);
-        if (
-          confirm(
-            "Reset the login code for " +
-              p.name +
-              "? They will sign up again with roll number + contact number and choose a new code.",
-          )
-        )
-          run(async () => {
-            await api("/api/players/" + p.id + "/account", {
-              method: "DELETE",
-            });
-            await load();
-          });
-      }),
-  );
-  $("add").onclick = add;
-  $("nm").onkeydown = (e) => {
-    if (e.key === "Enter") add();
-  };
-  document.querySelectorAll(".row .dng").forEach(
-    (b) =>
-      (b.onclick = () => {
-        const p = P.find((x) => x.id === b.dataset.id);
+        const p = P.find((x) => x.id === b.dataset.rm);
         if (
           confirm(
             "Remove " +
               p.name +
-              " from the team? Their records stay hidden in the database.",
+              " from the team? They are logged out and hidden, but their attendance history is kept. You can restore them from Removed students.",
           )
         )
           run(async () => {
@@ -1705,12 +1821,96 @@ function vPlayers() {
           });
       }),
   );
-  if ($("imp"))
-    $("imp").onclick = () =>
-      run(async () => {
-        await api("/api/import", { method: "POST" });
-        await load();
-      });
 }
-load();
-setInterval(load, 20000);
+function vRemoved() {
+  $("view").innerHTML =
+    `<div class="card"><h2>Removed students (${RM.length})</h2><p class="mute">Removed students cannot log in and are not counted in attendance. Their history is kept, so <b>Restore</b> brings everything back.</p>
+  ${
+    RM.map(
+      (
+        p,
+      ) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${[esc(p.roll), p.removedAt ? "removed " + when(p.removedAt) : ""].filter(Boolean).join(" · ")}</span></span>
+  <span class="chips" style="margin:0;justify-content:flex-end"><button class="pri" data-rs="${p.id}">Restore</button><button class="dng" data-pm="${p.id}">Delete forever</button></span></div>`,
+    ).join("") || empty("🗑️", "No removed students.")
+  }</div>`;
+  document.querySelectorAll("[data-rs]").forEach(
+    (b) =>
+      (b.onclick = () =>
+        run(async () => {
+          await api("/api/players/" + b.dataset.rs + "/restore", {
+            method: "POST",
+          });
+          await load();
+        })),
+  );
+  document.querySelectorAll("[data-pm]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const p = RM.find((x) => x.id === b.dataset.pm);
+        if (
+          confirm(
+            "Delete " +
+              p.name +
+              " forever? Their profile and login are erased. This cannot be undone.",
+          )
+        )
+          run(async () => {
+            await api("/api/players/" + p.id + "/permanent", {
+              method: "DELETE",
+            });
+            await load();
+          });
+      }),
+  );
+}
+function vAdmins() {
+  $("view").innerHTML =
+    `<div class="card"><h2>Admins</h2><p class="mute">Admins can take attendance and edit everything except this list. They log in under <b>Captain / Admin</b> → Admin with their name and code. Use the switch to turn an admin's access on or off without deleting them.</p>
+  <div class="ctl"><input id="an2" placeholder="Name" maxlength="40"><input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30" autocomplete="new-password"><button class="pri" id="aadd">Add admin</button></div>
+  ${ADM.map((a) => `<div class="row"><span class="sw-row"><button class="sw ${a.disabled ? "" : "on"}" role="switch" aria-checked="${!a.disabled}" aria-label="Access for ${esc(a.name)}" data-tg="${esc(a.id)}"></button><span>${esc(a.name)}<br><span class="pill ${a.disabled ? "r" : "g"}">${a.disabled ? "Access off" : "Access on"}</span></span></span><button class="dng" data-adm="${esc(a.id)}">Remove</button></div>`).join("") || empty("🛡️", "No extra admins yet.")}</div>`;
+  $("aadd").onclick = () => {
+    const name = $("an2").value.trim(),
+      code = $("ac").value;
+    if (!name || code.length < 4)
+      return alert("Enter a name and a code of at least 4 characters.");
+    run(async () => {
+      await api("/api/admins", { method: "POST", body: { name, code } });
+      await load();
+    });
+  };
+  document.querySelectorAll("[data-tg]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const a = ADM.find((x) => x.id === b.dataset.tg);
+        run(async () => {
+          await api("/api/admins/" + a.id, {
+            method: "PUT",
+            body: { disabled: !a.disabled },
+          });
+          await load(true);
+        });
+      }),
+  );
+  document.querySelectorAll("[data-adm]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const a = ADM.find((x) => x.id === b.dataset.adm);
+        if (
+          confirm(
+            'Remove admin "' + a.name + '"? They will be logged out at once.',
+          )
+        )
+          run(async () => {
+            await api("/api/admins/" + a.id, { method: "DELETE" });
+            await load(true);
+          });
+      }),
+  );
+}
+boot();
+setInterval(() => {
+  if (token && !document.hidden) load();
+}, 20000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) load();
+});

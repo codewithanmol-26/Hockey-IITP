@@ -2,28 +2,59 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hockey Attendance</title>
+<meta name="theme-color" content="#0b2a4a">
+<meta name="description" content="Inter IIT hockey team attendance, schedule and rules">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hockey">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header><h1>Inter IIT Hockey · Attendance</h1><span class="hb"><button id="auth">Log in</button><button id="mb" aria-label="Menu" aria-haspopup="true">⋮</button></span></header>
-<div id="menu" hidden></div>
-<nav id="nav"></nav>
-<main id="view"></main>
 
-<dialog id="dlg">
-<div class="tabs"><button type="button" id="t1" class="on">Player</button><button type="button" id="t2">Captain / Admin</button></div>
-<form id="pf"><p class="mute" id="ph">Enter your roll number. First time? You will confirm your contact number and choose your own code.</p>
-<p><input id="pr" placeholder="Roll number" autocapitalize="characters" autocomplete="off" required></p>
-<div id="pa"></div>
-<p id="pe" class="mute err"></p>
-<div class="ctl"><button class="pri" id="pgo">Continue</button><button type="button" class="cx">Cancel</button></div></form>
-<form id="lf" hidden><p><select id="em"><option value="captain">Captain: Rachit Singh Rathore</option><option value="vice">Vice-captain: Sachin Kumar</option></select></p>
-<p><input id="pw" type="password" inputmode="numeric" placeholder="Your code" autocomplete="off" required></p>
-<p id="er" class="mute err"></p>
-<div class="ctl"><button class="pri">Log in</button><button type="button" class="cx">Cancel</button></div></form>
-</dialog>
+<!-- 1. Login page: the first thing everyone sees. Nothing else loads until you are logged in. -->
+<section id="login" hidden>
+  <div class="lg-card">
+    <img class="lg-logo" src="icons/icon-192.png" alt="" width="84" height="84">
+    <h1>Inter IIT Hockey</h1>
+    <p class="lg-sub">Attendance · Schedule · Rules</p>
+    <div class="seg" role="tablist"><button type="button" id="t1" class="on">Player</button><button type="button" id="t2">Captain / Admin</button></div>
+
+    <form id="pf" autocomplete="off">
+      <label class="fl">Roll number<input id="pr" placeholder="e.g. 2501CE01" autocapitalize="characters" autocomplete="username" required></label>
+      <div id="pa"></div>
+      <p id="pe" class="err" role="alert"></p>
+      <button class="pri big" id="pgo">Continue</button>
+      <p class="hint">New here? Enter your roll number. The captain must have added you first.</p>
+    </form>
+
+    <form id="lf" hidden>
+      <label class="fl">Login as<select id="em"><option value="captain">Captain</option><option value="vice">Vice-captain</option><option value="admin">Admin</option></select></label>
+      <label class="fl" id="anw" hidden>Your name<input id="an" placeholder="Name given by the captain" autocomplete="username"></label>
+      <label class="fl">Code<input id="pw" type="password" placeholder="Your code" autocomplete="current-password" required></label>
+      <p id="er" class="err" role="alert"></p>
+      <button class="pri big">Log in</button>
+    </form>
+    <button type="button" id="inst" class="ghost" hidden>⬇ Install app</button>
+  </div>
+</section>
+
+<!-- 2. The app (home page and everything else), shown only after login -->
+<div id="app" hidden>
+  <header>
+    <div class="brand"><img src="icons/icon-192.png" alt="" width="34" height="34"><div><h1>Inter IIT Hockey</h1><span id="who" class="who"></span></div></div>
+    <button id="mb" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋮</button>
+  </header>
+  <nav id="nav" aria-label="Main"></nav>
+  <main id="view"></main>
+</div>
+
+<div id="menu" hidden></div>
 
 <dialog id="sdlg"><h2>Add students</h2>
 <form id="sf"><p><input id="sn" placeholder="Name" maxlength="40" required></p>
@@ -39,10 +70,12 @@
 <button id="sj">Import jersey form list</button>
 <p id="sm" class="mute" role="status"></p>
 <div class="ctl"><button type="button" id="sx">Close</button></div></dialog>
+
 <dialog id="tdlg"><h2>WhatsApp message template</h2>
 <p class="mute">Used when you press WhatsApp on a playing day. Fill-ins: <b>{day} {date} {time} {session} {note}</b>. A line whose fill-in is empty (for example no note) is left out. Use *text* for bold.</p>
 <p><textarea id="tt" rows="7"></textarea></p>
 <div class="ctl"><button class="pri" id="tsv">Save</button><button id="trs">Reset to default</button><button id="tcx">Cancel</button></div></dialog>
+
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>

@@ -1,0 +1,16 @@
+{
+  "name": "Inter IIT Hockey Attendance",
+  "short_name": "Hockey",
+  "description": "Attendance, schedule and rules for the Inter IIT hockey team",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b2a4a",
+  "theme_color": "#0b2a4a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

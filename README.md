@@ -29,21 +29,27 @@
 Test the backend alone: open `https://YOUR-SITE.vercel.app/api/health` - you should see {"ok":true}.
 If it shows "Backend not configured", a variable above is missing or the JSON was pasted wrongly.
 
-## Admins, editing and the database
-- Captain and vice-captain log in with the codes you set in Vercel. They can add more admins in **Players > Other admins** (name + code). Extra admins can take attendance and edit everything except that list. Removing an admin logs them out at once.
-- Admins see **Edit** buttons for players, the weekly schedule, and (after pressing "Enable editing") the Rules and Warm-up pages, where each item can have a photo and a YouTube link.
-- Press **Import team** once. It writes the 17 players and the monthly totals from your register to Firestore.
-  If you imported with an older version, delete the `players` and `legacy` collections in the Firebase console and import again, so documents are named by roll number.
+## How it works for everyone
+- **Login first.** Nothing is shown or sent without a login. The first screen is the login page, then the Home page.
+  Players: roll number + their own code. Captain / Vice-captain / Admin: **Captain / Admin** tab.
+- **Install as an app:** *Install app* on the login page or in the ⋮ menu (Chrome/Edge/Android). On iPhone: Safari > Share > Add to Home Screen. The icons are in `frontend/icons/`.
+- **⋮ menu** lists every tab plus tools: Add students, WhatsApp template (admins), Alerts on/off, calendar file, Install, Hockey WhatsApp group, Log out. Each option appears once.
+- **Admins** (Admins tab, captain/vice only): add with a name and code. Admins log in with *Admin* + their name + code. A switch turns an admin's access on or off at once, *Remove* deletes them.
+- **Removed students** (admin tab): *Remove* in Players only hides a student (they are logged out, attendance history is kept). *Restore* brings them back with the same login code. *Delete forever* erases them.
+- Captain and vice-captain codes are set in Vercel (CAPTAIN_CODE, VICE_CODE). Press **Import team** (Players tab) once after the first deploy.
 
 Firestore layout (you can open and edit these in the Firebase console):
 
-    players/<roll number>    name, roll, position, joined (YYYY-MM-DD), n (list order)
+    players/<roll number>    name, roll, position, joined (YYYY-MM-DD), n (list order), contact, removed
     sessions/<YYYY-MM-DD>    r: { <roll number>: true or false }
     legacy/<YYYY-MM>         days, att: { <roll number>: days attended }
     plans/<YYYY-MM-DD>       time, note, status
     rules/<id>, warmup/<id>  title, icon, order, items [ {h, b, img, yt} ]
     config/schedule          team and gk (7 rows each)
-    admins/<id>              name, salt, hash   (codes are never stored in plain text)
+    admins/<id>              name, disabled, salt, hash   (codes are never stored in plain text)
+    accounts/<roll>          salt, hash of the player's own code
+    signupTries/<roll>       wrong contact-number attempts (locks at 10)
+    config/template          WhatsApp message template
 
 ## Player sign up / login
 - **No login:** a player picks their roll number in *My progress*; it is remembered on that device only.
@@ -69,5 +75,5 @@ Firestore layout (you can open and edit these in the Firebase console):
     npm run dev        # open http://localhost:3000
 
 ## Privacy
-Visitors who are not logged in only receive the roll-number list and the data of the one roll number they pick.
+Without a login the server returns nothing. A logged-in player receives only their own record and attendance plus the shared info (playing days, schedule, rules, warm-up).
 The codes live only in the server's environment variables, not in the web page.
