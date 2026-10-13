@@ -3,6 +3,7 @@ const cors = require("cors");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
 const seed = require("./seed.json");
+const jersey = require("./jersey.json");
 
 const {
   CAPTAIN_CODE,
@@ -74,12 +75,19 @@ async function who(req) {
     !(await db.collection("admins").doc(p.id).get()).exists
   )
     return null; // removed admins lose access at once
+  if (
+    p.role === "player" &&
+    !(await db.collection("accounts").doc(p.id).get()).exists
+  )
+    return null;
   return p;
 }
+// auth = captain / vice-captain / admin only. A player token is valid for reading their own data but never passes this.
 const auth = async (req, res, next) => {
   try {
     const p = await who(req);
-    if (!p) return res.status(401).json({ error: "Login required" });
+    if (!p || p.role === "player")
+      return res.status(401).json({ error: "Login required" });
     req.user = p;
     next();
   } catch (e) {
@@ -126,6 +134,152 @@ app.post(
   }),
 );
 
+// ---- player accounts: roll number + personal code (first signup checked against the saved contact number) ----
+const normRoll = (v) =>
+  String(v || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, "")
+    .slice(0, 12);
+async function findPlayer(roll) {
+  const r = normRoll(roll);
+  if (!r) return null;
+  return (
+    (await readAll()).players.find(
+      (p) => p.id.toUpperCase() === r || normRoll(p.roll) === r,
+    ) || null
+  );
+}
+const hashCode = (code, salt) =>
+  crypto.scryptSync(String(code), salt, 32).toString("hex");
+const limited = (key, max, ms = 60000) => {
+  // small in-memory brute-force limiter
+  const now = Date.now();
+  let t = tries.get(key);
+  if (!t || t.reset < now) t = { n: 0, reset: now + ms };
+  tries.set(key, t);
+  return ++t.n > max;
+};
+const playerToken = (pl, now) =>
+  sign({ role: "player", id: pl.id, exp: now + 30 * 864e5 });
+
+// Roll number -> tells the page what to show (does not reveal anything private)
+app.post(
+  "/api/player/check",
+  h(async (req, res) => {
+    if (limited("chk" + req.ip, 20))
+      return res.status(429).json({ error: "Too many tries" });
+    const pl = await findPlayer((req.body || {}).roll);
+    if (!pl)
+      return res
+        .status(404)
+        .json({
+          error:
+            "This roll number is not on the team list. Ask the captain to add you.",
+        });
+    const acc = await db.collection("accounts").doc(pl.id).get();
+    res.json({ name: pl.name, hasAccount: acc.exists });
+  }),
+);
+
+// First-time signup: roll number + the contact number the captain saved for you, then choose your own code.
+// (No SMS/OTP provider needed.) 10 wrong contact numbers lock that roll number until the captain presses "Reset code".
+const last10 = (v) =>
+  String(v || "")
+    .replace(/\D/g, "")
+    .slice(-10);
+app.post(
+  "/api/player/signup",
+  h(async (req, res) => {
+    const { roll, contact, code } = req.body || {};
+    if (limited("su" + req.ip, 8))
+      return res.status(429).json({ error: "Too many tries" });
+    const pl = await findPlayer(roll);
+    if (!pl)
+      return res
+        .status(404)
+        .json({
+          error:
+            "This roll number is not on the team list. Ask the captain to add you.",
+        });
+    const c = String(code || "");
+    if (c.length < 4 || c.length > 30)
+      return res
+        .status(400)
+        .json({ error: "Your code must be 4 to 30 characters" });
+    if ((await db.collection("accounts").doc(pl.id).get()).exists)
+      return res
+        .status(409)
+        .json({
+          error:
+            "Already signed up. Log in with your code. Forgot it? Ask the captain to reset it.",
+        });
+    if (last10(pl.contact).length < 10)
+      return res
+        .status(400)
+        .json({
+          error:
+            "The captain has not saved your contact number yet. Ask them to add it.",
+        });
+    const tr = db.collection("signupTries").doc(pl.id),
+      t = await tr.get(),
+      n = t.exists ? t.data().n : 0;
+    if (n >= 10)
+      return res
+        .status(423)
+        .json({
+          error:
+            "Locked after too many wrong tries. Ask the captain to reset your signup.",
+        });
+    if (last10(contact) !== last10(pl.contact)) {
+      await tr.set({ n: n + 1 });
+      return res
+        .status(401)
+        .json({
+          error: "That is not the contact number saved for this roll number",
+        });
+    }
+    const salt = crypto.randomBytes(16).toString("hex");
+    await db
+      .collection("accounts")
+      .doc(pl.id)
+      .set({ salt, hash: hashCode(c, salt), created: Date.now() });
+    await tr.delete();
+    bust();
+    res.json({ token: playerToken(pl, Date.now()), id: pl.id });
+  }),
+);
+
+app.post(
+  "/api/player/login",
+  h(async (req, res) => {
+    const { roll, code } = req.body || {};
+    const pl = await findPlayer(roll);
+    if (limited("pl" + req.ip, 8) || (pl && limited("pr" + pl.id, 10)))
+      return res.status(429).json({ error: "Too many tries" });
+    const acc = pl && (await db.collection("accounts").doc(pl.id).get());
+    if (
+      !acc ||
+      !acc.exists ||
+      !eq(hashCode(String(code || ""), acc.data().salt), acc.data().hash)
+    )
+      return res.status(401).json({ error: "Wrong roll number or code" });
+    tries.delete("pr" + pl.id);
+    res.json({ token: playerToken(pl, Date.now()), id: pl.id });
+  }),
+);
+
+// Captain / admin: forgot code or locked out. Removes the account so the player can sign up again.
+app.delete(
+  "/api/players/:id/account",
+  auth,
+  h(async (req, res) => {
+    await db.collection("accounts").doc(req.params.id).delete();
+    await db.collection("signupTries").doc(req.params.id).delete();
+    done(res);
+  }),
+);
+
 // ---- reading data ----
 let cache = null,
   cacheAt = 0;
@@ -134,7 +288,7 @@ const bust = () => {
 };
 async function readAll() {
   if (cache && Date.now() - cacheAt < 10000) return cache;
-  const [pl, se, le, pn, rl, wl, ad, sc] = await Promise.all([
+  const [pl, se, le, pn, rl, wl, ad, ac, sc, tp] = await Promise.all([
     ...[
       "players",
       "sessions",
@@ -143,8 +297,10 @@ async function readAll() {
       "rules",
       "warmup",
       "admins",
+      "accounts",
     ].map((c) => db.collection(c).get()),
     db.collection("config").doc("schedule").get(),
+    db.collection("config").doc("template").get(),
   ]);
   const out = {
     players: pl.docs.map((d) => ({ id: d.id, ...d.data() })),
@@ -163,6 +319,8 @@ async function readAll() {
   out.rules = byOrder(rl);
   out.warmup = byOrder(wl);
   out.admins = ad.docs.map((d) => ({ id: d.id, name: d.data().name })); // names only, never codes
+  out.accounts = ac.docs.map((d) => d.id); // which players have signed up (ids only)
+  out.template = tp.exists ? tp.data().text : "";
   const sd = sc.exists ? sc.data() : null;
   const rows = (a) => a.map((o) => [o.d, o.t, o.x, o.m]);
   out.schedule =
@@ -177,17 +335,31 @@ async function readAll() {
 app.get(
   "/api/data",
   h(async (req, res) => {
-    let role = null;
+    let role = null,
+      me = String(req.query.me || ""),
+      mine = false;
     if (req.headers.authorization) {
       const p = await who(req);
       if (!p) return res.status(401).json({ error: "Login expired" });
-      role = p.role;
+      if (p.role === "player") {
+        me = p.id;
+        mine = true;
+      } else role = p.role;
     }
     const all = await readAll();
     if (role) return res.json({ role, ...all });
-    const me = String(req.query.me || "");
+    // Contact number, e-mail and jersey details are private: only admins, or the logged-in player for their own record.
+    const clean = (p) => {
+      const o = { ...p };
+      for (const k of PRIVATE) delete o[k];
+      return o;
+    };
     const players = all.players.map((p) =>
-      p.id === me ? p : { id: p.id, n: p.n, roll: p.roll || p.name },
+      p.id === me
+        ? mine
+          ? p
+          : clean(p)
+        : { id: p.id, n: p.n, roll: p.roll || p.name },
     );
     const sessions = {};
     for (const d in all.sessions)
@@ -203,7 +375,8 @@ app.get(
             : {},
       };
     res.json({
-      role: null,
+      role: mine ? "player" : null,
+      me: mine ? me : undefined,
       players,
       sessions,
       legacy,
@@ -217,6 +390,11 @@ app.get(
 );
 
 // ---- writing data (captain / vice-captain only) ----
+const phone = (v) =>
+  String(v || "")
+    .replace(/[^0-9+]/g, "")
+    .slice(0, 15);
+const PRIVATE = ["contact", "email", "size", "jerseyName", "jerseyNo"];
 const str = (v, max = 80) => String(v == null ? "" : v).slice(0, max);
 const dateOk = (req, res, next) =>
   /^\d{4}-\d{2}-\d{2}$/.test(req.params.date)
@@ -296,6 +474,7 @@ app.post(
       roll,
       position: str(b.position, 40).trim(),
       joined: str(b.joined, 10),
+      contact: phone(b.contact),
     });
     done(res);
   }),
@@ -314,9 +493,81 @@ app.put(
         name: str(b.name, 40).trim(),
         roll: str(b.roll, 12).trim(),
         position: str(b.position, 40).trim(),
+        contact: phone(b.contact),
         joined: /^\d{4}-\d{2}-\d{2}$/.test(b.joined || "") ? b.joined : "",
       });
     done(res);
+  }),
+);
+// Add many students at once (also used by the jersey-form import). Existing roll numbers are not duplicated;
+// their missing contact / jersey details are filled in instead.
+async function addStudents(list) {
+  const all = (await db.collection("players").get()).docs;
+  const have = new Map(all.map((d) => [d.id.toUpperCase(), d]));
+  let next = Math.max(0, ...all.map((d) => d.data().n || 0)) + 1,
+    added = 0,
+    updated = 0,
+    skipped = [];
+  const b = db.batch(),
+    now = new Date(),
+    joined =
+      now.getFullYear() +
+      "-" +
+      String(now.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(now.getDate()).padStart(2, "0");
+  for (const s of list.slice(0, 200)) {
+    const rid = normRoll(s.roll),
+      name = str(s.name, 40).trim();
+    if (!rid || !name) {
+      skipped.push(name || s.roll || "(blank)");
+      continue;
+    }
+    const extra = {}; // only non-empty private details
+    for (const k of PRIVATE) {
+      const v = k === "contact" ? phone(s[k]) : str(s[k], 40).trim();
+      if (v) extra[k] = v;
+    }
+    const old = have.get(rid);
+    if (old) {
+      if (Object.keys(extra).length) {
+        b.update(old.ref, extra);
+        updated++;
+      }
+      continue;
+    }
+    b.set(db.collection("players").doc(rid), {
+      n: next++,
+      name,
+      roll: rid,
+      position: str(s.position, 40).trim(),
+      joined,
+      ...extra,
+    });
+    have.set(rid, { ref: null });
+    added++;
+  }
+  if (added || updated) await b.commit();
+  return { added, updated, skipped };
+}
+app.post(
+  "/api/players/bulk",
+  auth,
+  h(async (req, res) => {
+    const r = await addStudents(
+      Array.isArray((req.body || {}).players) ? req.body.players : [],
+    );
+    bust();
+    res.json({ ok: true, ...r });
+  }),
+);
+app.post(
+  "/api/players/import-jersey",
+  auth,
+  h(async (req, res) => {
+    const r = await addStudents(jersey);
+    bust();
+    res.json({ ok: true, ...r });
   }),
 );
 app.delete(
@@ -324,6 +575,8 @@ app.delete(
   auth,
   h(async (req, res) => {
     await db.collection("players").doc(req.params.id).delete();
+    await db.collection("accounts").doc(req.params.id).delete();
+    await db.collection("signupTries").doc(req.params.id).delete();
     done(res);
   }),
 );
@@ -459,6 +712,19 @@ app.delete(
   owner,
   h(async (req, res) => {
     await db.collection("admins").doc(req.params.id).delete();
+    done(res);
+  }),
+);
+
+// WhatsApp message template for playing-day announcements (shared by all admins)
+app.put(
+  "/api/template",
+  auth,
+  h(async (req, res) => {
+    await db
+      .collection("config")
+      .doc("template")
+      .set({ text: str((req.body || {}).text, 1500) });
     done(res);
   }),
 );

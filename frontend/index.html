@@ -1,34 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Hockey Attendance</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hockey Attendance</title>
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-    <header>
-        <h1>Inter IIT Hockey · Attendance</h1><button id="auth">Captain login</button>
-    </header>
-    <nav id="nav"></nav>
-    <main id="view"></main>
-    <dialog id="dlg">
-        <form id="lf">
-            <h2>Captain / vice-captain login</h2>
-            <p><select id="em">
-                    <option value="captain">Captain: Rachit Singh Rathore</option>
-                    <option value="vice">Vice-captain: Sachin Kumar</option>
-                </select></p>
-            <p><input id="pw" type="password" inputmode="numeric" placeholder="Your code" autocomplete="off" required>
-            </p>
-            <p id="er" class="mute"></p>
-            <div class="ctl"><button class="pri">Log in</button><button type="button" id="cx">Cancel</button></div>
-        </form>
-    </dialog>
-    <script src="config.js"></script>
-    <script src="app.js"></script>
-</body>
+<header><h1>Inter IIT Hockey · Attendance</h1><span class="hb"><button id="auth">Log in</button><button id="mb" aria-label="Menu" aria-haspopup="true">⋮</button></span></header>
+<div id="menu" hidden></div>
+<nav id="nav"></nav>
+<main id="view"></main>
 
+<dialog id="dlg">
+<div class="tabs"><button type="button" id="t1" class="on">Player</button><button type="button" id="t2">Captain / Admin</button></div>
+<form id="pf"><p class="mute" id="ph">Enter your roll number. First time? You will confirm your contact number and choose your own code.</p>
+<p><input id="pr" placeholder="Roll number" autocapitalize="characters" autocomplete="off" required></p>
+<div id="pa"></div>
+<p id="pe" class="mute err"></p>
+<div class="ctl"><button class="pri" id="pgo">Continue</button><button type="button" class="cx">Cancel</button></div></form>
+<form id="lf" hidden><p><select id="em"><option value="captain">Captain: Rachit Singh Rathore</option><option value="vice">Vice-captain: Sachin Kumar</option></select></p>
+<p><input id="pw" type="password" inputmode="numeric" placeholder="Your code" autocomplete="off" required></p>
+<p id="er" class="mute err"></p>
+<div class="ctl"><button class="pri">Log in</button><button type="button" class="cx">Cancel</button></div></form>
+</dialog>
+
+<dialog id="sdlg"><h2>Add students</h2>
+<form id="sf"><p><input id="sn" placeholder="Name" maxlength="40" required></p>
+<p><input id="sr" placeholder="Roll number" maxlength="12" autocapitalize="characters" required></p>
+<p><input id="sc" placeholder="Contact number" inputmode="tel" maxlength="15"></p>
+<button class="pri">Add student</button></form>
+<hr>
+<p class="mute">Add many at once: one student per line as <b>Name, Roll no, Contact</b></p>
+<p><textarea id="sb" rows="4" placeholder="Aditya Raj, 2501ME22, 6299672979"></textarea></p>
+<button id="sba">Add all</button>
+<hr>
+<p class="mute">Load the jersey form list (name, roll no, contact, e-mail, size, jersey name and number).</p>
+<button id="sj">Import jersey form list</button>
+<p id="sm" class="mute" role="status"></p>
+<div class="ctl"><button type="button" id="sx">Close</button></div></dialog>
+<dialog id="tdlg"><h2>WhatsApp message template</h2>
+<p class="mute">Used when you press WhatsApp on a playing day. Fill-ins: <b>{day} {date} {time} {session} {note}</b>. A line whose fill-in is empty (for example no note) is left out. Use *text* for bold.</p>
+<p><textarea id="tt" rows="7"></textarea></p>
+<div class="ctl"><button class="pri" id="tsv">Save</button><button id="trs">Reset to default</button><button id="tcx">Cancel</button></div></dialog>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
 </html>

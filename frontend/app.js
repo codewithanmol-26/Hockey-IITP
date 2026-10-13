@@ -191,6 +191,9 @@ function stats(m) {
 let RL = [],
   WL = [],
   ADM = [],
+  ACC = [],
+  TPL = "",
+  pl = false,
   owner = false,
   openS = { rules: new Set([0]), warmup: new Set([0]) },
   lastJs = "";
@@ -203,7 +206,14 @@ async function load(force) {
     if (!force && key === lastJs && loaded && !err) return;
     lastJs = key;
     const was = admin;
-    admin = !!d.role;
+    admin = ["captain", "vice", "admin"].includes(d.role);
+    pl = d.role === "player";
+    if (pl && d.me) {
+      me = d.me;
+      try {
+        localStorage.setItem("hk_me", me);
+      } catch (x) {}
+    }
     if (admin && !was) tab = "take";
     if (!admin && (tab === "take" || tab === "players")) tab = "me";
     P = d.players.sort(
@@ -217,11 +227,14 @@ async function load(force) {
     RL = d.rules || [];
     WL = d.warmup || [];
     ADM = d.admins || [];
+    ACC = d.accounts || [];
+    TPL = d.template || "";
     owner = d.role === "captain" || d.role === "vice";
     SCH = d.schedule && d.schedule.team ? d.schedule : JSON.parse(SCH0);
     loaded = true;
     err = "";
     render();
+    checkAlerts();
   } catch (e) {
     if (e.status === 401) {
       token = "";
@@ -236,26 +249,52 @@ async function load(force) {
     render();
   }
 }
-$("auth").onclick = () => {
-  if (admin) {
-    token = "";
-    try {
-      localStorage.removeItem("hk_token");
-    } catch (x) {}
-    admin = false;
-    tab = "me";
-    load(true);
-    return;
-  }
+const loggedIn = () => admin || pl;
+function logout() {
+  token = "";
+  try {
+    localStorage.removeItem("hk_token");
+  } catch (e) {}
+  admin = false;
+  pl = false;
+  tab = "me";
+  load(true);
+}
+function saveToken(t) {
+  token = t;
+  try {
+    localStorage.setItem("hk_token", t);
+  } catch (x) {}
+}
+function openLogin(mode) {
   $("er").textContent = "";
+  $("pe").textContent = "";
+  $("pw").value = "";
+  $("pr").value = "";
+  $("pa").innerHTML = "";
+  $("pgo").hidden = false;
+  pStep = "roll";
   $("em").innerHTML =
     '<option value="captain">Captain: Rachit Singh Rathore</option><option value="vice">Vice-captain: Sachin Kumar</option>' +
     ADM.map(
       (a) => `<option value="a:${esc(a.id)}">Admin: ${esc(a.name)}</option>`,
     ).join("");
-  $("dlg").showModal();
-};
-$("cx").onclick = () => $("dlg").close();
+  loginTab(mode);
+  if (!$("dlg").open) $("dlg").showModal();
+}
+function loginTab(m) {
+  const pm = m !== "admin";
+  $("pf").hidden = !pm;
+  $("lf").hidden = pm;
+  $("t1").classList.toggle("on", pm);
+  $("t2").classList.toggle("on", !pm);
+}
+$("auth").onclick = () => (loggedIn() ? logout() : openLogin("player"));
+$("t1").onclick = () => loginTab("player");
+$("t2").onclick = () => loginTab("admin");
+document
+  .querySelectorAll(".cx")
+  .forEach((b) => (b.onclick = () => $("dlg").close()));
 $("lf").onsubmit = async (e) => {
   e.preventDefault();
   try {
@@ -263,10 +302,7 @@ $("lf").onsubmit = async (e) => {
       method: "POST",
       body: { role: $("em").value, code: $("pw").value.trim() },
     });
-    token = r.token;
-    try {
-      localStorage.setItem("hk_token", token);
-    } catch (x) {}
+    saveToken(r.token);
     $("dlg").close();
     $("pw").value = "";
     await load(true);
@@ -279,6 +315,416 @@ $("lf").onsubmit = async (e) => {
           : "Cannot reach the server.";
   }
 };
+
+// ---- player sign up / login ----
+let pStep = "roll";
+const pErr = (x) => {
+  $("pe").textContent =
+    x.status === 429
+      ? "Too many tries. Wait a minute."
+      : x.status
+        ? x.message
+        : "Cannot reach the server.";
+};
+function pForm(hasAcc, name) {
+  pStep = hasAcc ? "login" : "signup";
+  $("pgo").hidden = true;
+  $("pa").innerHTML = hasAcc
+    ? `<p><b>${esc(name)}</b></p><p><input id="pc" type="password" placeholder="Your code" autocomplete="current-password" required></p><div class="ctl"><button class="pri" id="plg">Log in</button></div><p class="mute">Forgot your code? Ask the captain to press <b>Reset code</b> for you, then sign up again.</p>`
+    : `<p><b>${esc(name)}</b></p><p class="mute">First time. Type the contact number you gave the captain, then choose your own unique code. You will use that code to log in next time.</p><p><input id="po" inputmode="tel" placeholder="Your contact number" autocomplete="tel" maxlength="15" required></p><p><input id="pc" type="password" placeholder="Set your unique code (4+ characters)" maxlength="30" autocomplete="new-password" required></p><div class="ctl"><button class="pri" id="plg">Sign up</button></div>`;
+  $("pe").textContent = "";
+  ($("po") || $("pc")).focus();
+}
+$("pf").onsubmit = async (e) => {
+  e.preventDefault();
+  $("pe").textContent = "";
+  const roll = $("pr").value.trim();
+  try {
+    if (pStep === "roll") {
+      const r = await api("/api/player/check", {
+        method: "POST",
+        body: { roll },
+      });
+      pForm(r.hasAccount, r.name);
+      return;
+    }
+    const r =
+      pStep === "login"
+        ? await api("/api/player/login", {
+            method: "POST",
+            body: { roll, code: $("pc").value },
+          })
+        : await api("/api/player/signup", {
+            method: "POST",
+            body: { roll, contact: $("po").value.trim(), code: $("pc").value },
+          });
+    saveToken(r.token);
+    me = r.id;
+    try {
+      localStorage.setItem("hk_me", me);
+    } catch (x) {}
+    $("dlg").close();
+    tab = "me";
+    await load(true);
+  } catch (x) {
+    pErr(x);
+  }
+};
+$("pr").oninput = () => {
+  if (pStep !== "roll") {
+    pStep = "roll";
+    $("pa").innerHTML = "";
+    $("pgo").hidden = false;
+  }
+};
+
+// ---- 3-dot menu ----
+$("mb").onclick = (e) => {
+  e.stopPropagation();
+  const m = $("menu");
+  if (!m.hidden) {
+    m.hidden = true;
+    return;
+  }
+  const it = [];
+  if (admin)
+    it.push(
+      ["Add students", openAdd],
+      [
+        "Players list",
+        () => {
+          tab = "players";
+          render();
+        },
+      ],
+      ["Edit WhatsApp message template", openTpl],
+    );
+  else if (!pl) it.push(["Player log in / sign up", () => openLogin("player")]);
+  it.push(
+    [
+      alertOn
+        ? "🔔 Alerts: ON (tap to turn off)"
+        : "🔕 Alerts: OFF (tap to turn on)",
+      () => setAlert(!alertOn),
+    ],
+    ["📅 Add schedule to calendar (15 min reminder)", icsDownload],
+  );
+  if (GROUP)
+    it.push([
+      "💬 Hockey WhatsApp group",
+      () => window.open(GROUP, "_blank", "noopener"),
+    ]);
+  if (admin) it.push(["Log out", logout]);
+  else if (pl) it.push(["Log out", logout]);
+  else it.push(["Captain / admin login", () => openLogin("admin")]);
+  m.innerHTML = it
+    .map((x, i) => `<button data-i="${i}">${x[0]}</button>`)
+    .join("");
+  m.querySelectorAll("button").forEach(
+    (b) =>
+      (b.onclick = () => {
+        m.hidden = true;
+        it[+b.dataset.i][1]();
+      }),
+  );
+  m.hidden = false;
+};
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#menu")) $("menu").hidden = true;
+});
+
+// ---- add students (captain / admin) ----
+function openAdd() {
+  $("sm").textContent = "";
+  $("sdlg").showModal();
+}
+$("sx").onclick = () => $("sdlg").close();
+const bulk = async (path, body, btn) => {
+  btn.disabled = true;
+  $("sm").textContent = "Working…";
+  try {
+    const r = await api(path, { method: "POST", body });
+    $("sm").textContent =
+      `Added ${r.added} new, updated ${r.updated} existing` +
+      (r.skipped.length
+        ? `, skipped ${r.skipped.length} (missing name or roll no): ${r.skipped.join(", ")}`
+        : "") +
+      ".";
+    await load(true);
+    return true;
+  } catch (x) {
+    $("sm").textContent =
+      x.status === 401
+        ? "Please log in again as captain or admin."
+        : "Could not save: " + x.message;
+    return false;
+  } finally {
+    btn.disabled = false;
+  }
+};
+$("sf").onsubmit = async (e) => {
+  e.preventDefault();
+  if (
+    await bulk(
+      "/api/players/bulk",
+      {
+        players: [
+          { name: $("sn").value, roll: $("sr").value, contact: $("sc").value },
+        ],
+      },
+      e.submitter || $("sf").querySelector("button"),
+    )
+  ) {
+    $("sn").value = $("sr").value = $("sc").value = "";
+    $("sn").focus();
+  }
+};
+$("sba").onclick = async () => {
+  const players = $("sb")
+    .value.split("\n")
+    .map((l) => l.split(/\t|,/).map((x) => x.trim()))
+    .filter((a) => a.some(Boolean))
+    .map((a) => ({ name: a[0], roll: a[1], contact: a[2] }));
+  if (!players.length) {
+    $("sm").textContent = "Type or paste at least one line.";
+    return;
+  }
+  if (await bulk("/api/players/bulk", { players }, $("sba")))
+    $("sb").value = "";
+};
+$("sj").onclick = () => bulk("/api/players/import-jersey", {}, $("sj"));
+
+// ---- WhatsApp sharing (opens WhatsApp with the text ready; the person picks the group and presses send) ----
+const GROUP = window.WA_GROUP || "";
+const wa = (t) => {
+  if (
+    !window.open(
+      "https://wa.me/?text=" + encodeURIComponent(t),
+      "_blank",
+      "noopener",
+    )
+  )
+    location.href = "https://wa.me/?text=" + encodeURIComponent(t);
+};
+const dlong = (d) =>
+  new Date(d + "T00:00").toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+const DEFTPL =
+  "🏑 *Inter IIT Hockey: Practice*\n📅 {day}, {date}\n⏰ {time}\n🎯 {session}\n📝 {note}\nReport on time!";
+function planMsg(d) {
+  const p = PL[d] || {},
+    r = SCH.team[dayIdx(d)],
+    v = {
+      date: fmt(d),
+      day: r[0],
+      time: p.time || r[3],
+      session: r[1],
+      note: p.note,
+    };
+  return (
+    (TPL || DEFTPL)
+      .split("\n")
+      .filter(
+        (l) =>
+          ![...l.matchAll(/\{(\w+)\}/g)].some((m) => m[1] in v && !v[m[1]]),
+      )
+      .join("\n")
+      .replace(/\{(\w+)\}/g, (m, k) => (k in v ? v[k] : m)) +
+    (p.status === "cancelled" ? "\n\n❌ *CANCELLED*" : "")
+  );
+}
+function attMsg(d) {
+  const r = SS[d] || {},
+    ps = P.filter((p) => r[p.id] !== undefined),
+    pr = ps.filter((p) => r[p.id]),
+    ab = ps.filter((p) => !r[p.id]),
+    ls = (a) =>
+      a.length ? a.map((p, i) => i + 1 + ". " + p.name).join("\n") : "-";
+  return `🏑 *Inter IIT Hockey: Attendance*\n📅 ${dlong(d)}\n\n✅ *Present (${pr.length})*\n${ls(pr)}\n\n❌ *Absent (${ab.length})*\n${ls(ab)}\n\nTurnout: ${ps.length ? Math.round((pr.length * 100) / ps.length) : 0}%`;
+}
+function weekMsg(k) {
+  return (
+    `🏑 *Inter IIT Hockey: Weekly schedule${k === "gk" ? " (Goalkeepers)" : ""}*\n\n` +
+    SCH[k]
+      .map((r) => (r[3] ? `*${r[0]}*: ${r[1]}, ${r[3]}` : `*${r[0]}*: ${r[1]}`))
+      .join("\n") +
+    "\n\nReport on time. Timings may shift based on turf availability and the coach's call."
+  );
+}
+function openTpl() {
+  $("tt").value = TPL || DEFTPL;
+  $("tdlg").showModal();
+}
+$("tcx").onclick = () => $("tdlg").close();
+$("trs").onclick = () => {
+  $("tt").value = DEFTPL;
+};
+$("tsv").onclick = () =>
+  run(async () => {
+    await api("/api/template", {
+      method: "PUT",
+      body: { text: $("tt").value.trim() === DEFTPL ? "" : $("tt").value },
+    });
+    $("tdlg").close();
+    await load(true);
+  });
+
+// ---- alerts: a notification 15 minutes before each fixed playing day (works while the app is open or in the background tab) ----
+let alertOn = false;
+try {
+  alertOn = localStorage.getItem("hk_alert") === "1";
+} catch (e) {}
+if ("serviceWorker" in navigator)
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+function span(t) {
+  // "6:30–8:30 PM" -> start/end in minutes after midnight
+  const k = [
+    ...String(t || "").matchAll(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/gi),
+  ];
+  if (!k.length || +k[0][1] > 23) return null;
+  const mer = (k[0][3] || (k[1] && k[1][3]) || "").toLowerCase();
+  const cv = (x) => {
+    let h = +x[1];
+    const e = (x[3] || mer).toLowerCase();
+    if (e === "pm" && h < 12) h += 12;
+    if (e === "am" && h === 12) h = 0;
+    return h * 60 + (+x[2] || 0);
+  };
+  const a = cv(k[0]);
+  let b = k[1] ? cv(k[1]) : a + 120;
+  if (b <= a) b = a + 120;
+  return { a, b };
+}
+async function notify(title, body, tag) {
+  try {
+    const r = await navigator.serviceWorker.getRegistration();
+    if (r) {
+      await r.showNotification(title, { body, tag });
+      return;
+    }
+  } catch (e) {}
+  try {
+    new Notification(title, { body, tag });
+  } catch (e) {}
+}
+async function setAlert(on) {
+  if (on) {
+    if (!("Notification" in window))
+      return alert(
+        'This browser cannot show alerts. On iPhone: Share > Add to Home Screen, then open the app from the home screen. You can also use "Add schedule to calendar".',
+      );
+    if ((await Notification.requestPermission()) !== "granted")
+      return alert(
+        "Alerts are blocked. Allow notifications for this site in your browser settings, then try again.",
+      );
+  }
+  alertOn = on;
+  try {
+    localStorage.setItem("hk_alert", on ? "1" : "0");
+  } catch (e) {}
+  alert(
+    on
+      ? 'Alerts are ON. You get a reminder 15 minutes before each fixed playing day. Keep the app open or in the background. For a reminder that always works, also use "Add schedule to calendar".'
+      : "Alerts are OFF.",
+  );
+  if (on) checkAlerts();
+}
+function checkAlerts() {
+  if (
+    !alertOn ||
+    !loaded ||
+    !("Notification" in window) ||
+    Notification.permission !== "granted"
+  )
+    return;
+  let fired = {};
+  try {
+    fired = JSON.parse(localStorage.getItem("hk_fired") || "{}");
+  } catch (e) {}
+  const now = Date.now();
+  for (const d of Object.keys(PL)) {
+    const p = PL[d];
+    if (p.status === "cancelled") continue;
+    const sp = span(p.time);
+    if (!sp) continue;
+    const left = new Date(d + "T00:00").getTime() + sp.a * 60000 - now,
+      key = d + "|" + p.time;
+    if (left > 0 && left <= 15 * 60000 && !fired[key]) {
+      fired[key] = 1;
+      notify(
+        "🏑 Hockey in " + Math.max(1, Math.round(left / 60000)) + " min",
+        (SCH.team[dayIdx(d)][1] || "Practice") +
+          (p.time ? " · " + p.time : "") +
+          (p.note ? " · " + p.note : ""),
+        "hk-" + d,
+      );
+    }
+  }
+  for (const k in fired) if (k.slice(0, 10) < today()) delete fired[k];
+  try {
+    localStorage.setItem("hk_fired", JSON.stringify(fired));
+  } catch (e) {}
+}
+setInterval(checkAlerts, 30000);
+document.addEventListener("visibilitychange", checkAlerts);
+
+// ---- calendar file: every fixed playing day with a built-in 15 minute reminder (works in the background on any phone) ----
+function icsDownload() {
+  const up = Object.keys(PL)
+    .sort()
+    .filter(
+      (d) => d >= today() && PL[d].status !== "cancelled" && span(PL[d].time),
+    );
+  if (!up.length)
+    return alert(
+      "No upcoming playing day with a time is fixed yet. Try again once the captain schedules one.",
+    );
+  const z = (n) => String(n).padStart(2, "0"),
+    ts = (d, m) =>
+      d.replace(/-/g, "") + "T" + z(Math.floor(m / 60) % 24) + z(m % 60) + "00",
+    stamp = new Date().toISOString().replace(/[-:]|\.\d+/g, ""),
+    cl = (t) =>
+      String(t || "")
+        .replace(/[\;,]/g, " ")
+        .replace(/\n/g, " ");
+  const ev = up.flatMap((d) => {
+    const sp = span(PL[d].time);
+    return [
+      "BEGIN:VEVENT",
+      "UID:hockey-" + d + "@attendance",
+      "DTSTAMP:" + stamp,
+      "DTSTART:" + ts(d, sp.a),
+      "DTEND:" + ts(d, sp.b),
+      "SUMMARY:Hockey: " + cl(SCH.team[dayIdx(d)][1]),
+      "DESCRIPTION:" + cl(PL[d].note || "Hockey practice"),
+      "BEGIN:VALARM",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:Hockey starts in 15 minutes",
+      "TRIGGER:-PT15M",
+      "END:VALARM",
+      "END:VEVENT",
+    ];
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(
+    new Blob(
+      [
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Hockey Attendance//EN\r\n" +
+          ev.join("\r\n") +
+          "\r\nEND:VCALENDAR\r\n",
+      ],
+      { type: "text/calendar" },
+    ),
+  );
+  a.download = "hockey-schedule.ics";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
 function render() {
   const t = [
@@ -307,7 +753,7 @@ function render() {
           render();
         }),
     );
-  $("auth").textContent = admin ? "Log out" : "Captain login";
+  $("auth").textContent = loggedIn() ? "Log out" : "Log in";
   if (err) {
     $("view").innerHTML = `<div class="card">${esc(err)}</div>`;
     return;
@@ -355,7 +801,7 @@ function vTake() {
       .join("") ||
     '<p class="mute">No players yet. Add them in the Players tab.</p>'
   }
-  <div class="ctl" style="margin-top:12px"><button class="pri" id="sv">Save attendance</button>${SS[takeDate] ? '<button class="dng" id="del">Delete this day</button>' : ""}</div></div>`;
+  <div class="ctl" style="margin-top:12px"><button class="pri" id="sv">Save attendance</button>${SS[takeDate] ? '<button id="wat">Send on WhatsApp</button><button class="dng" id="del">Delete this day</button>' : ""}</div></div>`;
   $("td").onchange = (e) => {
     if (e.target.value) {
       takeDate = e.target.value;
@@ -404,9 +850,15 @@ function vTake() {
       });
       draftDate = null;
       await load();
-      alert("Saved for " + fmt(takeDate));
+      if (
+        confirm(
+          "Saved for " + fmt(takeDate) + ". Send attendance on WhatsApp now?",
+        )
+      )
+        wa(attMsg(takeDate));
     });
   };
+  if ($("wat")) $("wat").onclick = () => wa(attMsg(takeDate));
   if ($("del"))
     $("del").onclick = () => {
       if (confirm("Delete attendance for " + fmt(takeDate) + "?"))
@@ -448,7 +900,7 @@ function vStats() {
   if (!dsel && dates().length) selDate = dates()[dates().length - 1];
   if (!admin && !P.some((p) => p.id === me)) {
     $("view").innerHTML =
-      '<div class="card"><h2>Attendance</h2><p class="mute">Select your roll number in My progress to see your attendance.</p><button class="pri" id="gm2">Go to My progress</button></div>';
+      '<div class="card"><h2>Attendance</h2><p class="mute">Select your roll number (or log in) in My progress to see your attendance.</p><button class="pri" id="gm2">Go to My progress</button></div>';
     $("gm2").onclick = () => {
       tab = "me";
       render();
@@ -554,7 +1006,10 @@ function vSched() {
   $("view").innerHTML =
     `<div class="card"><h2>Weekly practice schedule</h2><div class="ctl"><button class="${sch === "team" ? "pri" : ""}" data-s="team">Team</button><button class="${sch === "gk" ? "pri" : ""}" data-s="gk">Goalkeepers</button></div>
   ${SCH[sch].map((r, i) => `<div class="row ${i === ti ? "today" : ""}"><span><b>${r[0]}</b> · ${esc(r[1])}<br><span class="mute">${esc(r[2])}</span></span><span class="n">${r[3] || "–"}${admin ? `<br><button class="mini" data-e="${i}">Edit</button>` : ""}</span></div>`).join("")}
-  <p class="mute">Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: Kiran Chaudhary.</p></div>`;
+  <p class="mute">Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: Kiran Chaudhary.</p>
+  <div class="chips">${admin ? '<button id="wsch">Send schedule on WhatsApp</button><button id="wtpl">Edit message template</button>' : ""}${GROUP ? `<a href="${esc(GROUP)}" target="_blank" rel="noopener noreferrer">💬 Join the hockey WhatsApp group</a>` : ""}</div></div>`;
+  if ($("wsch")) $("wsch").onclick = () => wa(weekMsg(sch));
+  if ($("wtpl")) $("wtpl").onclick = openTpl;
   document.querySelectorAll("[data-s]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -1019,26 +1474,36 @@ function vMe() {
     <h2 style="margin-top:16px">Recent days</h2>${recent || '<p class="mute">No day-by-day records yet.</p>'}`;
   }
   const key = (p) => String(p.roll || p.name);
-  $("view").innerHTML =
-    `<div class="card"><h2>My progress</h2>${nextPlan()}<p style="margin:0 0 6px"><b>Select your roll number</b></p>
+  const picker = pl
+    ? `<p class="note">Logged in as <b>${esc((P.find((p) => p.id === me) || {}).name || me)}</b> (${esc(key(P.find((p) => p.id === me) || {}))}). You can log in from any device with your roll number and code.</p>`
+    : `<p style="margin:0 0 6px"><b>Select your roll number</b></p>
   <select id="me" style="width:100%;margin-bottom:8px"><option value="">Choose roll number</option>${P.map((p) => `<option value="${p.id}" ${p.id === me ? "selected" : ""}>${esc(key(p))}</option>`).join("")}</select>
   ${me ? '<button id="clr" style="width:100%;margin-bottom:8px">Clear selection</button>' : ""}
-  <p class="mute">Your selection is saved on this device so it is here next time you open this page.</p>${body}</div>`;
+  <p class="mute">Option 1, no login: your selection is saved on this device only.</p>
+  ${admin ? "" : '<p class="mute">Option 2: <a href="#" id="lg">log in or sign up</a> with your roll number and personal code to use any device.</p>'}`;
+  $("view").innerHTML =
+    `<div class="card"><h2>My progress</h2>${nextPlan()}${picker}${body}</div>`;
   const keep = () => {
     try {
       localStorage.setItem("hk_me", me);
     } catch (x) {}
   };
-  $("me").onchange = (e) => {
-    me = e.target.value;
-    keep();
-    load(true);
-  };
+  if ($("me"))
+    $("me").onchange = (e) => {
+      me = e.target.value;
+      keep();
+      load(true);
+    };
   if ($("clr"))
     $("clr").onclick = () => {
       me = "";
       keep();
       load(true);
+    };
+  if ($("lg"))
+    $("lg").onclick = (e) => {
+      e.preventDefault();
+      openLogin("player");
     };
 }
 function nextPlan() {
@@ -1060,7 +1525,7 @@ function vPlan() {
   const row = (d) => {
     const p = PL[d],
       c = p.status === "cancelled";
-    return `<div class="row"><span><b>${fmt(d)}</b> · ${SCH.team[dayIdx(d)][0]}${p.time ? " · " + esc(p.time) : ""}${c ? ' · <span class="tag a">Cancelled</span>' : ""}${SS[d] ? ' · <span class="tag p">Attendance recorded</span>' : ""}${p.note ? '<br><span class="mute">' + esc(p.note) + "</span>" : ""}</span>${admin ? `<span class="chips" style="margin:0"><button data-a="take" data-d="${d}">Attendance</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></span>` : ""}</div>`;
+    return `<div class="row"><span><b>${fmt(d)}</b> · ${SCH.team[dayIdx(d)][0]}${p.time ? " · " + esc(p.time) : ""}${c ? ' · <span class="tag a">Cancelled</span>' : ""}${SS[d] ? ' · <span class="tag p">Attendance recorded</span>' : ""}${p.note ? '<br><span class="mute">' + esc(p.note) + "</span>" : ""}</span>${admin ? `<span class="chips" style="margin:0"><button data-a="take" data-d="${d}">Attendance</button><button data-a="wa" data-d="${d}">WhatsApp</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></span>` : ""}</div>`;
   };
   $("view").innerHTML =
     `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${td}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(td)][3])}"></div><div class="ctl"><input id="pn" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pa">Add</button></div></div>` : ""}
@@ -1094,7 +1559,8 @@ function vPlan() {
           takeDate = d;
           tab = "take";
           render();
-        } else if (a === "cx")
+        } else if (a === "wa") wa(planMsg(d));
+        else if (a === "cx")
           run(async () => {
             await api("/api/plans/" + d, {
               method: "PUT",
@@ -1115,9 +1581,9 @@ function vPlan() {
 }
 function vPlayers() {
   $("view").innerHTML = `<div class="card"><h2>Players (${P.length})</h2>
-  ${admin ? `<div class="ctl"><input id="nm" placeholder="Name" maxlength="40"><input id="rl" placeholder="Roll no" maxlength="12" size="10"><input id="ps" placeholder="Position" maxlength="40"><button class="pri" id="add">Add player</button></div>` : '<div class="note mute">Log in as captain or vice-captain to add or remove players.</div>'}
+  ${admin ? `<div class="ctl"><input id="nm" placeholder="Name" maxlength="40"><input id="rl" placeholder="Roll no" maxlength="12" size="10"><input id="ct" placeholder="Contact no" maxlength="15" size="12" inputmode="tel"><input id="ps" placeholder="Position" maxlength="40"><button class="pri" id="add">Add player</button></div><div class="ctl"><button id="addm">Add many students / import jersey list</button></div>` : '<div class="note mute">Log in as captain or vice-captain to add or remove players.</div>'}
   ${admin && !P.length ? '<div class="note">Team list is empty. <button id="imp">Import team and past attendance from the register</button></div>' : ""}
-  ${P.map((p) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${esc(p.roll)} · ${esc(p.position)}</span></span>${admin ? `<span class="chips" style="margin:0"><button data-ed="${p.id}">Edit</button><button class="dng" data-id="${p.id}">Remove</button></span>` : ""}</div>`).join("") || '<p class="mute">No players yet.</p>'}</div>`;
+  ${P.map((p) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${[esc(p.roll), esc(p.position), admin && p.contact ? '<a href="tel:' + esc(p.contact) + '">' + esc(p.contact) + "</a>" : "", admin ? (ACC.includes(p.id) ? '<span class="tag p">signed up</span>' : "not signed up") : ""].filter(Boolean).join(" · ")}</span></span>${admin ? `<span class="chips" style="margin:0">${ACC.includes(p.id) ? `<button data-rst="${p.id}">Reset code</button>` : ""}<button data-ed="${p.id}">Edit</button><button class="dng" data-id="${p.id}">Remove</button></span>` : ""}</div>`).join("") || '<p class="mute">No players yet.</p>'}</div>`;
   if (!admin) return;
   if (owner) {
     $("view").insertAdjacentHTML(
@@ -1157,6 +1623,8 @@ function vPlayers() {
         if (roll === null) return;
         const pos = prompt("Position", p.position || "");
         if (pos === null) return;
+        const ct = prompt("Contact number", p.contact || "");
+        if (ct === null) return;
         const j = prompt("Joined date (YYYY-MM-DD)", p.joined || "");
         if (j === null) return;
         if (j.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(j.trim()))
@@ -1168,6 +1636,7 @@ function vPlayers() {
               name: name.trim(),
               roll: roll.trim(),
               position: pos.trim(),
+              contact: ct.trim(),
               joined: j.trim(),
             },
           });
@@ -1188,12 +1657,33 @@ function vPlayers() {
           name: n,
           roll: $("rl").value.trim(),
           position: $("ps").value.trim(),
+          contact: $("ct").value.trim(),
           joined: today(),
         },
       });
       await load();
     });
   };
+  $("addm").onclick = openAdd;
+  document.querySelectorAll("[data-rst]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const p = P.find((x) => x.id === b.dataset.rst);
+        if (
+          confirm(
+            "Reset the login code for " +
+              p.name +
+              "? They will sign up again with roll number + contact number and choose a new code.",
+          )
+        )
+          run(async () => {
+            await api("/api/players/" + p.id + "/account", {
+              method: "DELETE",
+            });
+            await load();
+          });
+      }),
+  );
   $("add").onclick = add;
   $("nm").onkeydown = (e) => {
     if (e.key === "Enter") add();
