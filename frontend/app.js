@@ -109,6 +109,7 @@ let P = [],
   SS = {},
   L = {},
   PL = {},
+  AVL = {},
   admin = false,
   loaded = false,
   err = "",
@@ -119,7 +120,11 @@ let P = [],
   gMonth = "all",
   draft = {},
   draftDate = null,
-  sch = "team";
+  sch = "team",
+  prof = null,
+  STAFF = {},
+  ADMID = "",
+  MYPH = "";
 function today() {
   const d = new Date();
   return (
@@ -222,6 +227,7 @@ const tabsFor = () =>
   );
 const go = (t) => {
   tab = t;
+  prof = null;
   render();
   window.scrollTo(0, 0);
 };
@@ -280,11 +286,14 @@ function logout() {
   owner = false;
   me = "";
   tab = "me";
+  prof = null;
+  MYPH = "";
   P = [];
   RM = [];
   SS = {};
   L = {};
   PL = {};
+  AVL = {};
   showLogin();
 }
 function boot() {
@@ -324,12 +333,17 @@ async function load(force) {
     SS = d.sessions;
     L = d.legacy;
     PL = d.plans;
+    AVL = d.avail || {};
     RL = d.rules || [];
     WL = d.warmup || [];
     ADM = d.admins || [];
     ACC = d.accounts || [];
     TPL = d.template || "";
     SCH = d.schedule && d.schedule.team ? d.schedule : JSON.parse(SCH0);
+    GROUP = d.group || window.WA_GROUP || "";
+    STAFF = d.staff || {};
+    ADMID = d.adminId || "";
+    MYPH = pl ? (all[0] || {}).photo || "" : d.myPhoto || "";
     loaded = true;
     err = "";
     showApp();
@@ -369,6 +383,7 @@ $("lf").onsubmit = async (e) => {
     });
     saveToken(r.token);
     tab = "me";
+    blow("short");
     boot();
   } catch (x) {
     $("er").textContent =
@@ -424,6 +439,7 @@ $("pf").onsubmit = async (e) => {
           });
     saveToken(r.token);
     tab = "me";
+    blow("short");
     boot();
   } catch (x) {
     pErr(x);
@@ -491,17 +507,38 @@ function drawMenu() {
         : role === "admin"
           ? "Admin"
           : "Player";
-  let h = `<div class="mu"><span class="av">${esc((WHO || "?")[0].toUpperCase())}</span><span><b>${esc(WHO)}</b>${WHO === roleName ? "" : `<span class="mute">${roleName}</span>`}</span></div><div class="ms">Go to</div>`;
-  h += tabsFor()
-    .map((t) => mi(t[1], t[2], () => go(t[0]), { on: t[0] === tab }))
-    .join("");
+  let h = `<button class="mu" id="mup" aria-label="Open my profile">${avatar(WHO, MYPH, 40)}<span style="flex:1;text-align:left"><b>${esc(WHO)}</b><span class="mute">${roleName} · view my profile</span></span><span class="chev">›</span></button>`;
+  const more = tabsFor().filter((t) => !PRIMARY.includes(t[0])); // tabs already on the bottom bar / top bar are not repeated here
+  if (more.length)
+    h +=
+      `<div class="ms">More pages</div>` +
+      more
+        .map((t) => mi(t[1], t[2], () => go(t[0]), { on: t[0] === tab }))
+        .join("");
   if (admin)
     h +=
       `<div class="ms">Admin tools</div>` +
       mi("➕", "Add students", openAdd) +
-      mi("✉️", "Edit WhatsApp message template", openTpl);
+      mi("✉️", "Edit message template", openTpl) +
+      mi("🔗", "Edit WhatsApp group link", openGroup);
+  h +=
+    `<div class="ms">Share</div>` +
+    mi("📊", "Share attendance report", () => openReport()) +
+    mi("📲", "Share this app", shareApp);
   h +=
     `<div class="ms">App</div>` +
+    mi(
+      "🔊",
+      "Whistle sound",
+      () => {
+        try {
+          localStorage.setItem("hk_sound", soundOn() ? "0" : "1");
+        } catch (e) {}
+        if (soundOn()) playWhistle("short");
+        drawMenu();
+      },
+      { sw: soundOn() },
+    ) +
     mi(
       alertOn ? "🔔" : "🔕",
       "Alerts 15 min before practice",
@@ -514,11 +551,30 @@ function drawMenu() {
     mi("📅", "Add schedule to calendar", icsDownload);
   if (!standalone()) h += mi("⬇️", "Install app", installApp);
   if (GROUP)
-    h += mi("💬", "Hockey WhatsApp group", () =>
+    h += mi("💬", "Join WhatsApp group", () =>
       window.open(GROUP, "_blank", "noopener"),
     );
-  h += `<div class="ms"></div>` + mi("🚪", "Log out", logout, { cls: "out" });
+  h +=
+    `<div class="ms"></div>` +
+    mi(
+      "🚪",
+      "Log out",
+      () => {
+        if (
+          confirm(
+            "Log out of this device?\n\nYou will need your roll number and code to log in again.",
+          )
+        )
+          logout();
+      },
+      { cls: "out" },
+    );
   m.innerHTML = h;
+  if ($("mup"))
+    $("mup").onclick = () => {
+      m.hidden = true;
+      openMyProfile();
+    };
   m.querySelectorAll(".mi").forEach(
     (b) =>
       (b.onclick = () => {
@@ -614,17 +670,8 @@ $("sba").onclick = async () => {
 $("sj").onclick = () => bulk("/api/players/import-jersey", {}, $("sj"));
 
 // ---- WhatsApp sharing (opens WhatsApp with the text ready; the person picks the group and presses send) ----
-const GROUP = window.WA_GROUP || "";
-const wa = (t) => {
-  if (
-    !window.open(
-      "https://wa.me/?text=" + encodeURIComponent(t),
-      "_blank",
-      "noopener",
-    )
-  )
-    location.href = "https://wa.me/?text=" + encodeURIComponent(t);
-};
+let GROUP = window.WA_GROUP || "";
+const wa = (t) => shareText(t); // opens the phone's share sheet (any app); on a computer it shows WhatsApp, Telegram, e-mail, SMS and copy
 const dlong = (d) =>
   new Date(d + "T00:00").toLocaleDateString("en-IN", {
     weekday: "short",
@@ -633,7 +680,7 @@ const dlong = (d) =>
     year: "numeric",
   });
 const DEFTPL =
-  "🏑 *Inter IIT Hockey: Practice*\n📅 {day}, {date}\n⏰ {time}\n🎯 {session}\n📝 {note}\nReport on time!";
+  "🏑 *Inter IIT Hockey: Practice*\n📅 {day}, {date}\n⏰ {time}\n📍 {venue}\n🎯 {session}\n📝 {note}\nReport on time!";
 function planMsg(d) {
   const p = PL[d] || {},
     r = SCH.team[dayIdx(d)],
@@ -643,9 +690,12 @@ function planMsg(d) {
       time: p.time || r[3],
       session: r[1],
       note: p.note,
+      venue: p.venue,
     };
+  const tp = TPL || DEFTPL,
+    extra = p.venue && !tp.includes("{venue}") ? "\n📍 " + p.venue : "";
   return (
-    (TPL || DEFTPL)
+    tp
       .split("\n")
       .filter(
         (l) =>
@@ -653,6 +703,7 @@ function planMsg(d) {
       )
       .join("\n")
       .replace(/\{(\w+)\}/g, (m, k) => (k in v ? v[k] : m)) +
+    extra +
     (p.status === "cancelled" ? "\n\n❌ *CANCELLED*" : "")
   );
 }
@@ -778,6 +829,7 @@ function checkAlerts() {
         "🏑 Hockey in " + Math.max(1, Math.round(left / 60000)) + " min",
         (SCH.team[dayIdx(d)][1] || "Practice") +
           (p.time ? " · " + p.time : "") +
+          (p.venue ? " · 📍 " + p.venue : "") +
           (p.note ? " · " + p.note : ""),
         "hk-" + d,
       );
@@ -820,6 +872,7 @@ function icsDownload() {
       "DTEND:" + ts(d, sp.b),
       "SUMMARY:Hockey: " + cl(SCH.team[dayIdx(d)][1]),
       "DESCRIPTION:" + cl(PL[d].note || "Hockey practice"),
+      ...(PL[d].venue ? ["LOCATION:" + cl(PL[d].venue)] : []),
       "BEGIN:VALARM",
       "ACTION:DISPLAY",
       "DESCRIPTION:Hockey starts in 15 minutes",
@@ -868,6 +921,7 @@ function render() {
           ? "Admin"
           : "Player";
   $("who").textContent = loaded ? (WHO === rn ? rn : WHO + " · " + rn) : "";
+  $("hp").innerHTML = loaded ? avatar(WHO, MYPH, 34) : "";
   if (!$("menu").hidden) drawMenu();
   if (err) {
     $("view").innerHTML =
@@ -877,6 +931,10 @@ function render() {
   }
   if (!loaded) {
     $("view").innerHTML = empty("🏑", "Loading…");
+    return;
+  }
+  if (prof) {
+    vProfile();
     return;
   }
   ({
@@ -920,7 +978,7 @@ function vTake() {
       .join("") ||
     '<p class="mute">No players yet. Add students from the ⋮ menu.</p>'
   }
-  <div class="ctl" style="margin-top:12px"><button class="pri" id="sv">Save attendance</button>${SS[takeDate] ? '<button id="wat">Send on WhatsApp</button><button class="dng" id="del">Delete this day</button>' : ""}</div></div>`;
+  <div class="ctl" style="margin-top:12px"><button class="pri" id="sv">Save attendance</button>${SS[takeDate] ? '<button id="wat">⤴ Share</button><button class="dng" id="del">Delete this day</button>' : ""}</div></div>`;
   $("td").onchange = (e) => {
     if (e.target.value) {
       takeDate = e.target.value;
@@ -968,12 +1026,9 @@ function vTake() {
         body: { r: { ...ex, ...r } },
       });
       draftDate = null;
+      blow("double");
       await load();
-      if (
-        confirm(
-          "Saved for " + fmt(takeDate) + ". Send attendance on WhatsApp now?",
-        )
-      )
+      if (confirm("Saved for " + fmt(takeDate) + ". Share the attendance now?"))
         wa(attMsg(takeDate));
     });
   };
@@ -998,15 +1053,28 @@ function mSel(id, cur, all) {
     .join("")}</select>`;
 }
 
-function lineSvg(pts) {
-  const W = 640,
-    H = 200,
-    px = (i) =>
-      40 + (pts.length > 1 ? (i * (W - 60)) / (pts.length - 1) : (W - 60) / 2),
-    py = (v) => 10 + (H - 40) * (1 - v / 100);
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:420px">${[0, 50, 100].map((g) => `<line x1="40" x2="${W - 20}" y1="${py(g)}" y2="${py(g)}" stroke="var(--line)"/><text x="34" y="${py(g) + 4}" text-anchor="end">${g}%</text>`).join("")}
-  <polyline fill="none" stroke="var(--p)" stroke-width="2.5" points="${pts.map((p, i) => px(i) + "," + py(p.pct)).join(" ")}"/>
-  ${pts.map((p, i) => `<circle cx="${px(i)}" cy="${py(p.pct)}" r="4" fill="var(--p)"><title>${p.tip}</title></circle>${pts.length <= 12 || i % Math.ceil(pts.length / 10) === 0 ? `<text x="${px(i)}" y="${H - 8}" text-anchor="middle">${p.l}</text>` : ""}`).join("")}</svg>`;
+function matrix(ds) {
+  const ps = P.filter((p) => ds.some((d) => SS[d][p.id] !== undefined)),
+    ms = [...new Set(ds.map((d) => d.slice(0, 7)))];
+  return `<details class="card"><summary><b>Day-wise table</b> <span class="mute">${ps.length} players × ${ds.length} days</span></summary><div class="mxw"><table class="mx"><tr><th class="sc"></th>${ms.map((m) => `<th colspan="${ds.filter((d) => d.startsWith(m)).length}" class="mh">${mfmt(m).replace(/ (\d\d)(\d\d)$/, " ’$2")}</th>`).join("")}<th></th></tr>
+  <tr><th class="sc">Player</th>${ds.map((d) => `<th title="${fmt(d)}">${+d.slice(8)}</th>`).join("")}<th>Total</th></tr>
+  ${ps
+    .map((p) => {
+      let pr = 0,
+        t = 0;
+      const c = ds
+        .map((d) => {
+          const v = SS[d][p.id];
+          if (v !== undefined) {
+            t++;
+            if (v) pr++;
+          }
+          return `<td class="${v === true ? "y" : v === false ? "x" : "o"}" title="${esc(p.name)} · ${fmt(d)}">${v === true ? "✔" : v === false ? "✘" : ""}</td>`;
+        })
+        .join("");
+      return `<tr><td class="sc"><button class="lnk" data-pf="${p.id}">${esc(p.name.split(" ")[0])}</button></td>${c}<td class="tt">${pr}/${t}</td></tr>`;
+    })
+    .join("")}</table></div></details>`;
 }
 
 let dsel = false;
@@ -1051,7 +1119,9 @@ function vStats() {
       : "My attendance per playing day";
     pts = (admin ? live : live.filter((d) => SS[d][me] !== undefined)).map(
       (d) => {
-        const v = admin ? Object.values(SS[d]) : [SS[d][me]],
+        const v = admin
+            ? P.filter((p) => SS[d][p.id] !== undefined).map((p) => SS[d][p.id])
+            : [SS[d][me]],
           pr = v.filter(Boolean).length,
           pct = v.length ? (pr * 100) / v.length : 0;
         return {
@@ -1087,9 +1157,11 @@ function vStats() {
   $("view").innerHTML =
     `<div class="card"><h2>Attendance</h2><div class="ctl">${mSel("gm", gMonth, true)}</div>
   <div class="stats"><div><b>${n}</b>Playing days</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
-  <table><tr><th>Player</th><th class="n">Present</th><th class="n">Days</th><th>%</th></tr>${st.map((x) => `<tr><td>${esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
+  <table><tr><th>Player</th><th class="n">Present</th><th class="n">Days</th><th>%</th></tr>${st.map((x) => `<tr><td>${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
   ${L[m] ? '<p class="mute">Includes the imported register totals. Players who joined mid-month show a lower %.</p>' : ""}
-  <h2 style="margin-top:18px">${ttl}</h2><div style="overflow-x:auto">${pts.length ? lineSvg(pts) : '<p class="mute">No day-by-day records for this month. Monthly totals only.</p>'}</div></div>
+  <h2 style="margin-top:18px">${ttl}</h2>${pts.length ? '<div id="ch1" class="chart"></div>' : '<p class="mute">No day-by-day records for this month. Monthly totals only.</p>'}
+  <div class="chips"><button id="shr">⤴ Share report</button></div></div>
+  ${admin && live.length ? matrix(live) : ""}
   <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selDate}"></div>${day}
   <div class="chips">${live
     .filter((d) => admin || SS[d][me] !== undefined)
@@ -1100,6 +1172,14 @@ function vStats() {
     gMonth = e.target.value;
     vStats();
   };
+  if (pts.length) chartInto("ch1", pts, { title: ttl });
+  $("shr").onclick = () =>
+    openReport(
+      admin
+        ? { sc: m === "all" ? "team" : "month", v: m }
+        : { sc: "person", v: me },
+    );
+  bindProfLinks();
   $("sd").onchange = (e) => {
     if (e.target.value) {
       selDate = e.target.value;
@@ -1116,14 +1196,53 @@ function vStats() {
       }),
   );
 }
+let openDay = null;
+const DAB = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+function nextDateOf(i) {
+  const t = new Date(today() + "T00:00");
+  while (
+    dayIdx(
+      t.getFullYear() +
+        "-" +
+        String(t.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(t.getDate()).padStart(2, "0"),
+    ) !== i
+  )
+    t.setDate(t.getDate() + 1);
+  return (
+    t.getFullYear() +
+    "-" +
+    String(t.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(t.getDate()).padStart(2, "0")
+  );
+}
 function vSched() {
   const ti = dayIdx(today());
-  $("view").innerHTML =
-    `<div class="card"><h2>Weekly practice schedule</h2><div class="ctl"><button class="${sch === "team" ? "pri" : ""}" data-s="team">Team</button><button class="${sch === "gk" ? "pri" : ""}" data-s="gk">Goalkeepers</button></div>
-  ${SCH[sch].map((r, i) => `<div class="row ${i === ti ? "today" : ""}"><span><b>${r[0]}</b> · ${esc(r[1])}<br><span class="mute">${esc(r[2])}</span></span><span class="n">${r[3] || "–"}${admin ? `<br><button class="mini" data-e="${i}">Edit</button>` : ""}</span></div>`).join("")}
+  if (!openDay) openDay = new Set([ti]);
+  const rows = SCH[sch];
+  $("view").innerHTML = `<div class="card"><h2>Weekly practice schedule</h2>
+  <div class="seg2"><button class="${sch === "team" ? "on" : ""}" data-s="team">Team</button><button class="${sch === "gk" ? "on" : ""}" data-s="gk">Goalkeepers</button></div>
+  <div class="week">${rows.map((r, i) => `<button class="wd ${i === ti ? "today" : ""} ${r[3] ? "" : "rest"}" data-w="${i}" aria-label="${r[0]}"><b>${DAB[i]}</b><span>${r[3] ? "🏑" : "😴"}</span></button>`).join("")}</div>
+  <p class="mute" style="margin:0 0 8px">Tap a day to see the details${admin ? " and edit it" : ""}.</p>
+  ${rows
+    .map(
+      (
+        r,
+        i,
+      ) => `<details class="day ${r[3] ? "" : "rest"} ${i === ti ? "today" : ""}" id="dy${i}" data-di="${i}" ${openDay.has(i) ? "open" : ""}>
+    <summary><span class="dbadge">${DAB[i]}</span><span class="dm"><b>${esc(r[1])}</b><small>${r[3] ? "⏰ " + esc(r[3]) : "Rest day"}</small></span>${i === ti ? '<span class="pill g">Today</span>' : ""}<span class="chev">›</span></summary>
+    <div class="db"><p>${esc(r[2])}</p>
+      <div class="kv"><span>Day</span><b>${r[0]}</b></div><div class="kv"><span>Timing</span><b>${r[3] ? esc(r[3]) : "No session"}</b></div><div class="kv"><span>Next date</span><b>${fmt(nextDateOf(i))}</b></div>
+      ${admin ? `<div class="edit"><label class="fl">Session name<input id="de-t${i}" value="${esc(r[1])}" maxlength="60"></label><label class="fl">Details<input id="de-x${i}" value="${esc(r[2])}" maxlength="200"></label><label class="fl">Timing, e.g. 6:30–8:30 PM (empty = rest day)<input id="de-m${i}" value="${esc(r[3])}" maxlength="30"></label></div>` : ""}
+      <div class="chips"><button data-sh="${i}">⤴ Share this day</button>${admin ? `<button class="pri" data-sv="${i}">Save changes</button>${r[3] ? `<button data-nx="${i}">Schedule next ${r[0]}</button>` : ""}` : ""}</div></div></details>`,
+    )
+    .join("")}
   <p class="mute">Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: Kiran Chaudhary.</p>
-  ${admin ? '<div class="chips"><button id="wsch">Send schedule on WhatsApp</button></div>' : ""}</div>`;
-  if ($("wsch")) $("wsch").onclick = () => wa(weekMsg(sch));
+  <div class="chips"><button id="wsch">⤴ Share whole week</button><button id="wcal">📅 Add to calendar</button></div></div>`;
+  $("wsch").onclick = () => shareText(weekMsg(sch), "Weekly schedule");
+  $("wcal").onclick = icsDownload;
   document.querySelectorAll("[data-s]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -1131,30 +1250,67 @@ function vSched() {
         vSched();
       }),
   );
-  document.querySelectorAll("[data-e]").forEach(
+  document.querySelectorAll("details.day").forEach(
+    (d) =>
+      (d.ontoggle = () => {
+        const i = +d.dataset.di;
+        d.open ? openDay.add(i) : openDay.delete(i);
+      }),
+  );
+  document.querySelectorAll("[data-w]").forEach(
     (b) =>
       (b.onclick = () => {
-        const i = +b.dataset.e,
-          r = SCH[sch][i];
-        const t = prompt(r[0] + ": session name", r[1]);
-        if (t === null) return;
-        const x = prompt("Details", r[2]);
-        if (x === null) return;
-        const m = prompt(
-          "Timing, for example 6:30–8:30 PM (leave empty for a rest day)",
-          r[3],
+        const e = $("dy" + b.dataset.w);
+        e.open = true;
+        e.scrollIntoView({ behavior: "smooth", block: "center" });
+      }),
+  );
+  document.querySelectorAll("[data-sh]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const r = rows[+b.dataset.sh];
+        shareText(
+          `🏑 *Inter IIT Hockey: ${r[0]}*\n${r[1]}\n${r[2]}\n⏰ ${r[3] || "Rest day"}`,
+          "Practice",
         );
-        if (m === null) return;
-        SCH[sch][i] = [r[0], t.trim(), x.trim(), m.trim()];
+      }),
+  );
+  document.querySelectorAll("[data-sv]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const i = +b.dataset.sv,
+          r = rows[i];
+        SCH[sch][i] = [
+          r[0],
+          $("de-t" + i).value.trim(),
+          $("de-x" + i).value.trim(),
+          $("de-m" + i).value.trim(),
+        ];
         run(async () => {
           await api("/api/schedule", {
             method: "PUT",
             body: { team: SCH.team, gk: SCH.gk },
           });
-          await load();
+          await load(true);
         });
       }),
   );
+  document.querySelectorAll("[data-nx]").forEach((b) => {
+    const i = +b.dataset.nx;
+    b.onclick = () => {
+      const d = nextDateOf(i);
+      if (PL[d] && !confirm(fmt(d) + " is already scheduled. Replace it?"))
+        return;
+      run(async () => {
+        await api("/api/plans/" + d, {
+          method: "PUT",
+          body: { time: SCH.team[i][3], note: "", status: "planned" },
+        });
+        await load(true);
+        alert(fmt(d) + " is now a playing day.");
+      });
+    };
+  });
 }
 
 const RULES = [
@@ -1439,7 +1595,7 @@ function vSections(col) {
     ed = admin && list.length > 0,
     open = openS[col];
   $("view").innerHTML =
-    `${rules ? '<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>' : ""}
+    `${rules ? `<div class="card whc"><div class="whl">${whistleSvg(60)}<div><h2 style="margin:0">Umpire whistle</h2><span class="mute">Tap to hear it. Typical use: a short blast stops play for a foul or decision, a long blast starts or ends a period.</span></div></div><div class="chips"><button data-wh="short">Short blast</button><button data-wh="double">Two blasts</button><button data-wh="long">Long blast</button><button data-wh="final">Final whistle</button></div></div>` : ""}${rules ? '<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>' : ""}
   ${admin && !list.length ? `<div class="note">Admin tools: <button class="pri" id="rl-on">Enable editing${rules ? " and signal photos" : ", photos and video links"}</button></div>` : ""}
   ${ed ? '<div class="ctl"><button id="rl-add">+ Add section</button></div>' : ""}` +
     secs
@@ -1448,10 +1604,13 @@ function vSections(col) {
           r,
           si,
         ) => `<details class="card" data-si="${si}" ${open.has(si) ? "open" : ""}><summary>${esc(r.icon)} ${esc(r.title)}</summary>
-  <ul class="ico">${r.items.map((it, ii) => `<li>${it.img ? `<img class="sig" src="${it.img}" alt="">` : `<span class="ic">${rules ? ic(it.h, r.icon) : esc(r.icon)}</span>`}<span><b>${esc(it.h)}</b>${it.b ? ": " + esc(it.b) : ""}${it.yt ? ` <a href="${esc(it.yt)}" target="_blank" rel="noopener noreferrer">▶ Watch video</a>` : ""}${ed ? `<span class="chips" style="margin:4px 0 0"><button class="mini" data-a="e" data-s="${si}" data-i="${ii}">Edit</button><button class="mini" data-a="p" data-s="${si}" data-i="${ii}">${it.img ? "Change photo" : "Add photo"}</button>${it.img ? `<button class="mini" data-a="x" data-s="${si}" data-i="${ii}">Remove photo</button>` : ""}<button class="mini dng" data-a="d" data-s="${si}" data-i="${ii}">Delete</button></span>` : ""}</span></li>`).join("")}</ul>
+  <ul class="ico">${r.items.map((it, ii) => `<li>${it.img ? `<img class="sig" src="${it.img}" alt="">` : (rules && SIGSEC.test(r.title) && sigSvg(it.h)) || `<span class="ic">${rules ? ic(it.h, r.icon) : esc(r.icon)}</span>`}<span><b>${esc(it.h)}</b>${it.b ? ": " + esc(it.b) : ""}${it.yt ? ` <a href="${esc(it.yt)}" target="_blank" rel="noopener noreferrer">▶ Watch video</a>` : ""}${ed ? `<span class="chips" style="margin:4px 0 0"><button class="mini" data-a="e" data-s="${si}" data-i="${ii}">Edit</button><button class="mini" data-a="p" data-s="${si}" data-i="${ii}">${it.img ? "Change photo" : "Add photo"}</button>${it.img ? `<button class="mini" data-a="x" data-s="${si}" data-i="${ii}">Remove photo</button>` : ""}<button class="mini dng" data-a="d" data-s="${si}" data-i="${ii}">Delete</button></span>` : ""}</span></li>`).join("")}</ul>
   ${ed ? `<div class="chips"><button class="mini" data-a="+" data-s="${si}">+ Add item</button><button class="mini" data-a="r" data-s="${si}">Rename section</button><button class="mini dng" data-a="ds" data-s="${si}">Delete section</button></div>` : ""}</details>`,
       )
       .join("");
+  document
+    .querySelectorAll("[data-wh]")
+    .forEach((b) => (b.onclick = () => playWhistle(b.dataset.wh)));
   document.querySelectorAll("details[data-si]").forEach(
     (d) =>
       (d.ontoggle = () => {
@@ -1576,8 +1735,8 @@ function nextCard() {
   const p = PL[d],
     r = SCH.team[dayIdx(d)];
   return `<div class="card"><h2>Next playing day <span class="pill g">${dlabel(d)}</span></h2><p style="margin:0"><b style="font-size:1.15rem">${dlong(d)}</b></p>
-  <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p><p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}
-  ${c ? `<p class="mute" style="margin:8px 0 0">${fmt(c)} is cancelled.</p>` : ""}</div>`;
+  <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p>${p.venue ? `<p style="margin:2px 0 0">📍 ${esc(p.venue)}</p>` : ""}<p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}
+  ${availBlock(d)}${c ? `<p class="mute" style="margin:8px 0 0">${fmt(c)} is cancelled.</p>` : ""}</div>`;
 }
 function vMe() {
   admin ? homeAdmin() : homePlayer();
@@ -1617,7 +1776,9 @@ function homeAdmin() {
     tp = st.reduce((a, x) => a + x.t, 0),
     all = tp ? Math.round((st.reduce((a, x) => a + x.pr, 0) * 100) / tp) : 0;
   const last = dates().pop(),
-    lv = last ? Object.values(SS[last]) : [],
+    lv = last
+      ? P.filter((p) => SS[last][p.id] !== undefined).map((p) => SS[last][p.id])
+      : [],
     lt = lv.length
       ? Math.round((lv.filter(Boolean).length * 100) / lv.length)
       : 0;
@@ -1659,7 +1820,7 @@ function nextPlan() {
     .sort()
     .find((x) => x >= today() && PL[x].status !== "cancelled");
   return d
-    ? `<p class="note">Next playing day: <b>${fmt(d)}</b>${PL[d].time ? ", " + esc(PL[d].time) : ""}${PL[d].note ? " · " + esc(PL[d].note) : ""}</p>`
+    ? `<p class="note">Next playing day: <b>${fmt(d)}</b>${PL[d].time ? ", " + esc(PL[d].time) : ""}${PL[d].venue ? " · 📍 " + esc(PL[d].venue) : ""}${PL[d].note ? " · " + esc(PL[d].note) : ""}</p>`
     : "";
 }
 function vPlan() {
@@ -1673,10 +1834,10 @@ function vPlan() {
   const row = (d) => {
     const p = PL[d],
       c = p.status === "cancelled";
-    return `<div class="row"><span><b>${fmt(d)}</b> · ${SCH.team[dayIdx(d)][0]}${p.time ? " · " + esc(p.time) : ""}${c ? ' · <span class="tag a">Cancelled</span>' : ""}${SS[d] ? ' · <span class="tag p">Attendance recorded</span>' : ""}${p.note ? '<br><span class="mute">' + esc(p.note) + "</span>" : ""}</span>${admin ? `<span class="chips" style="margin:0"><button data-a="take" data-d="${d}">Attendance</button><button data-a="wa" data-d="${d}">WhatsApp</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></span>` : ""}</div>`;
+    return `<div class="row"><span><b>${fmt(d)}</b> · ${SCH.team[dayIdx(d)][0]}${p.time ? " · " + esc(p.time) : ""}${p.venue ? " · 📍 " + esc(p.venue) : ""}${c ? ' · <span class="tag a">Cancelled</span>' : ""}${SS[d] ? ' · <span class="tag p">Attendance recorded</span>' : ""}${p.note ? '<br><span class="mute">' + esc(p.note) + "</span>" : ""}${d >= td && !c ? "<br>" + availBlock(d, 1) : ""}</span>${admin ? `<span class="chips" style="margin:0"><button data-a="ed" data-d="${d}">✏️ Edit</button><button data-a="take" data-d="${d}">Attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></span>` : ""}</div>`;
   };
   $("view").innerHTML =
-    `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${td}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(td)][3])}"></div><div class="ctl"><input id="pn" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pa">Add</button></div></div>` : ""}
+    `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${td}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(td)][3])}"></div><div class="ctl"><input id="pv" placeholder="Venue" maxlength="80" value="${esc(lastVenue())}" style="flex:1"></div><div class="ctl"><input id="pn" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pa">Add</button></div></div>` : ""}
   <div class="card"><h2>Upcoming playing days</h2>${up.map(row).join("") || '<p class="mute">No playing days scheduled yet.</p>'}</div>
   ${past.length ? `<div class="card"><h2>Recent</h2>${past.map(row).join("")}</div>` : ""}`;
   if (!admin) return;
@@ -1691,10 +1852,14 @@ function vPlan() {
         method: "PUT",
         body: {
           time: $("pt").value.trim(),
+          venue: $("pv").value.trim(),
           note: $("pn").value.trim(),
           status: "planned",
         },
       });
+      try {
+        localStorage.setItem("hk_venue", $("pv").value.trim());
+      } catch (e) {}
       await load();
     });
   };
@@ -1707,7 +1872,9 @@ function vPlan() {
           takeDate = d;
           tab = "take";
           render();
-        } else if (a === "wa") wa(planMsg(d));
+        } else if (a === "ed") openPlanEdit(d);
+        else if (a === "av") openAvail(d);
+        else if (a === "wa") wa(planMsg(d));
         else if (a === "cx")
           run(async () => {
             await api("/api/plans/" + d, {
@@ -1735,139 +1902,120 @@ const when = (t) =>
         year: "numeric",
       })
     : "";
+// ---- profile photo + shared helpers ----
+const photoBtns = (own, path, ph) =>
+  `<div class="chips" style="justify-content:center"><button data-ph="c">📷 ${ph ? "Change photo" : "Add photo"}</button>${ph ? '<button data-ph="x">Remove photo</button>' : ""}</div>`;
+function bindPhoto(own, path) {
+  document.querySelectorAll("[data-ph]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const put = (ph) =>
+          run(async () => {
+            await api(own ? "/api/me/photo" : path, {
+              method: "PUT",
+              body: { photo: ph },
+            });
+            await load(true);
+          });
+        if (b.dataset.ph === "x") put("");
+        else pickPhoto(put);
+      }),
+  );
+}
+const openProf = (k, id) => {
+  prof = { k, id };
+  render();
+  window.scrollTo(0, 0);
+};
+function openMyProfile() {
+  if (role === "player") openProf("p", me);
+  else if (role === "admin") openProf("a", ADMID);
+  else openProf("s", role);
+}
+function bindProfLinks() {
+  document
+    .querySelectorAll("[data-pf]")
+    .forEach((e) => (e.onclick = () => openProf("p", e.dataset.pf)));
+}
+const kv = (a, b) =>
+  b ? `<div class="kv"><span>${a}</span><b>${b}</b></div>` : "";
+
 function vPlayers() {
-  const imp = !P.length && !RM.length;
+  const imp = !P.length && !RM.length,
+    S = Object.fromEntries(stats("all").map((x) => [x.p.id, x]));
   $("view").innerHTML = `<div class="card"><h2>Players (${P.length})</h2>
+  ${!imp ? `<div class="note">${["2025-11", "2026-01", "2026-02", "2026-03", "2026-04", "2026-07", "2026-09"].some((m) => L[m]) ? "Attendance for Nov 2025 to Sep 2026 is still monthly totals. " : "Attendance from the WhatsApp register (to 13 Oct 2026) is loaded. "}<button id="dw">${["2025-11", "2026-01", "2026-02", "2026-03", "2026-04", "2026-07", "2026-09"].some((m) => L[m]) ? "Replace with day-wise attendance" : "Re-apply register data"}</button></div>` : ""}
   ${imp ? '<div class="note">Team list is empty. <button id="imp">Import team and past attendance from the register</button></div>' : ""}
-  ${
-    P.map(
-      (
-        p,
-      ) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${[esc(p.roll), esc(p.position), p.contact ? '<a href="tel:' + esc(p.contact) + '">' + esc(p.contact) + "</a>" : "<i>no contact</i>"].filter(Boolean).join(" · ")}</span><br>${ACC.includes(p.id) ? '<span class="pill g">signed up</span>' : '<span class="pill">not signed up</span>'}</span>
-  <span class="chips" style="margin:0;justify-content:flex-end">${ACC.includes(p.id) ? `<button data-rst="${p.id}">Reset code</button>` : ""}<button data-ed="${p.id}">Edit</button><button class="dng" data-rm="${p.id}">Remove</button></span></div>`,
-    ).join("") || (imp ? "" : empty("👥", "No players yet."))
-  }
+  <div class="ctl"><input id="pq" type="search" placeholder="Search name or roll no" aria-label="Search players"><button id="padd">➕ Add students</button></div>
+  <p class="mute" style="margin:0 0 8px">Tap a player to open their profile.</p>
+  <div class="tiles">${
+    P.map((p) => {
+      const s = S[p.id] || { pct: 0, pr: 0, t: 0 };
+      return `<div class="pt" role="button" tabindex="0" data-pf="${p.id}" data-q="${esc((p.name + " " + p.roll + " " + (p.position || "")).toLowerCase())}">${avatar(p.name, p.photo, 46)}<span class="pi"><b>${esc(p.name)}</b><small>${esc([p.roll, p.position].filter(Boolean).join(" · ")) || "&nbsp;"}</small><span class="bar"><i style="width:${s.pct}%"></i></span></span><span class="pc"><b>${s.t ? s.pct + "%" : "–"}</b><small>${ACC.includes(p.id) ? "✔ signed up" : "not signed up"}</small></span></div>`;
+    }).join("") || (imp ? "" : empty("👥", "No players yet."))
+  }</div>
   ${P.length ? "" : '<p class="mute" style="text-align:center">Add students from the ⋮ menu → Add students.</p>'}</div>`;
+  if ($("dw"))
+    $("dw").onclick = () => {
+      if (
+        confirm(
+          "Load the day-wise attendance from the register? This overwrites attendance saved for those dates (up to 13 Oct 2026).",
+        )
+      )
+        run(async () => {
+          await api("/api/import-daywise", { method: "POST" });
+          await load();
+        });
+    };
   if ($("imp"))
     $("imp").onclick = () =>
       run(async () => {
         await api("/api/import", { method: "POST" });
         await load();
       });
-  document.querySelectorAll("[data-rst]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        const p = P.find((x) => x.id === b.dataset.rst);
-        if (
-          confirm(
-            "Reset the login code for " +
-              p.name +
-              "? They will sign up again with roll number + contact number and choose a new code.",
-          )
-        )
-          run(async () => {
-            await api("/api/players/" + p.id + "/account", {
-              method: "DELETE",
-            });
-            await load();
-          });
-      }),
-  );
-  document.querySelectorAll("[data-ed]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        const p = P.find((x) => x.id === b.dataset.ed);
-        const name = prompt("Name", p.name || "");
-        if (name === null || !name.trim()) return;
-        const roll = prompt("Roll number", p.roll || "");
-        if (roll === null) return;
-        const pos = prompt("Position", p.position || "");
-        if (pos === null) return;
-        const ct = prompt("Contact number", p.contact || "");
-        if (ct === null) return;
-        const j = prompt("Joined date (YYYY-MM-DD)", p.joined || "");
-        if (j === null) return;
-        if (j.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(j.trim()))
-          return alert("Use the date format YYYY-MM-DD");
-        run(async () => {
-          await api("/api/players/" + p.id, {
-            method: "PUT",
-            body: {
-              name: name.trim(),
-              roll: roll.trim(),
-              position: pos.trim(),
-              contact: ct.trim(),
-              joined: j.trim(),
-            },
-          });
-          await load();
-        });
-      }),
-  );
-  document.querySelectorAll("[data-rm]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        const p = P.find((x) => x.id === b.dataset.rm);
-        if (
-          confirm(
-            "Remove " +
-              p.name +
-              " from the team? They are logged out and hidden, but their attendance history is kept. You can restore them from Removed students.",
-          )
-        )
-          run(async () => {
-            await api("/api/players/" + p.id, { method: "DELETE" });
-            await load();
-          });
-      }),
-  );
+  $("padd").onclick = openAdd;
+  $("pq").oninput = (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    document
+      .querySelectorAll(".pt")
+      .forEach((t) => (t.hidden = !!q && !t.dataset.q.includes(q)));
+  };
+  bindProfLinks();
 }
 function vRemoved() {
+  const S = Object.fromEntries(RM.map((p) => [p.id, statsFor(p, "all")]));
   $("view").innerHTML =
-    `<div class="card"><h2>Removed students (${RM.length})</h2><p class="mute">Removed students cannot log in and are not counted in attendance. Their history is kept, so <b>Restore</b> brings everything back.</p>
-  ${
-    RM.map(
-      (
-        p,
-      ) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${[esc(p.roll), p.removedAt ? "removed " + when(p.removedAt) : ""].filter(Boolean).join(" · ")}</span></span>
-  <span class="chips" style="margin:0;justify-content:flex-end"><button class="pri" data-rs="${p.id}">Restore</button><button class="dng" data-pm="${p.id}">Delete forever</button></span></div>`,
-    ).join("") || empty("🗑️", "No removed students.")
-  }</div>`;
+    `<div class="card"><h2>Removed students (${RM.length})</h2><p class="mute">Removed students cannot log in and are not counted in team attendance. <b>Nothing is deleted</b>: contact, jersey details, joining date and every attendance record are kept. Tap a student to see all of it, or press Restore to bring them back.</p>
+  <div class="tiles">${
+    RM.map((p) => {
+      const s = S[p.id];
+      return `<div class="pt gone" role="button" tabindex="0" data-pf="${p.id}">${avatar(p.name, p.photo, 46)}<span class="pi"><b>${esc(p.name)}</b><small>${esc([p.roll, p.removedAt ? "removed " + when(p.removedAt) + (p.removedBy ? " by " + p.removedBy : "") : ""].filter(Boolean).join(" · ")) || "&nbsp;"}</small><small>${s.t ? `Attended ${s.pr} of ${s.t} days (${s.pct}%)` : "No attendance recorded"}${p.contact ? " · 📞 " + esc(p.contact) : ""}</small></span><span class="pc"><button class="pri" data-rs="${p.id}">Restore</button></span></div>`;
+    }).join("") || empty("🗑️", "No removed students.")
+  }</div></div>`;
   document.querySelectorAll("[data-rs]").forEach(
     (b) =>
-      (b.onclick = () =>
+      (b.onclick = (e) => {
+        e.stopPropagation();
         run(async () => {
           await api("/api/players/" + b.dataset.rs + "/restore", {
             method: "POST",
           });
           await load();
-        })),
-  );
-  document.querySelectorAll("[data-pm]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        const p = RM.find((x) => x.id === b.dataset.pm);
-        if (
-          confirm(
-            "Delete " +
-              p.name +
-              " forever? Their profile and login are erased. This cannot be undone.",
-          )
-        )
-          run(async () => {
-            await api("/api/players/" + p.id + "/permanent", {
-              method: "DELETE",
-            });
-            await load();
-          });
+        });
       }),
   );
+  bindProfLinks();
 }
 function vAdmins() {
+  const st = [
+    ["captain", "Captain"],
+    ["vice", "Vice-captain"],
+  ];
   $("view").innerHTML =
-    `<div class="card"><h2>Admins</h2><p class="mute">Admins can take attendance and edit everything except this list. They log in under <b>Captain / Admin</b> → Admin with their name and code. Use the switch to turn an admin's access on or off without deleting them.</p>
+    `<div class="card"><h2>Team staff</h2>${st.map((s) => `<div class="row link" role="button" tabindex="0" data-sf="${s[0]}"><span class="sw-row">${avatar(s[1], STAFF[s[0]], 40)}<span><b>${s[1]}</b><br><span class="mute">Full access</span></span></span><span class="chev">›</span></div>`).join("")}</div>
+  <div class="card"><h2>Admins</h2><p class="mute">Admins can take attendance and edit everything except this list. They log in under <b>Captain / Admin</b> → Admin with their name and code. Use the switch to turn an admin's access on or off without deleting them. Tap an admin to open their profile.</p>
   <div class="ctl"><input id="an2" placeholder="Name" maxlength="40"><input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30" autocomplete="new-password"><button class="pri" id="aadd">Add admin</button></div>
-  ${ADM.map((a) => `<div class="row"><span class="sw-row"><button class="sw ${a.disabled ? "" : "on"}" role="switch" aria-checked="${!a.disabled}" aria-label="Access for ${esc(a.name)}" data-tg="${esc(a.id)}"></button><span>${esc(a.name)}<br><span class="pill ${a.disabled ? "r" : "g"}">${a.disabled ? "Access off" : "Access on"}</span></span></span><button class="dng" data-adm="${esc(a.id)}">Remove</button></div>`).join("") || empty("🛡️", "No extra admins yet.")}</div>`;
+  ${ADM.map((a) => `<div class="row link" role="button" tabindex="0" data-af="${esc(a.id)}"><span class="sw-row"><button class="sw ${a.disabled ? "" : "on"}" role="switch" aria-checked="${!a.disabled}" aria-label="Access for ${esc(a.name)}" data-tg="${esc(a.id)}"></button>${avatar(a.name, a.photo, 40)}<span>${esc(a.name)}<br><span class="pill ${a.disabled ? "r" : "g"}">${a.disabled ? "Access off" : "Access on"}</span></span></span><button class="dng" data-adm="${esc(a.id)}">Remove</button></div>`).join("") || empty("🛡️", "No extra admins yet.")}</div>`;
   $("aadd").onclick = () => {
     const name = $("an2").value.trim(),
       code = $("ac").value;
@@ -1880,7 +2028,8 @@ function vAdmins() {
   };
   document.querySelectorAll("[data-tg]").forEach(
     (b) =>
-      (b.onclick = () => {
+      (b.onclick = (e) => {
+        e.stopPropagation();
         const a = ADM.find((x) => x.id === b.dataset.tg);
         run(async () => {
           await api("/api/admins/" + a.id, {
@@ -1893,7 +2042,8 @@ function vAdmins() {
   );
   document.querySelectorAll("[data-adm]").forEach(
     (b) =>
-      (b.onclick = () => {
+      (b.onclick = (e) => {
+        e.stopPropagation();
         const a = ADM.find((x) => x.id === b.dataset.adm);
         if (
           confirm(
@@ -1906,7 +2056,253 @@ function vAdmins() {
           });
       }),
   );
+  document
+    .querySelectorAll("[data-af]")
+    .forEach((r) => (r.onclick = () => openProf("a", r.dataset.af)));
+  document
+    .querySelectorAll("[data-sf]")
+    .forEach((r) => (r.onclick = () => openProf("s", r.dataset.sf)));
 }
+
+// ---- profile detail page ----
+function vProfile() {
+  const k = prof.k,
+    id = prof.id,
+    back = '<button class="back" id="pb">‹ Back</button>';
+  let h = "",
+    photoPath = "",
+    own = false;
+  if (k === "p") {
+    const p = [...P, ...RM].find((x) => x.id === id);
+    if (!p) {
+      prof = null;
+      return render();
+    }
+    own = role === "player" && p.id === me;
+    const gone = !!p.removed,
+      a = statsFor(p, "all"),
+      canPh = admin || own;
+    photoPath = "/api/players/" + id + "/photo";
+    const ms = months()
+      .map((m) => ({ m, s: statsFor(p, m) }))
+      .filter((x) => x.s.t);
+    const ds = dates().filter((d) => SS[d][id] !== undefined),
+      dots = ds
+        .slice(-42)
+        .map(
+          (d) =>
+            `<i class="dd ${SS[d][id] ? "p" : "a"}" title="${fmt(d)}: ${SS[d][id] ? "Present" : "Absent"}"></i>`,
+        )
+        .join("");
+    let streak = 0;
+    for (let i = ds.length - 1; i >= 0 && SS[ds[i]][id]; i--) streak++;
+    const jersey = [
+      p.jerseyNo ? "#" + esc(p.jerseyNo) : "",
+      esc(p.jerseyName || ""),
+      p.size ? "size " + esc(p.size) : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    h = `${back}<div class="card prof"><div class="cover"></div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}</div>
+    <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
+    <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}</div>
+    ${canPh ? photoBtns(own, photoPath, p.photo) : ""}
+    ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
+    <div class="grid"><div class="card"><h2>Attendance</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div><div class="stats" style="flex:1;margin:0"><div><b>${a.pr}</b>Present</div><div><b>${a.t - a.pr}</b>Missed</div><div><b>${streak}</b>Current streak</div></div></div>
+      ${dots ? `<p class="mute" style="margin:12px 0 4px">Last ${Math.min(42, ds.length)} playing days</p><div class="dots">${dots}</div>` : ""}
+      ${ms.length ? `<table style="margin-top:10px"><tr><th>Month</th><th class="n">Present</th><th>%</th></tr>${ms.map((x) => `<tr><td>${mfmt(x.m)}</td><td class="n">${x.s.pr}/${x.s.t}</td><td><div class="bar"><i style="width:${x.s.pct}%"></i></div>${x.s.pct}%</td></tr>`).join("")}</table>` : ""}
+      <div class="chips"><button id="pshr">⤴ Share attendance</button></div></div>
+    <div class="card"><h2>Details</h2>${kv("Roll number", esc(p.roll))}${kv("Position", esc(p.position))}${kv("Joined", p.joined ? fmt(p.joined) : "")}
+      ${p.contact ? `<div class="kv"><span>Contact</span><b><a href="tel:${esc(p.contact)}">${esc(p.contact)}</a> · <a href="https://wa.me/${to91(p.contact)}" target="_blank" rel="noopener">WhatsApp</a></b></div>` : admin || own ? kv("Contact", "<i>not saved</i>") : ""}
+      ${kv("E-mail", p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : "")}${kv("Jersey", jersey)}
+      ${admin ? `<div class="chips" style="margin-top:12px"><button id="pedit">✏️ Edit details</button>${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}</div>` : ""}</div></div>`;
+    $("view").innerHTML = h;
+    $("pshr").onclick = () => openReport({ sc: "person", v: id });
+    if ($("pedit")) $("pedit").onclick = () => openEdit(p);
+    if ($("prst"))
+      $("prst").onclick = () => {
+        if (
+          confirm(
+            "Reset the login code for " +
+              p.name +
+              "? They will sign up again with roll number + contact number and choose a new code.",
+          )
+        )
+          run(async () => {
+            await api("/api/players/" + id + "/account", { method: "DELETE" });
+            await load(true);
+          });
+      };
+    if ($("prm"))
+      $("prm").onclick = () => {
+        if (
+          confirm(
+            "Remove " +
+              p.name +
+              " from the team? They are logged out and hidden, but every detail and attendance record is kept. You can restore them from Removed students.",
+          )
+        )
+          run(async () => {
+            await api("/api/players/" + id, { method: "DELETE" });
+            await load(true);
+          });
+      };
+    if ($("prs"))
+      $("prs").onclick = () =>
+        run(async () => {
+          await api("/api/players/" + id + "/restore", { method: "POST" });
+          await load(true);
+        });
+    if ($("ppm"))
+      $("ppm").onclick = () => {
+        if (
+          confirm(
+            "Delete " +
+              p.name +
+              " forever? Their profile and login are erased. This cannot be undone.",
+          )
+        )
+          run(async () => {
+            await api("/api/players/" + id + "/permanent", {
+              method: "DELETE",
+            });
+            prof = null;
+            tab = "removed";
+            await load(true);
+          });
+      };
+  } else {
+    let name,
+      ph,
+      sub,
+      acts = "",
+      canPh = false;
+    if (k === "a") {
+      const a =
+        ADM.find((x) => x.id === id) ||
+        (role === "admin" && id === ADMID
+          ? { id, name: WHO, photo: MYPH, disabled: false }
+          : null);
+      if (!a) {
+        prof = null;
+        return render();
+      }
+      own = role === "admin" && id === ADMID;
+      name = a.name;
+      ph = a.photo;
+      sub = "Admin";
+      photoPath = "/api/admins/" + id + "/photo";
+      canPh = own || owner;
+      acts = `${kv("Role", "Admin")}${kv("Access", a.disabled ? '<span class="pill r">Off</span>' : '<span class="pill g">On</span>')}${a.created ? kv("Added", when(a.created)) : ""}${owner && ADM.some((x) => x.id === id) ? `<div class="chips" style="margin-top:12px"><button id="atg">${a.disabled ? "Turn access on" : "Turn access off"}</button><button class="dng" id="arm">Remove admin</button></div>` : ""}`;
+    } else {
+      own = role === id;
+      name = id === "captain" ? "Captain" : "Vice-captain";
+      ph = own ? MYPH : STAFF[id];
+      sub = name;
+      photoPath = "";
+      canPh = own;
+      acts = `${kv("Role", name)}${kv("Access", "Full: attendance, players, admins")}`;
+    }
+    $("view").innerHTML =
+      `${back}<div class="card prof"><div class="cover"></div><div class="pavw">${avatar(name, ph, 104, "big")}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+    if ($("atg"))
+      $("atg").onclick = () => {
+        const a = ADM.find((x) => x.id === id);
+        run(async () => {
+          await api("/api/admins/" + id, {
+            method: "PUT",
+            body: { disabled: !a.disabled },
+          });
+          await load(true);
+        });
+      };
+    if ($("arm"))
+      $("arm").onclick = () => {
+        if (confirm("Remove this admin? They will be logged out at once."))
+          run(async () => {
+            await api("/api/admins/" + id, { method: "DELETE" });
+            prof = null;
+            tab = "admins";
+            await load(true);
+          });
+      };
+  }
+  $("pb").onclick = () => {
+    prof = null;
+    render();
+    window.scrollTo(0, 0);
+  };
+  if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath);
+}
+function openEdit(p) {
+  let d = $("eddlg");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "eddlg";
+    document.body.appendChild(d);
+  }
+  const f = (id, l, v, o = "") =>
+    `<label class="fl">${l}<input id="ed-${id}" value="${esc(v || "")}" ${o}></label>`;
+  d.innerHTML = `<h2>Edit ${esc(p.name)}</h2>${f("n", "Name", p.name, 'maxlength="40"')}${f("r", "Roll number", p.roll, 'maxlength="12"')}${f("p", "Position", p.position, 'maxlength="40"')}${f("c", "Contact number", p.contact, 'inputmode="tel" maxlength="15"')}${f("e", "E-mail", p.email, 'maxlength="40"')}${f("jn", "Jersey name", p.jerseyName, 'maxlength="40"')}${f("jo", "Jersey number", p.jerseyNo, 'maxlength="4"')}${f("sz", "Jersey size", p.size, 'maxlength="6"')}${f("j", "Joined date", p.joined, 'type="date"')}
+  <div class="ctl"><button class="pri" id="eds">Save</button><button id="edc">Cancel</button></div>`;
+  $("edc").onclick = () => d.close();
+  $("eds").onclick = () => {
+    const g = (i) => $("ed-" + i).value.trim();
+    if (!g("n")) return alert("Name is required.");
+    run(async () => {
+      await api("/api/players/" + p.id, {
+        method: "PUT",
+        body: {
+          name: g("n"),
+          roll: g("r"),
+          position: g("p"),
+          contact: g("c"),
+          email: g("e"),
+          jerseyName: g("jn"),
+          jerseyNo: g("jo"),
+          size: g("sz"),
+          joined: g("j"),
+        },
+      });
+      d.close();
+      await load(true);
+    });
+  };
+  d.showModal();
+}
+function openGroup() {
+  let d = $("gpdlg");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "gpdlg";
+    document.body.appendChild(d);
+  }
+  d.innerHTML = `<h2>Hockey WhatsApp group link</h2><p class="mute">Everyone sees this link in their menu under <b>Join WhatsApp group</b>. In WhatsApp: open the group → Group info → Invite via link → Copy link, then paste it here.</p>
+  <label class="fl">Invite link<input id="gpu" type="url" value="${esc(GROUP)}" placeholder="https://chat.whatsapp.com/…"></label>
+  <div class="ctl"><button class="pri" id="gps">Save</button><button id="gpt">Test link</button><button id="gpr">Use default</button><button id="gpc">Cancel</button></div>`;
+  $("gpc").onclick = () => d.close();
+  $("gpt").onclick = () => {
+    if ($("gpu").value.trim())
+      window.open($("gpu").value.trim(), "_blank", "noopener");
+  };
+  const save = (u) =>
+    run(async () => {
+      await api("/api/group", { method: "PUT", body: { url: u } });
+      d.close();
+      await load(true);
+    });
+  $("gps").onclick = () => {
+    const u = $("gpu").value.trim();
+    if (u && !/^https:\/\/\S+$/.test(u))
+      return alert("The link must start with https://");
+    save(u);
+  };
+  $("gpr").onclick = () => save("");
+  d.showModal();
+}
+$("wh").innerHTML = whistleSvg(26);
+$("wh").onclick = () => playWhistle("short");
+$("hp").onclick = openMyProfile;
 boot();
 setInterval(() => {
   if (token && !document.hidden) load();
@@ -1914,3 +2310,137 @@ setInterval(() => {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) load();
 });
+
+// ---- availability for a playing day (active / injured / can't come / maybe) ----
+const AVS = [
+  ["active", "✅", "Active"],
+  ["injured", "🤕", "Injured"],
+  ["out", "❌", "Can't come"],
+  ["maybe", "🤔", "Maybe"],
+];
+const avLabel = (k) => {
+  const x = AVS.find((a) => a[0] === k);
+  return x ? x[1] + " " + x[2] : "";
+};
+function lastVenue() {
+  let v = "";
+  try {
+    v = localStorage.getItem("hk_venue") || "";
+  } catch (e) {}
+  return v || "Sports Complex";
+}
+const avChips = (d, id, cur) =>
+  `<span class="avc">${AVS.map((a) => `<button type="button" class="${cur === a[0] ? "on " + a[0] : ""}" data-av="${a[0]}" data-d="${d}" data-id="${esc(id)}" aria-pressed="${cur === a[0]}">${a[1]} ${a[2]}</button>`).join("")}</span>`;
+function avCounts(d) {
+  const r = AVL[d] || {},
+    c = { active: 0, injured: 0, out: 0, maybe: 0 };
+  let n = 0;
+  P.forEach((p) => {
+    const x = r[p.id];
+    if (x && c[x.s] !== undefined) {
+      c[x.s]++;
+      n++;
+    }
+  });
+  return { c, none: P.length - n };
+}
+// players answer for themselves; staff see the counts and a button to open the full list
+function availBlock(d, compact) {
+  if (!d || !PL[d] || PL[d].status === "cancelled") return "";
+  if (role === "player") {
+    const cur = ((AVL[d] || {})[me] || {}).s || "";
+    return `<div class="avb"><div class="mute" style="margin:6px 0 4px">${compact ? "" : "<b>Will you be there?</b> "}${cur ? "You said: <b>" + avLabel(cur) + "</b>. Tap again to clear." : "Tell the captain if you can come."}</div>${avChips(d, me, cur)}</div>`;
+  }
+  if (!admin) return "";
+  const { c, none } = avCounts(d);
+  return `<div class="avb"><span class="avs">${AVS.map((a) => `<span class="${a[0]}">${a[1]} <b>${c[a[0]]}</b></span>`).join("")}<span class="none">⏳ <b>${none}</b> no reply</span></span> <button type="button" data-avd="${d}">Availability</button></div>`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-av]");
+  if (b) {
+    const d = b.dataset.d,
+      id = b.dataset.id,
+      cur = ((AVL[d] || {})[id] || {}).s || "",
+      s = cur === b.dataset.av ? "" : b.dataset.av;
+    run(async () => {
+      await api("/api/avail/" + d, { method: "PUT", body: { id, s } });
+      await load();
+      if ($("avdlg").open) drawAvail(d);
+    });
+    return;
+  }
+  const o = e.target.closest && e.target.closest("[data-avd]");
+  if (o) openAvail(o.dataset.avd);
+});
+function drawAvail(d) {
+  const r = AVL[d] || {},
+    { c, none } = avCounts(d),
+    dg = $("avdlg");
+  const order = { injured: 0, out: 1, maybe: 2, active: 3, "": 4 };
+  const ps = [...P].sort(
+    (a, b) =>
+      order[(r[a.id] || {}).s || ""] - order[(r[b.id] || {}).s || ""] ||
+      a.name.localeCompare(b.name),
+  );
+  dg.innerHTML = `<h2>Availability</h2><p class="mute" style="margin-top:-6px"><b>${dlong(d)}</b>${PL[d] && PL[d].venue ? " · 📍 " + esc(PL[d].venue) : ""}</p>
+  <div class="avs" style="margin-bottom:8px">${AVS.map((a) => `<span class="${a[0]}">${a[1]} ${a[2]} <b>${c[a[0]]}</b></span>`).join("")}<span class="none">⏳ No reply <b>${none}</b></span></div>
+  <div class="avl">${ps.map((p) => `<div class="avr"><span class="avn">${avatar(p.name, p.photo, 28)} ${esc(p.name)}</span>${avChips(d, p.id, (r[p.id] || {}).s || "")}</div>`).join("")}</div>
+  <div class="ctl"><button type="button" class="pri" id="avsh">⤴ Share list</button><button type="button" id="avx">Close</button></div>`;
+  $("avx").onclick = () => dg.close();
+  $("avsh").onclick = () => {
+    const g = (k) =>
+      ps
+        .filter((p) => ((r[p.id] || {}).s || "") === k)
+        .map((p) => "• " + p.name)
+        .join("\n");
+    const part = (k, t) => (g(k) ? `\n${t}\n${g(k)}\n` : "");
+    shareText(
+      `🏑 *Inter IIT Hockey: Availability*\n📅 ${dlong(d)}${PL[d] && PL[d].venue ? "\n📍 " + PL[d].venue : ""}\n` +
+        part("active", "✅ *Active*") +
+        part("injured", "🤕 *Injured*") +
+        part("out", "❌ *Can't come*") +
+        part("maybe", "🤔 *Maybe*") +
+        (none
+          ? `\n⏳ No reply: ${ps
+              .filter((p) => !(r[p.id] || {}).s)
+              .map((p) => p.name)
+              .join(", ")}`
+          : ""),
+    );
+  };
+}
+function openAvail(d) {
+  drawAvail(d);
+  $("avdlg").showModal();
+}
+
+// ---- edit a playing day: date, time, venue, note ----
+function openPlanEdit(d) {
+  const p = PL[d] || {},
+    dg = $("pdlg"),
+    locked = !!SS[d];
+  dg.innerHTML = `<h2>Edit playing day</h2>
+  <p><label class="lbl">Date</label><input type="date" id="ed_d" value="${d}" ${locked ? "disabled" : ""}>${locked ? '<span class="mute" style="display:block">Attendance is already saved for this day, so the date is locked.</span>' : ""}</p>
+  <p><label class="lbl">Time</label><input id="ed_t" value="${esc(p.time || "")}" placeholder="e.g. 6:30–8:30 PM" maxlength="30"></p>
+  <p><label class="lbl">Venue</label><input id="ed_v" value="${esc(p.venue || "")}" placeholder="e.g. Sports Complex" maxlength="80"></p>
+  <p><label class="lbl">Note</label><input id="ed_n" value="${esc(p.note || "")}" placeholder="Optional" maxlength="80"></p>
+  <div class="ctl"><button class="pri" id="ed_s">Save</button><button id="ed_x">Cancel</button></div>`;
+  $("ed_x").onclick = () => dg.close();
+  $("ed_s").onclick = () =>
+    run(async () => {
+      const nd = $("ed_d").value || d;
+      await api("/api/plans/" + d, {
+        method: "PUT",
+        body: {
+          newDate: nd,
+          time: $("ed_t").value.trim(),
+          venue: $("ed_v").value.trim(),
+          note: $("ed_n").value.trim(),
+          status: p.status || "planned",
+        },
+      });
+      dg.close();
+      await load();
+    });
+  dg.showModal();
+}

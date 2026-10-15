@@ -77,3 +77,25 @@ Firestore layout (you can open and edit these in the Firebase console):
 ## Privacy
 Without a login the server returns nothing. A logged-in player receives only their own record and attendance plus the shared info (playing days, schedule, rules, warm-up).
 The codes live only in the server's environment variables, not in the web page.
+
+## Day-wise attendance (10 Nov 2025 to 13 Oct 2026)
+Taken from the WhatsApp group screenshots and stored in `backend/seed.json` under `sessions` (75 days). On a fresh install *Import team* loads it. On an existing site open **Players** and press **Replace with day-wise attendance** (or **Re-apply register data** once it is loaded). It overwrites the attendance saved for those dates, deletes the old monthly totals that are now day-wise (Nov 2025, Jan to Apr, Jul, Sep 2026), adds the people below and merges J Sathwik's duplicate record.
+- **Aug 2026** is still partly monthly: 1 day is missing from the screenshots, so a 1-day monthly total holds it until it is sent.
+- **Removed students** (attended but left the team): Rishabh, Krishna Mule, Vipin, Pradeep, Tarun, Abhishek Raj Kumar, David Pratap Singh, Rajiv Karn, Purushottam, Karthik and Jangiti Sathwik Kumar (2501CS31, also listed as "Sathwik CS", "Sathwik Kumar", "J Sathwik"). Only the days they were present are stored. Team turnout figures count current players only.
+- **New players** Rajesh (from 30 Sep) and Anish (from 2 Oct) are added as current players with no roll number. Add their rolls under Players.
+- Saurabh Kumar is not on the 17-player team list, so he is not counted from September 2026 on.
+- When a list in the group had a wrong date typed in it, the date WhatsApp shows for the message is used (12 Mar, 21 Aug). 29 Jan morning and evening are merged into one day. 9 Mar is inferred from the old monthly totals because the message was cut off.
+
+## v9 additions
+- **Tap for details:** Schedule days and player tiles open to show details. Tapping a player or admin opens a full **profile page** (attendance ring, streak, month by month, contact, jersey, edit, reset code, remove). Everyone can add their own photo.
+- **Removed students** keep every detail (name, roll, contact, jersey, joined date, attendance) and show who removed them and when. Restore any time.
+- **Graphs:** smooth turnout curve with average line and tooltips, day-wise table, per-player rings and streaks.
+- **Share anywhere:** reports and messages use the phone's share sheet (any app), with fallbacks for WhatsApp, Telegram, e-mail, SMS and copy. ⋮ > **Share attendance report**: whole team, one date, one month, or one person (WhatsApp straight to their number). ⋮ > **Share this app**.
+- **Umpire whistle** (⋮ > Whistle sound on/off) and drawn signal pictures (cards, goal, penalty corner...) instead of plain text.
+
+## v10 additions
+- **Log out** asks for confirmation first.
+- **Availability** for each upcoming playing day: players tap Active / Injured / Can't come / Maybe (on Home and Playing days). Captain, vice-captain and admins see the counts and press **Availability** to see everyone, change anyone's status and share the list. Players only see their own answer. Stored in `avail/<date>`.
+- **Edit playing days** (admins): **Edit** on any row changes date, time, venue and note. Availability moves with the date. The date is locked once attendance is saved for that day.
+- **Venue** on every playing day (default Sports Complex, remembers your last one). It appears in the WhatsApp/share message (`{venue}`; added automatically to older custom templates), Home, reminders and the calendar file.
+- The ⋮ menu no longer repeats tabs already on the bottom bar (or top bar on a laptop). It lists only *More pages*.
