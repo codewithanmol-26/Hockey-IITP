@@ -1,86 +1,136 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hockey Attendance</title>
-<meta name="theme-color" content="#0b2a4a">
-<meta name="description" content="Inter IIT hockey team attendance, schedule and rules">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Hockey">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Hockey Attendance</title>
+  <meta name="theme-color" content="#0b2a4a">
+  <meta name="description" content="Inter IIT hockey team attendance, schedule and rules">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hockey">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-<!-- 1. Login page: the first thing everyone sees. Nothing else loads until you are logged in. -->
-<section id="login" hidden>
-  <div class="lg-card">
-    <img class="lg-logo" src="icons/icon-192.png" alt="" width="84" height="84">
-    <h1>Inter IIT Hockey</h1>
-    <p class="lg-sub">Attendance · Schedule · Rules</p>
-    <div class="seg" role="tablist"><button type="button" id="t1" class="on">Player</button><button type="button" id="t2">Captain / Admin</button></div>
+  <!-- 1. Login page: the first thing everyone sees. Nothing else loads until you are logged in. -->
+  <section id="login" hidden>
+    <div class="lg-card">
+      <img class="lg-logo" src="icons/icon-192.png" alt="" width="84" height="84">
+      <h1>Inter IIT Hockey</h1>
+      <p class="lg-sub">Attendance · Schedule · Rules</p>
+      <div class="seg" role="tablist"><button type="button" id="t1" class="on">Player</button><button type="button"
+          id="t2">Captain / Admin</button></div>
 
-    <form id="pf" autocomplete="off">
-      <label class="fl">Roll number<input id="pr" placeholder="e.g. 2501CE01" autocapitalize="characters" autocomplete="username" required></label>
-      <div id="pa"></div>
-      <p id="pe" class="err" role="alert"></p>
-      <button class="pri big" id="pgo">Continue</button>
-      <p class="hint">New here? Enter your roll number. The captain must have added you first.</p>
-    </form>
+      <form id="pf" autocomplete="off">
+        <label class="fl">Roll number<input id="pr" placeholder="e.g. 2501CE01" autocapitalize="characters"
+            autocomplete="username" required></label>
+        <div id="pa"></div>
+        <p id="pe" class="err" role="alert"></p>
+        <button class="pri big" id="pgo">Continue</button>
+        <p class="hint">New here? Enter your roll number. The captain must have added you first.</p>
+      </form>
 
-    <form id="lf" hidden>
-      <label class="fl">Login as<select id="em"><option value="captain">Captain</option><option value="vice">Vice-captain</option><option value="admin">Admin</option></select></label>
-      <label class="fl" id="anw" hidden>Your name<input id="an" placeholder="Name given by the captain" autocomplete="username"></label>
-      <label class="fl">Code<input id="pw" type="password" placeholder="Your code" autocomplete="current-password" required></label>
-      <p id="er" class="err" role="alert"></p>
-      <button class="pri big">Log in</button>
-    </form>
-    <button type="button" id="inst" class="ghost" hidden>⬇ Install app</button>
+      <form id="lf" hidden>
+        <label class="fl">Login as<select id="em">
+            <option value="captain">Captain</option>
+            <option value="vice">Vice-captain</option>
+            <option value="admin">Admin</option>
+          </select></label>
+        <label class="fl" id="anw" hidden>Your name<input id="an" placeholder="Name given by the captain"
+            autocomplete="username"></label>
+        <label class="fl">Code<input id="pw" type="password" placeholder="Your code" autocomplete="current-password"
+            required></label>
+        <p id="er" class="err" role="alert"></p>
+        <button class="pri big">Log in</button>
+      </form>
+      <button type="button" id="inst" class="ghost" hidden>⬇ Install app</button>
+    </div>
+  </section>
+
+  <!-- 2. The app (home page and everything else), shown only after login -->
+  <div id="app" hidden>
+    <header>
+      <div class="brand"><img src="icons/icon-192.png" alt="" width="34" height="34">
+        <div>
+          <h1>Inter IIT Hockey</h1><span id="who" class="who"></span>
+        </div>
+      </div>
+      <div class="hb"><button id="wh" class="hi" aria-label="Blow the whistle" title="Whistle"></button><button id="hp"
+          class="hi" aria-label="My profile"></button><button id="mb" aria-label="Menu" aria-haspopup="true"
+          aria-expanded="false">⋮</button></div>
+    </header>
+    <nav id="nav" aria-label="Main"></nav>
+    <main id="view"></main>
   </div>
-</section>
 
-<!-- 2. The app (home page and everything else), shown only after login -->
-<div id="app" hidden>
-  <header>
-    <div class="brand"><img src="icons/icon-192.png" alt="" width="34" height="34"><div><h1>Inter IIT Hockey</h1><span id="who" class="who"></span></div></div>
-    <button id="mb" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋮</button>
-  </header>
-  <nav id="nav" aria-label="Main"></nav>
-  <main id="view"></main>
-</div>
+  <div id="menu" hidden></div>
 
-<div id="menu" hidden></div>
+  <dialog id="sdlg">
+    <h2>Add students</h2>
+    <form id="sf">
+      <p><input id="sn" placeholder="Name" maxlength="40" required></p>
+      <p><input id="sr" placeholder="Roll number" maxlength="12" autocapitalize="characters" required></p>
+      <p><input id="sc" placeholder="Contact number" inputmode="tel" maxlength="15"></p>
+      <button class="pri">Add student</button>
+    </form>
+    <hr>
+    <p class="mute">Add many at once: one student per line as <b>Name, Roll no, Contact</b></p>
+    <p><textarea id="sb" rows="4" placeholder="Aditya Raj, 2501ME22, 6299672979"></textarea></p>
+    <button id="sba">Add all</button>
+    <hr>
+    <p class="mute">Load the jersey form list (name, roll no, contact, e-mail, size, jersey name and number).</p>
+    <button id="sj">Import jersey form list</button>
+    <p id="sm" class="mute" role="status"></p>
+    <div class="ctl"><button type="button" id="sx">Close</button></div>
+  </dialog>
 
-<dialog id="sdlg"><h2>Add students</h2>
-<form id="sf"><p><input id="sn" placeholder="Name" maxlength="40" required></p>
-<p><input id="sr" placeholder="Roll number" maxlength="12" autocapitalize="characters" required></p>
-<p><input id="sc" placeholder="Contact number" inputmode="tel" maxlength="15"></p>
-<button class="pri">Add student</button></form>
-<hr>
-<p class="mute">Add many at once: one student per line as <b>Name, Roll no, Contact</b></p>
-<p><textarea id="sb" rows="4" placeholder="Aditya Raj, 2501ME22, 6299672979"></textarea></p>
-<button id="sba">Add all</button>
-<hr>
-<p class="mute">Load the jersey form list (name, roll no, contact, e-mail, size, jersey name and number).</p>
-<button id="sj">Import jersey form list</button>
-<p id="sm" class="mute" role="status"></p>
-<div class="ctl"><button type="button" id="sx">Close</button></div></dialog>
+  <dialog id="tdlg">
+    <h2>WhatsApp message template</h2>
+    <p class="mute">Used when you press Share on a playing day. Fill-ins: <b>{day} {date} {time} {venue} {session}
+        {note}</b>. A line whose fill-in is empty (for example no note) is left out. Use *text* for bold.</p>
+    <p><textarea id="tt" rows="7"></textarea></p>
+    <div class="ctl"><button class="pri" id="tsv">Save</button><button id="trs">Reset to default</button><button
+        id="tcx">Cancel</button></div>
+  </dialog>
 
-<dialog id="tdlg"><h2>WhatsApp message template</h2>
-<p class="mute">Used when you press WhatsApp on a playing day. Fill-ins: <b>{day} {date} {time} {session} {note}</b>. A line whose fill-in is empty (for example no note) is left out. Use *text* for bold.</p>
-<p><textarea id="tt" rows="7"></textarea></p>
-<div class="ctl"><button class="pri" id="tsv">Save</button><button id="trs">Reset to default</button><button id="tcx">Cancel</button></div></dialog>
+  <dialog id="avdlg"></dialog>
+  <dialog id="pdlg"></dialog>
 
-<dialog id="avdlg"></dialog>
-<dialog id="pdlg"></dialog>
-
-<script src="config.js"></script>
-<script src="extra.js"></script>
-<script src="app.js"></script>
+  <div id="fatal" hidden
+    style="position:fixed;inset:0;z-index:99;background:#0b2a4a;color:#fff;padding:24px;font-family:system-ui,sans-serif;overflow:auto">
+    <h2 style="margin-top:0">The app could not start</h2>
+    <p>Press the button below. It clears the saved copy of the app on this phone and reloads. If it still fails, send
+      the red text to the developer.</p>
+    <p><button id="fatalfix" style="padding:12px 18px;border-radius:10px;border:0;font-weight:700;font-size:1rem">Clear
+        saved app and reload</button></p>
+    <pre id="fatalmsg" style="white-space:pre-wrap;color:#ffb4b4;font-size:.85rem"></pre>
+  </div>
+  <script>
+    (function () {
+      var errs = [];
+      function add(m) { errs.push(String(m).slice(0, 300)) }
+      addEventListener('error', function (e) { if (e.target && e.target !== window && (e.target.src || e.target.href)) add('Could not load ' + (e.target.src || e.target.href)); else add((e.message || 'error') + ' (' + (e.filename || '').split('/').pop() + ':' + e.lineno + ')') }, true);
+      addEventListener('unhandledrejection', function (e) { add('Promise: ' + (e.reason && e.reason.message || e.reason)) });
+      setTimeout(function () {
+        var a = document.getElementById('app'), l = document.getElementById('login');
+        if ((a && !a.hidden) || (l && !l.hidden)) return;
+        document.getElementById('fatalmsg').textContent = errs.join('\n') || 'No error message (the page did not reach the login screen).'; document.getElementById('fatal').hidden = false
+      }, 4000);
+      document.getElementById('fatalfix').onclick = function () {
+        var done = function () { try { localStorage.removeItem('hk_token') } catch (e) { } location.reload() };
+        Promise.all([navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(function (r) { return Promise.all(r.map(function (x) { return x.unregister() })) }) : 0, window.caches ? caches.keys().then(function (k) { return Promise.all(k.map(function (x) { return caches.delete(x) })) }) : 0]).then(done, done)
+      };
+    })();
+  </script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
 </body>
+
 </html>
