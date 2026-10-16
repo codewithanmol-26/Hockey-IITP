@@ -42,7 +42,7 @@ Firestore layout (you can open and edit these in the Firebase console):
 
     players/<roll number>    name, roll, position, joined (YYYY-MM-DD), n (list order), contact, removed
     sessions/<YYYY-MM-DD>    r: { <roll number>: true or false }
-    legacy/<YYYY-MM>         days, att: { <roll number>: days attended }
+    legacy/<YYYY-MM>         days, att: { <roll number>: days attended }   (monthly totals, Jul 2026 onward only)
     plans/<YYYY-MM-DD>       time, note, status
     rules/<id>, warmup/<id>  title, icon, order, items [ {h, b, img, yt} ]
     config/schedule          team and gk (7 rows each)
@@ -63,9 +63,9 @@ Firestore layout (you can open and edit these in the Firebase console):
 ## WhatsApp, template, alerts
 - **WhatsApp buttons** open WhatsApp with the message ready; pick the hockey group and press send (WhatsApp has no free way to post to a group automatically).
   Attendance: after saving, or the *Send on WhatsApp* button. Playing day: *WhatsApp* on each row of Playing days. Weekly schedule: Schedule tab.
-- **Message template** (captain/admin, ⋮ menu or Schedule tab): editable text with {day} {date} {time} {session} {note}. Shared by all admins.
-- **Hockey WhatsApp group** link is in `frontend/config.js` (WA_GROUP), shown in the ⋮ menu and Schedule tab.
-- **Alerts on/off** (⋮ menu, for everyone): a notification 15 minutes before each fixed playing day that has a time. It works while the app is open or in a background tab. Browsers cannot wake a closed page without a paid push service. On iPhone, notifications only work after Share > Add to Home Screen and opening from the home screen.
+- **Message template** (captain/admin, ⋮ menu or Schedule tab): editable text with {day} {date} {time} {venue} {session} {note}. Shared by all admins.
+- **Hockey WhatsApp group** link: any admin can change it in the app (⋮ > Edit group link). It is saved in `config/group`; `frontend/config.js` (WA_GROUP) is only the fallback.
+- **Alerts on/off** (⋮ menu, for everyone): a notification 15 minutes before each fixed playing day that has a time. It works while the app is open or in a background tab. This one only fires while the app is open; for closed-app notifications use **Push** below. On iPhone, notifications only work after Share > Add to Home Screen and opening from the home screen.
 - **Add schedule to calendar** (⋮ menu): downloads an .ics file of upcoming fixed days with a built-in 15-minute reminder. This is the reliable option, it works with the app closed.
 - New Firestore data: `accounts/<roll>`, `signupTries/<roll>`, `config/template`. Players gain optional fields contact, email, size, jerseyName, jerseyNo.
 
@@ -91,7 +91,7 @@ Taken from the WhatsApp group screenshots and stored in `backend/seed.json` unde
 - **Removed students** keep every detail (name, roll, contact, jersey, joined date, attendance) and show who removed them and when. Restore any time.
 - **Graphs:** smooth turnout curve with average line and tooltips, day-wise table, per-player rings and streaks.
 - **Share anywhere:** reports and messages use the phone's share sheet (any app), with fallbacks for WhatsApp, Telegram, e-mail, SMS and copy. ⋮ > **Share attendance report**: whole team, one date, one month, or one person (WhatsApp straight to their number). ⋮ > **Share this app**.
-- **Umpire whistle** (⋮ > Whistle sound on/off) and drawn signal pictures (cards, goal, penalty corner...) instead of plain text.
+- **Umpire whistle** (Rules tab only) and drawn signal pictures (cards, goal, penalty corner...) instead of plain text.
 
 ## v10 additions
 - **Log out** asks for confirmation first.
@@ -99,3 +99,40 @@ Taken from the WhatsApp group screenshots and stored in `backend/seed.json` unde
 - **Edit playing days** (admins): **Edit** on any row changes date, time, venue and note. Availability moves with the date. The date is locked once attendance is saved for that day.
 - **Venue** on every playing day (default Sports Complex, remembers your last one). It appears in the WhatsApp/share message (`{venue}`; added automatically to older custom templates), Home, reminders and the calendar file.
 - The ⋮ menu no longer repeats tabs already on the bottom bar (or top bar on a laptop). It lists only *More pages*.
+
+## v11 additions
+- **Whistle only in Rules.** The header whistle and the whistle on login/save are gone. The Rules tab has the whistle card (four blasts, each with ▶ and when it is used) and a *Whistle rules* section. Every button tap now makes a soft **click** instead (⋮ > Sound > Click sound).
+- **Volume** slider: ⋮ > Sound, and on the Rules whistle card. One setting for clicks and whistle, kept on that phone.
+- **Push notifications** (free Web Push): everyone who turns on ⋮ > *Push: day scheduled / cancelled* (or taps **Turn on** on Home) gets a notification when a playing day is scheduled, cancelled, or restored, even with the app closed. Only for today or later; editing a day sends nothing.
+  Setup, once: `npm install`, `npm run vapid`, put `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` in Vercel environment variables, redeploy. Without the keys the app works as before and the toggle says push is not set up.
+  iPhone: works only after Share > Add to Home Screen and opening the app from the home screen (iOS 16.4+). Subscriptions are stored in `pushSubs/<id>`; log out removes that phone's subscription.
+- **Availability reason.** Players choosing Injured / Can't come / Maybe can add a short reason; captain, vice-captain and admins see it in **Availability** (and in the shared list) and can edit it. Stored with the answer in `avail/<date>`.
+- **Playing days = calendar.** A month calendar (dots: playing, attendance taken, cancelled); tap a date to see only that day. Admins can schedule from an empty date.
+- **Schedule = one day at a time.** Tap Mon..Sun to see that day's details (and edit it, for admins).
+- **Profile:** one entry only (the avatar in the header; the menu row is gone). New **Edit profile** button: players edit their own name, position, contact, e-mail and jersey details; admins edit anyone (including roll number and joining date). The attendance numbers and table are removed from the profile (they are in Stats); the chart (ring and recent-days strip) stays.
+
+
+## v12 additions
+- **Gallery** (menu, under More pages): everyone can add photos; admins can delete any photo, others only their own. Photos are resized in the phone and stored in Firestore (`gallery` = thumbnails, `galleryFull` = full pictures, max 200).
+- **Home tab**: no attendance figures any more. It shows the team group photo (admins change it from the Home tab, the menu, or by opening a Gallery photo and pressing *Use as group photo*), the next playing day, upcoming Indian hockey fixtures, live match news, latest Indian hockey news and a short history timeline.
+  - Fixtures come from a built-in list; admins can edit it in the menu (*Edit Indian hockey fixtures*). Past dates hide themselves.
+  - News comes from the Google News feed through `/api/news` (cached 15 minutes, no key needed). If the server cannot reach it, the app says so.
+- **Attendance tab**: new *Charts* card with a line chart, grouped bar chart, horizontal bar chart and donut chart.
+- Fixed: the *Share report* button on the Attendance tab could stop working after opening it.
+- No new environment variables. Redeploy, then reload the app once (the service worker cache is now `hk-v12`).
+
+## v13 additions
+- **Training & watch** (menu, under More pages): timer (stopwatch, countdown, intervals with whistle/beeps and keep-screen-on), live heart rate from a Bluetooth watch or chest strap, saved sessions and saved timer setups, and a "How to improve" card.
+- Watch connection uses standard Bluetooth heart rate (Web Bluetooth): Chrome on Android or desktop only, not iPhone Safari. For watches that cannot share heart rate, sessions can be added by hand.
+- Training data is private: stored in Firestore `workouts`, readable only by the person who saved it (not even by the captain). No new environment variables.
+
+## v14 additions
+- **Match timer (FIH style)** on the Training page: 4 quarters of 15 minutes, 2 minute breaks after Q1 and Q3, 10 minute half-time (all editable). Long whistle at the start of each quarter, final whistle at the end, Q1 to Q4 strip, score keeping (a goal stops the clock) and a Stop clock button for injuries and time-outs. Saved matches keep the score in the note.
+- **Personal tips**: use your position, a "My focus" choice, last 30 days of practice attendance, an "Injured" availability mark, your saved sessions and your practice heart-rate trend. Many tips have a button that loads a matching timer setup.
+- **Report a bug** (menu, everyone): description, page, optional screenshot and device details. The captain and vice-captain see them under *Bug reports* (menu): share to WhatsApp or any app, mark fixed, delete. Stored in Firestore `bugs`.
+
+## v15 additions
+- **Take attendance** redone: previous/next day, search, "Unmarked only", All present / All absent / Clear, avatars, last-5 practice dots, availability badges (injured, can't come, maybe) with a one-tap "mark them absent", live Present / Absent / Left counts and a sticky Save bar.
+- **Removed students** redone: summary, search, filter, sort, select many, bulk restore, bulk delete forever (type DELETE), and per card Restore, Edit, Call, WhatsApp and Delete forever.
+- **Medals** 🥇🥈🥉 in the Attendance tab: a podium and medals in the table and the player bar chart (ties share a medal). Players see their own level instead (Gold 90%+, Silver 75%+, Bronze 60%+).
+- **Watch**: "Try boAt / other watch" (scans for any Bluetooth device and tells you if it shares heart rate), "Add watch summary" now also takes steps and the watch name. boAt watches normally talk only to the boAt Crest app.

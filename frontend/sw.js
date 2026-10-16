@@ -1,11 +1,10 @@
 // Makes the page installable and able to show alerts. Only the app files are cached; /api (the data) is never cached.
-const V = "hk-v4",
+const V = "hk-v15",
   SHELL = [
     "./",
     "index.html",
     "style.css",
     "app.js",
-    "extra.js",
     "config.js",
     "manifest.json",
     "icons/icon-192.png",
@@ -58,5 +57,25 @@ self.addEventListener("notificationclick", (e) => {
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((l) => (l.length ? l[0].focus() : self.clients.openWindow("./"))),
+  );
+});
+
+// Push from the server: a playing day was scheduled or cancelled. Plain notification, no custom sound.
+self.addEventListener("push", (e) => {
+  let d = {};
+  try {
+    d = e.data.json();
+  } catch (x) {
+    d = { body: e.data ? e.data.text() : "" };
+  }
+  e.waitUntil(
+    self.registration.showNotification(d.title || "🏑 Inter IIT Hockey", {
+      body: d.body || "",
+      tag: d.tag || "hk-plan",
+      renotify: true,
+      icon: "icons/icon-192.png",
+      badge: "icons/favicon-32.png",
+      data: { url: d.url || "./" },
+    }),
   );
 });

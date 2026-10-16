@@ -50,18 +50,57 @@ function pickPhoto(cb) {
 
 // ---------- umpire whistle (synthesised, no audio files) ----------
 let ACX = null;
-const soundOn = () => {
+const volume = () => {
   try {
-    return localStorage.getItem("hk_sound") !== "0";
+    const v = localStorage.getItem("hk_vol");
+    return v === null ? 0.7 : Math.max(0, Math.min(1, +v || 0));
+  } catch (e) {
+    return 0.7;
+  }
+};
+const setVol = (v) => {
+  try {
+    localStorage.setItem("hk_vol", String(Math.max(0, Math.min(1, v))));
+  } catch (e) {}
+};
+const clickOn = () => {
+  try {
+    return localStorage.getItem("hk_click") !== "0";
   } catch (e) {
     return true;
   }
 };
-function playWhistle(kind) {
+function audio() {
+  ACX = ACX || new (window.AudioContext || window.webkitAudioContext)();
+  if (ACX.state === "suspended") ACX.resume();
+  return ACX;
+}
+// a soft tick on every button tap. The whistle is NOT used anywhere except the Rules page.
+function playClick() {
+  if (!clickOn() || !volume()) return;
   try {
-    ACX = ACX || new (window.AudioContext || window.webkitAudioContext)();
-    const c = ACX;
-    if (c.state === "suspended") c.resume();
+    const c = audio(),
+      t = c.currentTime,
+      o = c.createOscillator(),
+      g = c.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(1500, t);
+    o.frequency.exponentialRampToValueAtTime(650, t + 0.05);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.4 * volume(), t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    o.connect(g);
+    g.connect(c.destination);
+    o.start(t);
+    o.stop(t + 0.08);
+  } catch (e) {}
+}
+function playWhistle(kind) {
+  const vol = volume();
+  if (!vol) return;
+  try {
+    const c = audio(),
+      pk = 0.46 * vol;
     const pat = {
         short: [[0, 0.3]],
         long: [[0, 1]],
@@ -90,8 +129,8 @@ function playWhistle(kind) {
       lg.connect(o.frequency);
       lg.connect(o2.frequency);
       g.gain.setValueAtTime(0, t0 + s);
-      g.gain.linearRampToValueAtTime(0.3, t0 + s + 0.03);
-      g.gain.setValueAtTime(0.3, t0 + s + d - 0.06);
+      g.gain.linearRampToValueAtTime(pk, t0 + s + 0.03);
+      g.gain.setValueAtTime(pk, t0 + s + d - 0.06);
       g.gain.linearRampToValueAtTime(0, t0 + s + d);
       o.connect(g);
       o2.connect(g);
@@ -103,9 +142,25 @@ function playWhistle(kind) {
     });
   } catch (e) {}
 }
-const blow = (k) => {
-  if (soundOn()) playWhistle(k);
-};
+document.addEventListener(
+  "click",
+  (e) => {
+    const t =
+      e.target.closest &&
+      e.target.closest("button,[role=button],summary,.shb,.pt,.row.link");
+    if (t && !t.disabled && !t.hasAttribute("data-wh")) playClick();
+  },
+  true,
+);
+function bindVol(id, out, preview) {
+  const e = document.getElementById(id);
+  if (!e) return;
+  e.oninput = () => {
+    setVol(e.value / 100);
+    document.getElementById(out).textContent = e.value + "%";
+  };
+  e.onchange = preview;
+}
 function whistleSvg(sz) {
   return `<svg class="whs" width="${sz || 28}" height="${sz || 28}" viewBox="0 0 64 64" aria-hidden="true"><path d="M12 14c0-5 8-5 8 0v8" fill="none" stroke="#9aa7b4" stroke-width="3" stroke-linecap="round"/>
   <rect x="31" y="22" width="30" height="14" rx="4" fill="#f5b50a"/><rect x="31" y="22" width="30" height="5" rx="2.5" fill="#ffd45c"/>
@@ -745,6 +800,9 @@ const TABS = [
   ["schedule", "⏰", "Schedule", "", "Schedule"],
   ["rules", "📖", "Rules", "", ""],
   ["warmup", "🔥", "Warm-up", "", ""],
+  ["gallery", "🖼️", "Gallery", "", ""],
+  ["train", "⌚", "Training & watch", "", ""],
+  ["bugs", "🐞", "Bug reports", "o", ""],
   ["players", "👥", "Players", "a", ""],
   ["removed", "🗑️", "Removed students", "a", ""],
   ["admins", "🛡️", "Admins", "o", ""],
@@ -757,6 +815,18 @@ const tabsFor = () =>
 const go = (t) => {
   tab = t;
   prof = null;
+  if (t === "gallery") {
+    galLoaded = false;
+    galErr = "";
+  }
+  if (t === "train") {
+    wkLoaded = false;
+    wkErr = "";
+  }
+  if (t === "bugs") {
+    bgLoaded = false;
+    bgErr = "";
+  }
   render();
   window.scrollTo(0, 0);
 };
@@ -804,12 +874,20 @@ function saveToken(t) {
   } catch (x) {}
 }
 function logout() {
+  pushDrop(token);
   token = "";
   try {
     localStorage.removeItem("hk_token");
   } catch (e) {}
   loaded = false;
   lastJs = "";
+  pushChecked = false;
+  WK = [];
+  wkLoaded = false;
+  wkErr = "";
+  BG = [];
+  bgLoaded = false;
+  hrOff();
   admin = false;
   pl = false;
   owner = false;
@@ -870,6 +948,8 @@ async function load(force) {
     TPL = d.template || "";
     SCH = d.schedule && d.schedule.team ? d.schedule : JSON.parse(SCH0);
     GROUP = d.group || window.WA_GROUP || "";
+    MATCHES = Array.isArray(d.matches) ? d.matches : null;
+    if ((d.groupPhotoAt || 0) !== GPH.at) fetchGph(d.groupPhotoAt || 0);
     STAFF = d.staff || {};
     ADMID = d.adminId || "";
     MYPH = pl ? (all[0] || {}).photo || "" : d.myPhoto || "";
@@ -878,6 +958,10 @@ async function load(force) {
     showApp();
     render();
     checkAlerts();
+    if (!pushChecked) {
+      pushChecked = true;
+      pushState().then(() => render());
+    }
   } catch (e) {
     if (e.status === 401) {
       token = "";
@@ -912,7 +996,6 @@ $("lf").onsubmit = async (e) => {
     });
     saveToken(r.token);
     tab = "me";
-    blow("short");
     boot();
   } catch (x) {
     $("er").textContent =
@@ -968,7 +1051,6 @@ $("pf").onsubmit = async (e) => {
           });
     saveToken(r.token);
     tab = "me";
-    blow("short");
     boot();
   } catch (x) {
     pErr(x);
@@ -1028,15 +1110,7 @@ function drawMenu() {
     menuActs.push(fn);
     return `<button class="mi ${o.on ? "on" : ""} ${o.cls || ""}" data-k="${menuActs.length - 1}"${o.sw !== undefined ? ' role="switch" aria-checked="' + o.sw + '"' : ""}><span class="i">${ic}</span><span class="t">${label}</span>${o.sw !== undefined ? `<span class="sw ${o.sw ? "on" : ""}"></span>` : ""}</button>`;
   };
-  const roleName =
-    role === "captain"
-      ? "Captain"
-      : role === "vice"
-        ? "Vice-captain"
-        : role === "admin"
-          ? "Admin"
-          : "Player";
-  let h = `<button class="mu" id="mup" aria-label="Open my profile">${avatar(WHO, MYPH, 40)}<span style="flex:1;text-align:left"><b>${esc(WHO)}</b><span class="mute">${roleName} · view my profile</span></span><span class="chev">›</span></button>`;
+  let h = "";
   const more = tabsFor().filter((t) => !PRIMARY.includes(t[0])); // tabs already on the bottom bar / top bar are not repeated here
   if (more.length)
     h +=
@@ -1049,35 +1123,53 @@ function drawMenu() {
       `<div class="ms">Admin tools</div>` +
       mi("➕", "Add students", openAdd) +
       mi("✉️", "Edit message template", openTpl) +
-      mi("🔗", "Edit WhatsApp group link", openGroup);
+      mi("🔗", "Edit WhatsApp group link", openGroup) +
+      mi("📷", "Change team group photo", () =>
+        pickFiles((f) => setGroupPhoto(f[0])),
+      ) +
+      mi("🏑", "Edit Indian hockey fixtures", openMatches);
   h +=
     `<div class="ms">Share</div>` +
     mi("📊", "Share attendance report", () => openReport()) +
     mi("📲", "Share this app", shareApp);
   h +=
-    `<div class="ms">App</div>` +
+    `<div class="ms">Sound</div>` +
     mi(
-      "🔊",
-      "Whistle sound",
+      "🖱️",
+      "Click sound",
       () => {
         try {
-          localStorage.setItem("hk_sound", soundOn() ? "0" : "1");
+          localStorage.setItem("hk_click", clickOn() ? "0" : "1");
         } catch (e) {}
-        if (soundOn()) playWhistle("short");
         drawMenu();
       },
-      { sw: soundOn() },
+      { sw: clickOn() },
+    ) +
+    `<div class="mrow"><span class="i">🔈</span><input type="range" id="mvol" min="0" max="100" step="5" value="${Math.round(volume() * 100)}" aria-label="Volume"><span class="mute" id="mvolv">${Math.round(volume() * 100)}%</span></div>`;
+  h +=
+    `<div class="ms">Notifications</div>` +
+    mi(
+      pushOn ? "🔔" : "🔕",
+      "Push: day scheduled / cancelled",
+      async () => {
+        await setPush(!pushOn);
+        drawMenu();
+      },
+      { sw: pushOn },
     ) +
     mi(
       alertOn ? "🔔" : "🔕",
-      "Alerts 15 min before practice",
+      "Alert 15 min before practice",
       async () => {
         await setAlert(!alertOn);
         drawMenu();
       },
       { sw: alertOn },
-    ) +
-    mi("📅", "Add schedule to calendar", icsDownload);
+    );
+  h +=
+    `<div class="ms">App</div>` +
+    mi("📅", "Add schedule to calendar", icsDownload) +
+    mi("🐞", "Report a bug", openBug);
   if (!standalone()) h += mi("⬇️", "Install app", installApp);
   if (GROUP)
     h += mi("💬", "Join WhatsApp group", () =>
@@ -1099,11 +1191,7 @@ function drawMenu() {
       { cls: "out" },
     );
   m.innerHTML = h;
-  if ($("mup"))
-    $("mup").onclick = () => {
-      m.hidden = true;
-      openMyProfile();
-    };
+  bindVol("mvol", "mvolv", playClick);
   m.querySelectorAll(".mi").forEach(
     (b) =>
       (b.onclick = () => {
@@ -1372,6 +1460,122 @@ function checkAlerts() {
 setInterval(checkAlerts, 30000);
 document.addEventListener("visibilitychange", checkAlerts);
 
+// ---- push: the server sends a notification when a playing day is scheduled or cancelled (works with the app closed) ----
+let pushOn = false,
+  pushChecked = false;
+const pushOk = () =>
+  "serviceWorker" in navigator &&
+  "PushManager" in window &&
+  "Notification" in window;
+const b64u = (k) => {
+  const b = (k + "=".repeat((4 - (k.length % 4)) % 4))
+      .replace(/-/g, "+")
+      .replace(/_/g, "/"),
+    r = atob(b);
+  return Uint8Array.from([...r].map((c) => c.charCodeAt(0)));
+};
+async function pushState() {
+  if (!pushOk()) return (pushOn = false);
+  try {
+    const r = await navigator.serviceWorker.ready,
+      s = await r.pushManager.getSubscription();
+    pushOn = !!s && Notification.permission === "granted";
+    if (pushOn)
+      api("/api/push/subscribe", {
+        method: "POST",
+        body: { sub: s.toJSON() },
+      }).catch(() => {}); // keep the server copy tied to whoever is logged in
+  } catch (e) {
+    pushOn = false;
+  }
+  return pushOn;
+}
+async function setPush(on) {
+  if (!pushOk())
+    return alert(
+      "This browser cannot receive push notifications. On iPhone: open the page in Safari, Share > Add to Home Screen, then open the app from the home screen and try again.",
+    );
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (on) {
+      if ((await Notification.requestPermission()) !== "granted")
+        return alert(
+          "Notifications are blocked. Allow notifications for this site in your browser settings, then try again.",
+        );
+      const k = await api("/api/push/key");
+      const s =
+        (await reg.pushManager.getSubscription()) ||
+        (await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: b64u(k.key),
+        }));
+      await api("/api/push/subscribe", {
+        method: "POST",
+        body: { sub: s.toJSON() },
+      });
+      pushOn = true;
+      alert(
+        "Push notifications are ON. You will be told when a playing day is scheduled or cancelled, even when the app is closed.",
+      );
+    } else {
+      const s = await reg.pushManager.getSubscription();
+      if (s) {
+        await api("/api/push/unsubscribe", {
+          method: "POST",
+          body: { endpoint: s.endpoint },
+        }).catch(() => {});
+        await s.unsubscribe();
+      }
+      pushOn = false;
+    }
+  } catch (e) {
+    alert("Could not change push notifications: " + (e.message || e));
+  }
+}
+function pushDrop(tk) {
+  // on log out: stop this phone getting the previous person's notifications
+  if (!pushOk()) return;
+  navigator.serviceWorker.ready
+    .then((r) => r.pushManager.getSubscription())
+    .then((s) => {
+      if (!s) return;
+      fetch(API + "/api/push/unsubscribe", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + tk,
+        },
+        body: JSON.stringify({ endpoint: s.endpoint }),
+      }).catch(() => {});
+      s.unsubscribe().catch(() => {});
+    })
+    .catch(() => {});
+  pushOn = false;
+}
+function pushCard() {
+  let no = false;
+  try {
+    no = localStorage.getItem("hk_pushno") === "1";
+  } catch (e) {}
+  if (!pushOk() || pushOn || no || Notification.permission === "denied")
+    return "";
+  return `<div class="note"><b>🔔 Get notified</b> when a playing day is scheduled or cancelled.<div class="chips"><button class="pri" data-pushon>Turn on</button><button data-pushno>Not now</button></div></div>`;
+}
+document.addEventListener("click", async (e) => {
+  const on = e.target.closest && e.target.closest("[data-pushon]"),
+    no = e.target.closest && e.target.closest("[data-pushno]");
+  if (on) {
+    await setPush(true);
+    render();
+  }
+  if (no) {
+    try {
+      localStorage.setItem("hk_pushno", "1");
+    } catch (x) {}
+    render();
+  }
+});
+
 // ---- calendar file: every fixed playing day with a built-in 15 minute reminder (works in the background on any phone) ----
 function icsDownload() {
   const up = Object.keys(PL)
@@ -1472,6 +1676,9 @@ function render() {
     plan: vPlan,
     stats: vStats,
     schedule: vSched,
+    gallery: vGallery,
+    train: vTrain,
+    bugs: vBugs,
     rules: vRules,
     warmup: vWarm,
     players: vPlayers,
@@ -1481,52 +1688,112 @@ function render() {
 }
 const dayIdx = (d) => (new Date(d + "T00:00").getDay() + 6) % 7;
 
+let tkQ = "",
+  tkUn = false;
 function vTake() {
   const ex = SS[takeDate] || {};
   if (draftDate !== takeDate) {
     draft = { ...ex };
     draftDate = takeDate;
+    tkQ = "";
+    tkUn = false;
   }
   const el = P.filter((p) => !p.joined || p.joined <= takeDate),
-    pl = SCH.team[dayIdx(takeDate)],
+    pln = SCH.team[dayIdx(takeDate)],
     pend = Object.keys(PL)
       .sort()
       .filter((d) => !SS[d] && PL[d].status !== "cancelled" && d <= today());
+  const av = AVL[takeDate] || {},
+    prev = dates()
+      .filter((d) => d < takeDate)
+      .reverse(),
+    cx = PL[takeDate] && PL[takeDate].status === "cancelled";
+  const dots = (p) =>
+    prev
+      .filter((d) => SS[d][p.id] !== undefined)
+      .slice(0, 5)
+      .reverse()
+      .map(
+        (d) => `<i class="${SS[d][p.id] ? "d1" : "d0"}" title="${fmt(d)}"></i>`,
+      )
+      .join("");
+  const badge = (p) => {
+    const a = av[p.id];
+    return a && a.s && a.s !== "active"
+      ? `<span class="avb ${a.s}" title="${esc(a.why || "")}">${avLabel(a.s)}${a.why ? ": " + esc(a.why) : ""}</span>`
+      : "";
+  };
+  const blocked = el.filter(
+    (p) => av[p.id] && (av[p.id].s === "out" || av[p.id].s === "injured"),
+  );
   $("view").innerHTML = `<div class="card"><h2>Take attendance</h2>
-  <div class="ctl"><label>Date <input type="date" id="td" value="${takeDate}"></label><button id="allp">All present</button></div>${pend.length ? `<p class="mute">Planned days waiting for attendance:</p><div class="chips" style="margin:0 0 10px">${pend.map((d) => `<button data-pd="${d}">${fmt(d)}</button>`).join("")}</div>` : ""}
-  <p class="mute">${pl[0]}: ${pl[3] ? esc(pl[1]) + ", " + pl[3] : "rest day on the schedule"}${SS[takeDate] ? " · already saved, saving again updates it" : ""}</p>
-  ${
+  <div class="tkh"><button id="dprev" aria-label="Previous day">‹</button><input type="date" id="td" value="${takeDate}" aria-label="Date"><button id="dnext" aria-label="Next day">›</button><button id="dtoday">Today</button></div>
+  <div class="tkinfo"><span class="pill ${cx ? "r" : "g"}">${cx ? "Cancelled" : esc(pln[0])}</span><span class="mute">${cx ? "This playing day is cancelled" : pln[3] ? esc(pln[1]) + " · " + esc(pln[3]) : "Rest day on the schedule"}${SS[takeDate] ? " · already saved, saving again updates it" : ""}</span></div>
+  ${pend.length ? `<p class="mute" style="margin:10px 0 4px">Waiting for attendance:</p><div class="chips" style="margin:0 0 6px">${pend.map((d) => `<button data-pd="${d}" class="${d === takeDate ? "pri" : ""}">${fmt(d)}</button>`).join("")}</div>` : ""}
+  <div class="tkq"><input id="tkq" type="search" placeholder="Search name or roll no" value="${esc(tkQ)}" aria-label="Search players"><button id="tkun" aria-pressed="${tkUn}" class="${tkUn ? "pri" : ""}">Unmarked only</button></div>
+  <div class="chips" style="margin:6px 0 8px"><button id="allp">✔ All present</button><button id="alla">✘ All absent</button>${blocked.length ? `<button id="blk">Mark “can’t come / injured” absent (${blocked.length})</button>` : ""}<button id="clr">Clear</button></div>
+  <div id="tkl">${
     el
       .map(
         (
           p,
-        ) => `<div class="row"><span>${esc(p.name)}<br><span class="mute">${esc(p.roll)}</span></span><span class="tog">
-  <button class="p ${draft[p.id] === true ? "on" : ""}" data-id="${p.id}" data-v="1">Present</button>
-  <button class="a ${draft[p.id] === false ? "on" : ""}" data-id="${p.id}" data-v="0">Absent</button></span></div>`,
+        ) => `<div class="tk" data-id="${p.id}" data-q="${esc((p.name + " " + (p.roll || "")).toLowerCase())}">${avatar(p.name, p.photo, 42)}<div class="tki"><b>${esc(p.name)}</b><small>${esc(p.roll || "")}${badge(p)}</small><span class="dots" aria-label="Last 5 practices">${dots(p)}</span></div>
+  <span class="tog"><button class="p ${draft[p.id] === true ? "on" : ""}" data-id="${p.id}" data-v="1" aria-label="Present">✔<span> Present</span></button><button class="a ${draft[p.id] === false ? "on" : ""}" data-id="${p.id}" data-v="0" aria-label="Absent">✘<span> Absent</span></button></span></div>`,
       )
       .join("") ||
     '<p class="mute">No players yet. Add students from the ⋮ menu.</p>'
-  }
-  <div class="ctl" style="margin-top:12px"><button class="pri" id="sv">Save attendance</button>${SS[takeDate] ? '<button id="wat">⤴ Share</button><button class="dng" id="del">Delete this day</button>' : ""}</div></div>`;
+  }<p id="tkn" class="mute" hidden>No players match.</p></div>
+  ${SS[takeDate] ? '<div class="chips"><button id="wat">⤴ Share</button><button class="dng" id="del">Delete this day</button></div>' : ""}</div>
+  <div class="tksv"><div class="tks"><div class="tkc"><b id="tkp" class="gp">0</b><small>Present</small></div><div class="tkc"><b id="tka" class="ga">0</b><small>Absent</small></div><div class="tkc"><b id="tkm">0</b><small>Left</small></div></div><div class="tkprog"><i id="tkpb"></i></div><button class="pri big" id="sv">Save attendance</button></div>`;
+  const upd = () => {
+    const p = el.filter((x) => draft[x.id] === true).length,
+      a = el.filter((x) => draft[x.id] === false).length;
+    $("tkp").textContent = p;
+    $("tka").textContent = a;
+    $("tkm").textContent = el.length - p - a;
+    $("tkpb").style.width = (el.length ? ((p + a) * 100) / el.length : 0) + "%";
+    const q = tkQ.trim().toLowerCase();
+    let shown = 0;
+    document.querySelectorAll(".tk").forEach((r) => {
+      const hide =
+        (q && !r.dataset.q.includes(q)) ||
+        (tkUn && draft[r.dataset.id] !== undefined);
+      r.hidden = hide;
+      if (!hide) shown++;
+      const v = draft[r.dataset.id];
+      r.classList.toggle("mp", v === true);
+      r.classList.toggle("ma", v === false);
+      r.querySelector(".p").classList.toggle("on", v === true);
+      r.querySelector(".a").classList.toggle("on", v === false);
+    });
+    $("tkn").hidden = shown > 0 || !el.length;
+  };
   $("td").onchange = (e) => {
     if (e.target.value) {
       takeDate = e.target.value;
       vTake();
     }
   };
+  $("dprev").onclick = () => {
+    takeDate = addDays(takeDate, -1);
+    vTake();
+  };
+  $("dnext").onclick = () => {
+    takeDate = addDays(takeDate, 1);
+    vTake();
+  };
+  $("dtoday").onclick = () => {
+    takeDate = today();
+    vTake();
+  };
   document.querySelectorAll(".tog button").forEach(
     (b) =>
       (b.onclick = () => {
-        draft[b.dataset.id] = b.dataset.v === "1";
-        const r = b.parentNode;
-        r.querySelector(".p").classList.toggle(
-          "on",
-          draft[b.dataset.id] === true,
-        );
-        r.querySelector(".a").classList.toggle(
-          "on",
-          draft[b.dataset.id] === false,
-        );
+        const id = b.dataset.id,
+          v = b.dataset.v === "1";
+        draft[id] = draft[id] === v ? undefined : v;
+        if (draft[id] === undefined) delete draft[id];
+        upd();
       }),
   );
   document.querySelectorAll("[data-pd]").forEach(
@@ -1536,17 +1803,43 @@ function vTake() {
         vTake();
       }),
   );
+  $("tkq").oninput = (e) => {
+    tkQ = e.target.value;
+    upd();
+  };
+  $("tkun").onclick = () => {
+    tkUn = !tkUn;
+    $("tkun").classList.toggle("pri", tkUn);
+    $("tkun").setAttribute("aria-pressed", String(tkUn));
+    upd();
+  };
   $("allp").onclick = () => {
     el.forEach((p) => (draft[p.id] = true));
-    vTake();
+    upd();
   };
+  $("alla").onclick = () => {
+    el.forEach((p) => (draft[p.id] = false));
+    upd();
+  };
+  $("clr").onclick = () => {
+    el.forEach((p) => delete draft[p.id]);
+    upd();
+  };
+  if ($("blk"))
+    $("blk").onclick = () => {
+      blocked.forEach((p) => (draft[p.id] = false));
+      upd();
+    };
   $("sv").onclick = () => {
     if (!el.length) return alert("Add players first.");
     const un = el.filter((p) => draft[p.id] === undefined);
-    if (un.length)
+    if (un.length) {
+      tkUn = true;
+      upd();
       return alert(
-        "Tick Present or Absent for: " + un.map((p) => p.name).join(", "),
+        "Mark Present or Absent for: " + un.map((p) => p.name).join(", "),
       );
+    }
     const r = {};
     el.forEach((p) => (r[p.id] = draft[p.id]));
     run(async () => {
@@ -1555,7 +1848,6 @@ function vTake() {
         body: { r: { ...ex, ...r } },
       });
       draftDate = null;
-      blow("double");
       await load();
       if (confirm("Saved for " + fmt(takeDate) + ". Share the attendance now?"))
         wa(attMsg(takeDate));
@@ -1571,6 +1863,7 @@ function vTake() {
           await load();
         });
     };
+  upd();
 }
 
 function mSel(id, cur, all) {
@@ -1628,6 +1921,9 @@ function vStats() {
     live = dates().filter((d) => m === "all" || d.startsWith(m));
   const tp = st.reduce((a, x) => a + x.t, 0),
     tr = tp ? Math.round((st.reduce((a, x) => a + x.pr, 0) * 100) / tp) : 0;
+  const medal = medalFn(st),
+    mine = st.find((x) => x.p.id === me),
+    tier = !admin && mine ? tierMedal(mine.pct) : null;
   let pts, ttl;
   if (m === "all") {
     ttl = admin ? "Team turnout by month" : "My attendance by month";
@@ -1686,10 +1982,11 @@ function vStats() {
   $("view").innerHTML =
     `<div class="card"><h2>Attendance</h2><div class="ctl">${mSel("gm", gMonth, true)}</div>
   <div class="stats"><div><b>${n}</b>Playing days</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
-  <table><tr><th>Player</th><th class="n">Present</th><th class="n">Days</th><th>%</th></tr>${st.map((x) => `<tr><td>${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
+  ${admin ? podium(st, medal) : tier ? `<div class="tier"><span>${tier[0]}</span><div><b>${tier[1]} level</b><br><span class="mute">Gold 90% or more · Silver 75% or more · Bronze 60% or more</span></div></div>` : ""}
+  <table><tr><th>Player</th><th class="n">Present</th><th class="n">Days</th><th>%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
   ${L[m] ? '<p class="mute">Includes the imported register totals. Players who joined mid-month show a lower %.</p>' : ""}
-  <h2 style="margin-top:18px">${ttl}</h2>${pts.length ? '<div id="ch1" class="chart"></div>' : '<p class="mute">No day-by-day records for this month. Monthly totals only.</p>'}
   <div class="chips"><button id="shr">⤴ Share report</button></div></div>
+  ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
   <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selDate}"></div>${day}
   <div class="chips">${live
@@ -1716,7 +2013,7 @@ function vStats() {
       vStats();
     }
   };
-  document.querySelectorAll(".chips button").forEach(
+  document.querySelectorAll(".chips button[data-d]").forEach(
     (b) =>
       (b.onclick = () => {
         selDate = b.dataset.d;
@@ -1725,7 +2022,6 @@ function vStats() {
       }),
   );
 }
-let openDay = null;
 const DAB = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function nextDateOf(i) {
   const t = new Date(today() + "T00:00");
@@ -1747,28 +2043,23 @@ function nextDateOf(i) {
     String(t.getDate()).padStart(2, "0")
   );
 }
+let schDay = -1;
 function vSched() {
   const ti = dayIdx(today());
-  if (!openDay) openDay = new Set([ti]);
-  const rows = SCH[sch];
+  if (schDay < 0 || schDay > 6) schDay = ti;
+  const rows = SCH[sch],
+    i = schDay,
+    r = rows[i];
   $("view").innerHTML = `<div class="card"><h2>Weekly practice schedule</h2>
   <div class="seg2"><button class="${sch === "team" ? "on" : ""}" data-s="team">Team</button><button class="${sch === "gk" ? "on" : ""}" data-s="gk">Goalkeepers</button></div>
-  <div class="week">${rows.map((r, i) => `<button class="wd ${i === ti ? "today" : ""} ${r[3] ? "" : "rest"}" data-w="${i}" aria-label="${r[0]}"><b>${DAB[i]}</b><span>${r[3] ? "🏑" : "😴"}</span></button>`).join("")}</div>
-  <p class="mute" style="margin:0 0 8px">Tap a day to see the details${admin ? " and edit it" : ""}.</p>
-  ${rows
-    .map(
-      (
-        r,
-        i,
-      ) => `<details class="day ${r[3] ? "" : "rest"} ${i === ti ? "today" : ""}" id="dy${i}" data-di="${i}" ${openDay.has(i) ? "open" : ""}>
-    <summary><span class="dbadge">${DAB[i]}</span><span class="dm"><b>${esc(r[1])}</b><small>${r[3] ? "⏰ " + esc(r[3]) : "Rest day"}</small></span>${i === ti ? '<span class="pill g">Today</span>' : ""}<span class="chev">›</span></summary>
+  <div class="week">${rows.map((x, k) => `<button type="button" class="wd ${k === ti ? "today" : ""} ${k === i ? "sel" : ""} ${x[3] ? "" : "rest"}" data-w="${k}" aria-pressed="${k === i}" aria-label="${x[0]}"><b>${DAB[k]}</b><span>${x[3] ? "🏑" : "😴"}</span></button>`).join("")}</div>
+  <div class="dayc ${r[3] ? "" : "rest"} ${i === ti ? "today" : ""}">
+    <div class="dhead"><span class="dbadge">${DAB[i]}</span><span class="dm"><b>${esc(r[1])}</b><small>${r[3] ? "⏰ " + esc(r[3]) : "Rest day"}</small></span>${i === ti ? '<span class="pill g">Today</span>' : ""}</div>
     <div class="db"><p>${esc(r[2])}</p>
       <div class="kv"><span>Day</span><b>${r[0]}</b></div><div class="kv"><span>Timing</span><b>${r[3] ? esc(r[3]) : "No session"}</b></div><div class="kv"><span>Next date</span><b>${fmt(nextDateOf(i))}</b></div>
-      ${admin ? `<div class="edit"><label class="fl">Session name<input id="de-t${i}" value="${esc(r[1])}" maxlength="60"></label><label class="fl">Details<input id="de-x${i}" value="${esc(r[2])}" maxlength="200"></label><label class="fl">Timing, e.g. 6:30–8:30 PM (empty = rest day)<input id="de-m${i}" value="${esc(r[3])}" maxlength="30"></label></div>` : ""}
-      <div class="chips"><button data-sh="${i}">⤴ Share this day</button>${admin ? `<button class="pri" data-sv="${i}">Save changes</button>${r[3] ? `<button data-nx="${i}">Schedule next ${r[0]}</button>` : ""}` : ""}</div></div></details>`,
-    )
-    .join("")}
-  <p class="mute">Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: Kiran Chaudhary.</p>
+      ${admin ? `<div class="edit"><label class="fl">Session name<input id="de-t" value="${esc(r[1])}" maxlength="60"></label><label class="fl">Details<input id="de-x" value="${esc(r[2])}" maxlength="200"></label><label class="fl">Timing, e.g. 6:30–8:30 PM (empty = rest day)<input id="de-m" value="${esc(r[3])}" maxlength="30"></label></div>` : ""}
+      <div class="chips"><button data-sh="1">⤴ Share this day</button>${admin ? `<button class="pri" data-sv="1">Save changes</button>${r[3] ? `<button data-nx="1">Schedule next ${r[0]}</button>` : ""}` : ""}</div></div></div>
+  <p class="mute">Tap a day above to see it. Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: Kiran Chaudhary.</p>
   <div class="chips"><button id="wsch">⤴ Share whole week</button><button id="wcal">📅 Add to calendar</button></div></div>`;
   $("wsch").onclick = () => shareText(weekMsg(sch), "Weekly schedule");
   $("wcal").onclick = icsDownload;
@@ -1779,41 +2070,31 @@ function vSched() {
         vSched();
       }),
   );
-  document.querySelectorAll("details.day").forEach(
-    (d) =>
-      (d.ontoggle = () => {
-        const i = +d.dataset.di;
-        d.open ? openDay.add(i) : openDay.delete(i);
-      }),
-  );
   document.querySelectorAll("[data-w]").forEach(
     (b) =>
       (b.onclick = () => {
-        const e = $("dy" + b.dataset.w);
-        e.open = true;
-        e.scrollIntoView({ behavior: "smooth", block: "center" });
+        schDay = +b.dataset.w;
+        vSched();
       }),
   );
-  document.querySelectorAll("[data-sh]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        const r = rows[+b.dataset.sh];
-        shareText(
-          `🏑 *Inter IIT Hockey: ${r[0]}*\n${r[1]}\n${r[2]}\n⏰ ${r[3] || "Rest day"}`,
-          "Practice",
-        );
-      }),
-  );
+  document
+    .querySelectorAll("[data-sh]")
+    .forEach(
+      (b) =>
+        (b.onclick = () =>
+          shareText(
+            `🏑 *Inter IIT Hockey: ${r[0]}*\n${r[1]}\n${r[2]}\n⏰ ${r[3] || "Rest day"}`,
+            "Practice",
+          )),
+    );
   document.querySelectorAll("[data-sv]").forEach(
     (b) =>
       (b.onclick = () => {
-        const i = +b.dataset.sv,
-          r = rows[i];
         SCH[sch][i] = [
           r[0],
-          $("de-t" + i).value.trim(),
-          $("de-x" + i).value.trim(),
-          $("de-m" + i).value.trim(),
+          $("de-t").value.trim(),
+          $("de-x").value.trim(),
+          $("de-m").value.trim(),
         ];
         run(async () => {
           await api("/api/schedule", {
@@ -1825,7 +2106,6 @@ function vSched() {
       }),
   );
   document.querySelectorAll("[data-nx]").forEach((b) => {
-    const i = +b.dataset.nx;
     b.onclick = () => {
       const d = nextDateOf(i);
       if (PL[d] && !confirm(fmt(d) + " is already scheduled. Replace it?"))
@@ -2124,7 +2404,7 @@ function vSections(col) {
     ed = admin && list.length > 0,
     open = openS[col];
   $("view").innerHTML =
-    `${rules ? `<div class="card whc"><div class="whl">${whistleSvg(60)}<div><h2 style="margin:0">Umpire whistle</h2><span class="mute">Tap to hear it. Typical use: a short blast stops play for a foul or decision, a long blast starts or ends a period.</span></div></div><div class="chips"><button data-wh="short">Short blast</button><button data-wh="double">Two blasts</button><button data-wh="long">Long blast</button><button data-wh="final">Final whistle</button></div></div>` : ""}${rules ? '<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>' : ""}
+    `${rules ? whistleCard() : ""}${rules ? '<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>' : ""}
   ${admin && !list.length ? `<div class="note">Admin tools: <button class="pri" id="rl-on">Enable editing${rules ? " and signal photos" : ", photos and video links"}</button></div>` : ""}
   ${ed ? '<div class="ctl"><button id="rl-add">+ Add section</button></div>' : ""}` +
     secs
@@ -2140,6 +2420,7 @@ function vSections(col) {
   document
     .querySelectorAll("[data-wh]")
     .forEach((b) => (b.onclick = () => playWhistle(b.dataset.wh)));
+  bindVol("wvol", "wvolv", () => playWhistle("short"));
   document.querySelectorAll("details[data-si]").forEach(
     (d) =>
       (d.ontoggle = () => {
@@ -2238,6 +2519,32 @@ function vSections(col) {
       }),
   );
 }
+const WSND = [
+  [
+    "short",
+    "Short blast",
+    "Stop playing and look to the umpire for the signal. Used for a foul, a ball out of play or any decision.",
+  ],
+  ["long", "Long blast", "Start of a quarter or of the match."],
+  ["double", "Two short blasts", "Goal scored. Play and time stop."],
+  ["final", "Final whistle", "End of the match."],
+];
+const WRULES = [
+  "Obey at once|play stops on the whistle. Do not play the ball or move to gain an advantage after it",
+  "Start|a match or quarter begins on the umpire's whistle with a pass from the centre",
+  "Stop play|the umpire whistles for a foul or breach, then shows the signal and where play restarts",
+  "Advantage|while the umpire shows the advantage signal there is no whistle and play carries on",
+  "Goal|the umpire whistles and points to the centre. Time and play stop after a goal (2026 rule)",
+  "Penalty stroke|the taker may play only after the umpire's whistle",
+  "End of a quarter or match|play ends on the umpire's whistle (a penalty corner or stroke already awarded is finished first)",
+];
+function whistleCard() {
+  const v = Math.round(volume() * 100);
+  return `<div class="card whc"><div class="whl">${whistleSvg(60)}<div><h2 style="margin:0">Umpire whistle</h2><span class="mute">Tap ▶ to hear each blast. The whistle plays only on this page.</span></div></div>
+  <label class="volr"><span>🔈</span><input type="range" id="wvol" min="0" max="100" step="5" value="${v}" aria-label="Volume"><span class="mute" id="wvolv">${v}%</span></label>
+  <div class="wsl">${WSND.map((w) => `<div class="wsr"><button type="button" class="wpl" data-wh="${w[0]}" aria-label="Play ${w[1]}">▶</button><span><b>${w[1]}</b><br><span class="mute">${w[2]}</span></span></div>`).join("")}</div></div>
+  <details class="card" open><summary>📣 Whistle rules</summary>${lst(WRULES, "ul", "📣")}</details>`;
+}
 function vRules() {
   vSections("rules");
 }
@@ -2267,83 +2574,6 @@ function nextCard() {
   <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p>${p.venue ? `<p style="margin:2px 0 0">📍 ${esc(p.venue)}</p>` : ""}<p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}
   ${availBlock(d)}${c ? `<p class="mute" style="margin:8px 0 0">${fmt(c)} is cancelled.</p>` : ""}</div>`;
 }
-function vMe() {
-  admin ? homeAdmin() : homePlayer();
-}
-function homePlayer() {
-  const a = stats("all").find((x) => x.p.id === me);
-  if (!a) {
-    $("view").innerHTML =
-      `<div class="card">${empty("🏑", "Your record was not found. Ask the captain.")}</div>`;
-    return;
-  }
-  const rows = months()
-    .map((m) => {
-      const s = stats(m).find((x) => x.p.id === me);
-      return s && s.t
-        ? `<tr><td>${mfmt(m)}</td><td class="n">${s.pr}/${s.t}</td><td><div class="bar"><i style="width:${s.pct}%"></i></div>${s.pct}%</td></tr>`
-        : "";
-    })
-    .join("");
-  const recent = dates()
-    .reverse()
-    .filter((d) => SS[d][me] !== undefined)
-    .slice(0, 10)
-    .map(
-      (d) =>
-        `<div class="row"><span>${fmt(d)}</span><span class="tag ${SS[d][me] ? "p" : "a"}">${SS[d][me] ? "Present" : "Absent"}</span></div>`,
-    )
-    .join("");
-  $("view").innerHTML =
-    `<div class="card hero"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div><div class="hi"><h2>Hi, ${esc(a.p.name.split(" ")[0])} 👋</h2><span class="mute">${esc(a.p.position || "Hockey player")} · ${esc(a.p.roll)}</span></div>
-  <div class="stats" style="width:100%;margin:0"><div><b>${a.pr}</b>Days attended</div><div><b>${a.t}</b>Playing days</div><div><b>${a.t - a.pr}</b>Missed</div></div></div>
-  <div class="grid">${nextCard()}<div class="card"><h2>Recent days</h2>${recent || empty("📋", "No day-by-day records yet.")}</div>
-  <div class="card span2"><h2>Month by month</h2>${rows ? `<table><tr><th>Month</th><th class="n">Present</th><th>%</th></tr>${rows}</table>` : empty("📊", "No attendance recorded yet.")}</div></div>`;
-}
-function homeAdmin() {
-  const st = stats("all").filter((x) => x.t),
-    tp = st.reduce((a, x) => a + x.t, 0),
-    all = tp ? Math.round((st.reduce((a, x) => a + x.pr, 0) * 100) / tp) : 0;
-  const last = dates().pop(),
-    lv = last
-      ? P.filter((p) => SS[last][p.id] !== undefined).map((p) => SS[last][p.id])
-      : [],
-    lt = lv.length
-      ? Math.round((lv.filter(Boolean).length * 100) / lv.length)
-      : 0;
-  const pend = Object.keys(PL)
-    .sort()
-    .filter((d) => !SS[d] && PL[d].status !== "cancelled" && d <= today());
-  const lo = [...st]
-      .filter((x) => x.t >= 3 && x.pct < 75)
-      .sort((a, b) => a.pct - b.pct)
-      .slice(0, 5),
-    hi = [...st]
-      .filter((x) => x.t >= 3)
-      .sort((a, b) => b.pct - a.pct)
-      .slice(0, 5);
-  const list = (a) =>
-    a.length
-      ? a
-          .map(
-            (x) =>
-              `<div class="row"><span>${esc(x.p.name)}</span><span class="tag ${x.pct >= 75 ? "p" : x.pct < 50 ? "a" : ""}">${x.pct}%</span></div>`,
-          )
-          .join("")
-      : empty("📊", "Not enough data yet.");
-  $("view").innerHTML =
-    `<div class="card hero"><div class="ring" style="--v:${lt}"><b>${lt}%</b></div><div class="hi"><h2>Welcome, ${esc(WHO.split(" ")[0])} 🏑</h2><span class="mute">${last ? "Last session " + fmt(last) + " turnout" : "No attendance taken yet"}</span></div>
-  <div class="stats" style="width:100%;margin:0"><div><b>${P.length}</b>Players</div><div><b>${rdays("all")}</b>Playing days</div><div><b>${all}%</b>Overall turnout</div><div><b>${pend.length}</b>Waiting for attendance</div></div></div>
-  <div class="grid">${nextCard()}<div class="card"><h2>Attendance waiting</h2>${pend.length ? `<p class="mute">Tap a day to take attendance.</p><div class="chips" style="margin:0">${pend.map((d) => `<button class="pri" data-pd="${d}">${fmt(d)}</button>`).join("")}</div>` : empty("✅", "All planned days are done.")}</div>
-  <div class="card"><h2>Best attendance</h2>${list(hi)}</div><div class="card"><h2>Needs a nudge</h2>${lo.length ? list(lo) : empty("🎉", "Everyone is above 75%.")}</div></div>`;
-  document.querySelectorAll("[data-pd]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        takeDate = b.dataset.pd;
-        go("take");
-      }),
-  );
-}
 function nextPlan() {
   const d = Object.keys(PL)
     .sort()
@@ -2352,23 +2582,68 @@ function nextPlan() {
     ? `<p class="note">Next playing day: <b>${fmt(d)}</b>${PL[d].time ? ", " + esc(PL[d].time) : ""}${PL[d].venue ? " · 📍 " + esc(PL[d].venue) : ""}${PL[d].note ? " · " + esc(PL[d].note) : ""}</p>`
     : "";
 }
+let planSel = "",
+  planMon = "";
 function vPlan() {
   const td = today(),
-    ks = Object.keys(PL).sort(),
-    up = ks.filter((d) => d >= td),
-    past = ks
-      .filter((d) => d < td)
-      .reverse()
-      .slice(0, 5);
-  const row = (d) => {
-    const p = PL[d],
-      c = p.status === "cancelled";
-    return `<div class="row"><span><b>${fmt(d)}</b> · ${SCH.team[dayIdx(d)][0]}${p.time ? " · " + esc(p.time) : ""}${p.venue ? " · 📍 " + esc(p.venue) : ""}${c ? ' · <span class="tag a">Cancelled</span>' : ""}${SS[d] ? ' · <span class="tag p">Attendance recorded</span>' : ""}${p.note ? '<br><span class="mute">' + esc(p.note) + "</span>" : ""}${d >= td && !c ? "<br>" + availBlock(d, 1) : ""}</span>${admin ? `<span class="chips" style="margin:0"><button data-a="ed" data-d="${d}">✏️ Edit</button><button data-a="take" data-d="${d}">Attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></span>` : ""}</div>`;
+    ks = Object.keys(PL).sort();
+  if (!planSel)
+    planSel = ks.find((d) => d >= td && PL[d].status !== "cancelled") || td;
+  if (!planMon) planMon = planSel.slice(0, 7);
+  const [y, mo] = planMon.split("-").map(Number),
+    lead = (new Date(y, mo - 1, 1).getDay() + 6) % 7,
+    nd = new Date(y, mo, 0).getDate(),
+    cells = [];
+  for (let k = 0; k < lead; k++) cells.push("<span></span>");
+  for (let n = 1; n <= nd; n++) {
+    const d = planMon + "-" + String(n).padStart(2, "0"),
+      p = PL[d],
+      st = p ? (p.status === "cancelled" ? "cx" : SS[d] ? "dn" : "pl") : "";
+    cells.push(
+      `<button type="button" class="cd ${st} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}"><b>${n}</b>${p ? "<i></i>" : ""}</button>`,
+    );
+  }
+  const dayCard = (d) => {
+    const p = PL[d];
+    if (!p)
+      return `<p class="mute" style="margin:0 0 10px">No playing day on ${dlong(d)}.</p>${admin ? '<button class="pri" data-a="new">Schedule this day</button>' : ""}`;
+    const c = p.status === "cancelled",
+      r = SCH.team[dayIdx(d)];
+    return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> ${c ? '<span class="pill r">Cancelled</span>' : d >= td ? `<span class="pill g">${dlabel(d)}</span>` : ""} ${SS[d] ? '<span class="pill g">Attendance recorded</span>' : ""}</p>
+    <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p>${p.venue ? `<p style="margin:2px 0 0">📍 ${esc(p.venue)}</p>` : ""}<p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}
+    ${d >= td && !c ? availBlock(d) : ""}
+    ${admin ? `<div class="chips"><button data-a="ed" data-d="${d}">✏️ Edit</button><button data-a="take" data-d="${d}">Attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></div>` : ""}`;
   };
+  const fd = PL[planSel] ? td : planSel;
   $("view").innerHTML =
-    `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${td}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(td)][3])}"></div><div class="ctl"><input id="pv" placeholder="Venue" maxlength="80" value="${esc(lastVenue())}" style="flex:1"></div><div class="ctl"><input id="pn" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pa">Add</button></div></div>` : ""}
-  <div class="card"><h2>Upcoming playing days</h2>${up.map(row).join("") || '<p class="mute">No playing days scheduled yet.</p>'}</div>
-  ${past.length ? `<div class="card"><h2>Recent</h2>${past.map(row).join("")}</div>` : ""}`;
+    `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${fd}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(fd)][3])}"></div><div class="ctl"><input id="pv" placeholder="Venue" maxlength="80" value="${esc(lastVenue())}" style="flex:1"></div><div class="ctl"><input id="pn" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pa">Add</button></div></div>` : ""}
+  <div class="card"><h2>Playing days</h2>
+  <div class="calh"><button type="button" data-mn="-1" aria-label="Previous month">‹</button><b>${mfmt(planMon)}</b><button type="button" data-mn="1" aria-label="Next month">›</button><button type="button" data-tdy="1">Today</button></div>
+  <div class="cal"><span class="cw">M</span><span class="cw">T</span><span class="cw">W</span><span class="cw">T</span><span class="cw">F</span><span class="cw">S</span><span class="cw">S</span>${cells.join("")}</div>
+  <p class="mute calk"><span class="k pl"></span>Playing <span class="k dn"></span>Attendance taken <span class="k cx"></span>Cancelled</p>
+  <div class="daysel">${dayCard(planSel)}</div></div>`;
+  document.querySelectorAll("[data-cd]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        planSel = b.dataset.cd;
+        planMon = planSel.slice(0, 7);
+        vPlan();
+      }),
+  );
+  document.querySelectorAll("[data-mn]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const t = new Date(y, mo - 1 + +b.dataset.mn, 1);
+        planMon =
+          t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0");
+        vPlan();
+      }),
+  );
+  document.querySelector("[data-tdy]").onclick = () => {
+    planSel = td;
+    planMon = td.slice(0, 7);
+    vPlan();
+  };
   if (!admin) return;
   $("pd").onchange = (e) => {
     if (e.target.value) $("pt").value = SCH.team[dayIdx(e.target.value)][3];
@@ -2389,6 +2664,8 @@ function vPlan() {
       try {
         localStorage.setItem("hk_venue", $("pv").value.trim());
       } catch (e) {}
+      planSel = d;
+      planMon = d.slice(0, 7);
       await load();
     });
   };
@@ -2397,12 +2674,16 @@ function vPlan() {
       (b.onclick = () => {
         const d = b.dataset.d,
           a = b.dataset.a;
-        if (a === "take") {
+        if (a === "new") {
+          $("pd").value = planSel;
+          $("pt").value = SCH.team[dayIdx(planSel)][3];
+          window.scrollTo(0, 0);
+          $("pt").focus();
+        } else if (a === "take") {
           takeDate = d;
           tab = "take";
           render();
         } else if (a === "ed") openPlanEdit(d);
-        else if (a === "av") openAvail(d);
         else if (a === "wa") wa(planMsg(d));
         else if (a === "cx")
           run(async () => {
@@ -2432,8 +2713,8 @@ const when = (t) =>
       })
     : "";
 // ---- profile photo + shared helpers ----
-const photoBtns = (own, path, ph) =>
-  `<div class="chips" style="justify-content:center"><button data-ph="c">📷 ${ph ? "Change photo" : "Add photo"}</button>${ph ? '<button data-ph="x">Remove photo</button>' : ""}</div>`;
+const photoBtns = (own, path, ph, extra) =>
+  `<div class="chips" style="justify-content:center">${extra || ""}<button data-ph="c">📷 ${ph ? "Change photo" : "Add photo"}</button>${ph ? '<button data-ph="x">Remove photo</button>' : ""}</div>`;
 function bindPhoto(own, path) {
   document.querySelectorAll("[data-ph]").forEach(
     (b) =>
@@ -2511,29 +2792,209 @@ function vPlayers() {
   };
   bindProfLinks();
 }
-function vRemoved() {
-  const S = Object.fromEntries(RM.map((p) => [p.id, statsFor(p, "all")]));
-  $("view").innerHTML =
-    `<div class="card"><h2>Removed students (${RM.length})</h2><p class="mute">Removed students cannot log in and are not counted in team attendance. <b>Nothing is deleted</b>: contact, jersey details, joining date and every attendance record are kept. Tap a student to see all of it, or press Restore to bring them back.</p>
-  <div class="tiles">${
-    RM.map((p) => {
-      const s = S[p.id];
-      return `<div class="pt gone" role="button" tabindex="0" data-pf="${p.id}">${avatar(p.name, p.photo, 46)}<span class="pi"><b>${esc(p.name)}</b><small>${esc([p.roll, p.removedAt ? "removed " + when(p.removedAt) + (p.removedBy ? " by " + p.removedBy : "") : ""].filter(Boolean).join(" · ")) || "&nbsp;"}</small><small>${s.t ? `Attended ${s.pr} of ${s.t} days (${s.pct}%)` : "No attendance recorded"}${p.contact ? " · 📞 " + esc(p.contact) : ""}</small></span><span class="pc"><button class="pri" data-rs="${p.id}">Restore</button></span></div>`;
-    }).join("") || empty("🗑️", "No removed students.")
-  }</div></div>`;
-  document.querySelectorAll("[data-rs]").forEach(
-    (b) =>
-      (b.onclick = (e) => {
-        e.stopPropagation();
-        run(async () => {
-          await api("/api/players/" + b.dataset.rs + "/restore", {
-            method: "POST",
-          });
-          await load();
-        });
-      }),
+let rmQ = "",
+  rmF = "all",
+  rmS = "recent",
+  rmSel = new Set();
+function rmItems() {
+  const q = rmQ.trim().toLowerCase(),
+    S = Object.fromEntries(RM.map((p) => [p.id, statsFor(p, "all")]));
+  let a = RM.filter(
+    (p) =>
+      !q ||
+      (p.name + " " + (p.roll || "") + " " + (p.position || ""))
+        .toLowerCase()
+        .includes(q),
+  ).filter(
+    (p) => rmF === "all" || (rmF === "att" ? S[p.id].t > 0 : S[p.id].t === 0),
   );
-  bindProfLinks();
+  a = a
+    .slice()
+    .sort(
+      rmS === "name"
+        ? (x, y) => x.name.localeCompare(y.name)
+        : rmS === "att"
+          ? (x, y) => S[y.id].pct - S[x.id].pct || x.name.localeCompare(y.name)
+          : (x, y) => (y.removedAt || 0) - (x.removedAt || 0),
+    );
+  return { a, S };
+}
+function rmList() {
+  const { a, S } = rmItems();
+  if (!a.length)
+    return empty(
+      "🗑️",
+      RM.length ? "No removed students match." : "No removed students.",
+    );
+  return `<div class="tiles">${a
+    .map((p) => {
+      const s = S[p.id],
+        on = rmSel.has(p.id);
+      return `<div class="pt gone rmc ${on ? "sel" : ""}" role="button" tabindex="0" data-pf="${p.id}">
+    <label class="rck" data-stop><input type="checkbox" data-ck="${p.id}" ${on ? "checked" : ""} aria-label="Select ${esc(p.name)}"></label>${avatar(p.name, p.photo, 48)}
+    <span class="pi"><b>${esc(p.name)}</b><small>${esc([p.roll, p.position].filter(Boolean).join(" · ")) || "&nbsp;"}</small>
+    <small>${p.removedAt ? "Removed " + when(p.removedAt) + (p.removedBy ? " by " + esc(p.removedBy) : "") : "Removed"}</small>
+    <span class="bar" style="margin:5px 0 2px"><i style="width:${s.pct}%"></i></span><small>${s.t ? `Attended ${s.pr} of ${s.t} days (${s.pct}%)` : "No attendance recorded"}${p.joined ? " · joined " + esc(p.joined.slice(0, 10)) : ""}</small>
+    <span class="rca" data-stop><button class="pri" data-rs="${p.id}">↩ Restore</button><button data-re="${p.id}">✏️ Edit</button>${p.contact ? `<a class="btn" href="tel:${esc(p.contact)}" aria-label="Call">📞</a><a class="btn" href="https://wa.me/${to91(p.contact)}" target="_blank" rel="noopener" aria-label="WhatsApp">💬</a>` : ""}<button class="dng" data-rx="${p.id}" aria-label="Delete forever">🗑</button></span></span></div>`;
+    })
+    .join("")}</div>`;
+}
+function vRemoved() {
+  const S = RM.map((p) => statsFor(p, "all")),
+    wa2 = S.filter((x) => x.t),
+    avg = wa2.length
+      ? Math.round(wa2.reduce((a, x) => a + x.pct, 0) / wa2.length)
+      : 0,
+    mo =
+      new Date().getFullYear() +
+      "-" +
+      String(new Date().getMonth() + 1).padStart(2, "0"),
+    thisM = RM.filter((p) => {
+      if (!p.removedAt) return false;
+      const d = new Date(p.removedAt);
+      return (
+        d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") === mo
+      );
+    }).length;
+  rmSel = new Set([...rmSel].filter((id) => RM.some((p) => p.id === id)));
+  $("view").innerHTML =
+    `<div class="card"><h2>Removed students (${RM.length})</h2>
+  <p class="mute">They cannot log in and are not counted in team attendance. <b>Nothing is deleted</b>: contact, jersey details, joining date and every attendance record are kept until you delete a student forever.</p>
+  <div class="stats"><div><b>${RM.length}</b>Removed</div><div><b>${wa2.length ? avg + "%" : "–"}</b>Avg attendance</div><div><b>${thisM}</b>This month</div></div>
+  <div class="tkq"><input id="rmq" type="search" placeholder="Search name, roll no or position" value="${esc(rmQ)}" aria-label="Search removed students"></div>
+  <div class="ctl" style="margin:8px 0"><label class="fl" style="flex:1;margin:0">Show<select id="rmf"><option value="all" ${rmF === "all" ? "selected" : ""}>Everyone</option><option value="att" ${rmF === "att" ? "selected" : ""}>Has attendance</option><option value="none" ${rmF === "none" ? "selected" : ""}>No attendance</option></select></label><label class="fl" style="flex:1;margin:0">Sort<select id="rms"><option value="recent" ${rmS === "recent" ? "selected" : ""}>Recently removed</option><option value="name" ${rmS === "name" ? "selected" : ""}>Name A to Z</option><option value="att" ${rmS === "att" ? "selected" : ""}>Attendance, high to low</option></select></label></div>
+  ${RM.length ? `<div class="rmbar"><label class="rck2"><input type="checkbox" id="rmall"> Select all shown</label><span id="rmn" class="mute"></span><button class="pri" id="rmrs" disabled>↩ Restore selected</button><button class="dng" id="rmdl" disabled>🗑 Delete selected forever</button></div>` : ""}
+  <div id="rmlist">${rmList()}</div></div>`;
+  const sync = () => {
+    const n = rmSel.size;
+    if ($("rmn")) $("rmn").textContent = n ? n + " selected" : "";
+    if ($("rmrs")) $("rmrs").disabled = $("rmdl").disabled = !n;
+    const sh = rmItems().a;
+    if ($("rmall"))
+      $("rmall").checked = !!sh.length && sh.every((p) => rmSel.has(p.id));
+  };
+  const bind = () => {
+    document
+      .querySelectorAll("#rmlist [data-stop]")
+      .forEach((e) => (e.onclick = (ev) => ev.stopPropagation()));
+    document.querySelectorAll("[data-ck]").forEach(
+      (c) =>
+        (c.onchange = () => {
+          c.checked ? rmSel.add(c.dataset.ck) : rmSel.delete(c.dataset.ck);
+          c.closest(".rmc").classList.toggle("sel", c.checked);
+          sync();
+        }),
+    );
+    document.querySelectorAll("[data-rs]").forEach(
+      (b) =>
+        (b.onclick = () =>
+          run(async () => {
+            await api("/api/players/" + b.dataset.rs + "/restore", {
+              method: "POST",
+            });
+            rmSel.delete(b.dataset.rs);
+            await load();
+          })),
+    );
+    document.querySelectorAll("[data-re]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          const p = RM.find((x) => x.id === b.dataset.re);
+          if (p) openEdit(p, false);
+        }),
+    );
+    document.querySelectorAll("[data-rx]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          const p = RM.find((x) => x.id === b.dataset.rx);
+          if (
+            p &&
+            confirm(
+              "Delete " +
+                p.name +
+                " forever? Their profile, login and details are erased. Their attendance records stay in the day-wise history. This cannot be undone.",
+            )
+          )
+            run(async () => {
+              await api("/api/players/" + p.id + "/permanent", {
+                method: "DELETE",
+              });
+              rmSel.delete(p.id);
+              await load();
+            });
+        }),
+    );
+    bindProfLinks();
+    sync();
+  };
+  const redraw = () => {
+    $("rmlist").innerHTML = rmList();
+    bind();
+  };
+  if ($("rmq"))
+    $("rmq").oninput = (e) => {
+      rmQ = e.target.value;
+      redraw();
+    };
+  $("rmf").onchange = (e) => {
+    rmF = e.target.value;
+    redraw();
+  };
+  $("rms").onchange = (e) => {
+    rmS = e.target.value;
+    redraw();
+  };
+  if ($("rmall"))
+    $("rmall").onchange = (e) => {
+      const sh = rmItems().a;
+      sh.forEach((p) =>
+        e.target.checked ? rmSel.add(p.id) : rmSel.delete(p.id),
+      );
+      redraw();
+    };
+  if ($("rmrs"))
+    $("rmrs").onclick = () => {
+      const ids = [...rmSel];
+      if (
+        !ids.length ||
+        !confirm(
+          "Restore " +
+            ids.length +
+            " student" +
+            (ids.length > 1 ? "s" : "") +
+            "? They can log in again and count in team attendance.",
+        )
+      )
+        return;
+      run(async () => {
+        for (const id of ids) {
+          await api("/api/players/" + id + "/restore", { method: "POST" });
+        }
+        rmSel.clear();
+        await load();
+      });
+    };
+  if ($("rmdl"))
+    $("rmdl").onclick = () => {
+      const ids = [...rmSel];
+      if (!ids.length) return;
+      const t = prompt(
+        "Delete " +
+          ids.length +
+          " student" +
+          (ids.length > 1 ? "s" : "") +
+          " forever? Profiles and logins are erased and this cannot be undone.\n\nType DELETE to confirm:",
+      );
+      if (t !== "DELETE") return;
+      run(async () => {
+        for (const id of ids) {
+          await api("/api/players/" + id + "/permanent", { method: "DELETE" });
+        }
+        rmSel.clear();
+        await load();
+      });
+    };
+  bind();
 }
 function vAdmins() {
   const st = [
@@ -2635,19 +3096,15 @@ function vProfile() {
     h = `${back}<div class="card prof"><div class="cover"></div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
     <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}</div>
-    ${canPh ? photoBtns(own, photoPath, p.photo) : ""}
+    ${canPh ? photoBtns(own, photoPath, p.photo, '<button class="pri" id="pedit">✏️ Edit profile</button>') : ""}
     ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
-    <div class="grid"><div class="card"><h2>Attendance</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div><div class="stats" style="flex:1;margin:0"><div><b>${a.pr}</b>Present</div><div><b>${a.t - a.pr}</b>Missed</div><div><b>${streak}</b>Current streak</div></div></div>
-      ${dots ? `<p class="mute" style="margin:12px 0 4px">Last ${Math.min(42, ds.length)} playing days</p><div class="dots">${dots}</div>` : ""}
-      ${ms.length ? `<table style="margin-top:10px"><tr><th>Month</th><th class="n">Present</th><th>%</th></tr>${ms.map((x) => `<tr><td>${mfmt(x.m)}</td><td class="n">${x.s.pr}/${x.s.t}</td><td><div class="bar"><i style="width:${x.s.pct}%"></i></div>${x.s.pct}%</td></tr>`).join("")}</table>` : ""}
-      <div class="chips"><button id="pshr">⤴ Share attendance</button></div></div>
+    <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} playing days</p><div class="dots">${dots}</div></div>` : ""}</div></div>
     <div class="card"><h2>Details</h2>${kv("Roll number", esc(p.roll))}${kv("Position", esc(p.position))}${kv("Joined", p.joined ? fmt(p.joined) : "")}
       ${p.contact ? `<div class="kv"><span>Contact</span><b><a href="tel:${esc(p.contact)}">${esc(p.contact)}</a> · <a href="https://wa.me/${to91(p.contact)}" target="_blank" rel="noopener">WhatsApp</a></b></div>` : admin || own ? kv("Contact", "<i>not saved</i>") : ""}
       ${kv("E-mail", p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : "")}${kv("Jersey", jersey)}
-      ${admin ? `<div class="chips" style="margin-top:12px"><button id="pedit">✏️ Edit details</button>${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}</div>` : ""}</div></div>`;
+      ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}</div>` : ""}</div></div>`;
     $("view").innerHTML = h;
-    $("pshr").onclick = () => openReport({ sc: "person", v: id });
-    if ($("pedit")) $("pedit").onclick = () => openEdit(p);
+    if ($("pedit")) $("pedit").onclick = () => openEdit(p, own);
     if ($("prst"))
       $("prst").onclick = () => {
         if (
@@ -2763,7 +3220,7 @@ function vProfile() {
   };
   if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath);
 }
-function openEdit(p) {
+function openEdit(p, own) {
   let d = $("eddlg");
   if (!d) {
     d = document.createElement("dialog");
@@ -2772,26 +3229,29 @@ function openEdit(p) {
   }
   const f = (id, l, v, o = "") =>
     `<label class="fl">${l}<input id="ed-${id}" value="${esc(v || "")}" ${o}></label>`;
-  d.innerHTML = `<h2>Edit ${esc(p.name)}</h2>${f("n", "Name", p.name, 'maxlength="40"')}${f("r", "Roll number", p.roll, 'maxlength="12"')}${f("p", "Position", p.position, 'maxlength="40"')}${f("c", "Contact number", p.contact, 'inputmode="tel" maxlength="15"')}${f("e", "E-mail", p.email, 'maxlength="40"')}${f("jn", "Jersey name", p.jerseyName, 'maxlength="40"')}${f("jo", "Jersey number", p.jerseyNo, 'maxlength="4"')}${f("sz", "Jersey size", p.size, 'maxlength="6"')}${f("j", "Joined date", p.joined, 'type="date"')}
+  d.innerHTML = `<h2>${own ? "Edit my profile" : "Edit " + esc(p.name)}</h2>${f("n", "Name", p.name, 'maxlength="40"')}${own ? "" : f("r", "Roll number", p.roll, 'maxlength="12"')}${f("p", "Position", p.position, 'maxlength="40"')}${f("c", "Contact number", p.contact, 'inputmode="tel" maxlength="15"')}${f("e", "E-mail", p.email, 'maxlength="40"')}${f("jn", "Jersey name", p.jerseyName, 'maxlength="40"')}${f("jo", "Jersey number", p.jerseyNo, 'maxlength="4"')}${f("sz", "Jersey size", p.size, 'maxlength="6"')}${own ? "" : f("j", "Joined date", p.joined, 'type="date"')}
   <div class="ctl"><button class="pri" id="eds">Save</button><button id="edc">Cancel</button></div>`;
   $("edc").onclick = () => d.close();
   $("eds").onclick = () => {
     const g = (i) => $("ed-" + i).value.trim();
     if (!g("n")) return alert("Name is required.");
+    const body = {
+      name: g("n"),
+      position: g("p"),
+      contact: g("c"),
+      email: g("e"),
+      jerseyName: g("jn"),
+      jerseyNo: g("jo"),
+      size: g("sz"),
+    };
+    if (!own) {
+      body.roll = g("r");
+      body.joined = g("j");
+    }
     run(async () => {
-      await api("/api/players/" + p.id, {
+      await api(own ? "/api/me/profile" : "/api/players/" + p.id, {
         method: "PUT",
-        body: {
-          name: g("n"),
-          roll: g("r"),
-          position: g("p"),
-          contact: g("c"),
-          email: g("e"),
-          jerseyName: g("jn"),
-          jerseyNo: g("jo"),
-          size: g("sz"),
-          joined: g("j"),
-        },
+        body,
       });
       d.close();
       await load(true);
@@ -2829,8 +3289,1797 @@ function openGroup() {
   $("gpr").onclick = () => save("");
   d.showModal();
 }
-$("wh").innerHTML = whistleSvg(26);
-$("wh").onclick = () => playWhistle("short");
+// ---------- medals: gold / silver / bronze for the best attendance ----------
+const MEDALS = ["🥇", "🥈", "🥉"];
+const medalFn = (st) => {
+  const dv = [...new Set(st.map((x) => x.pct))].sort((a, b) => b - a);
+  return (x) => {
+    const r = dv.indexOf(x.pct);
+    return r < 3 && x.pct > 0 ? MEDALS[r] : "";
+  };
+};
+const tierMedal = (p) =>
+  p >= 90
+    ? ["🥇", "Gold"]
+    : p >= 75
+      ? ["🥈", "Silver"]
+      : p >= 60
+        ? ["🥉", "Bronze"]
+        : null;
+function podium(st, medal) {
+  const cols = [1, 0, 2]
+    .map((r) => ({ r, g: st.filter((x) => medal(x) === MEDALS[r]) }))
+    .filter((c) => c.g.length);
+  if (!cols.length) return "";
+  return `<div class="pod" aria-label="Top attendance">${cols
+    .map(
+      (c) =>
+        `<div class="pc${c.r}"><span class="pm">${MEDALS[c.r]}</span><b>${c.g
+          .slice(0, 2)
+          .map((x) => esc(x.p.name.split(" ")[0]))
+          .join(
+            ", ",
+          )}${c.g.length > 2 ? " +" + (c.g.length - 2) : ""}</b><small>${c.g[0].pct}%</small><i></i></div>`,
+    )
+    .join("")}</div>`;
+}
+// =====================================================================================
+// v12: gallery, team photo, Indian hockey news (home), charts (Attendance tab)
+// =====================================================================================
+
+// ---------- images: any photo -> small JPEG under a size cap ----------
+function fileToImg(file, max, q, cap) {
+  return new Promise((ok, no) => {
+    const rd = new FileReader();
+    rd.onerror = () => no(new Error("Could not read the file"));
+    rd.onload = () => {
+      const im = new Image();
+      im.onerror = () => no(new Error("That file is not a picture"));
+      im.onload = () => {
+        let m = max,
+          qq = q;
+        for (let i = 0; i < 5; i++) {
+          const s = Math.min(1, m / Math.max(im.width, im.height)),
+            c = document.createElement("canvas");
+          c.width = Math.max(1, Math.round(im.width * s));
+          c.height = Math.max(1, Math.round(im.height * s));
+          const x = c.getContext("2d");
+          x.fillStyle = "#fff";
+          x.fillRect(0, 0, c.width, c.height);
+          x.drawImage(im, 0, 0, c.width, c.height);
+          const out = c.toDataURL("image/jpeg", qq);
+          if (out.length < cap) return ok(out);
+          m = Math.round(m * 0.8);
+          qq = Math.max(0.5, qq - 0.06);
+        }
+        no(new Error("That photo is too big"));
+      };
+      im.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
+function pickFiles(cb, multi) {
+  const f = document.createElement("input");
+  f.type = "file";
+  f.accept = "image/*";
+  f.multiple = !!multi;
+  f.onchange = () => {
+    if (f.files.length) cb([...f.files]);
+  };
+  f.click();
+}
+function ensureDlg(id) {
+  let d = $(id);
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = id;
+    document.body.appendChild(d);
+  }
+  return d;
+}
+function openImg(src) {
+  const d = ensureDlg("imdlg");
+  d.innerHTML = `<img class="bigimg" src="${src}" alt=""><div class="ctl"><button id="imx">Close</button></div>`;
+  $("imx").onclick = () => d.close();
+  d.showModal();
+}
+
+// ---------- state ----------
+let GPH = { img: "", at: -1 },
+  gphBusy = false,
+  GAL = [],
+  galLoaded = false,
+  galBusy = false,
+  galErr = "",
+  NEWS = null,
+  newsAt = 0,
+  newsBusy = false,
+  MATCHES = null;
+const ago = (t) => {
+  if (!t) return "";
+  const h = Math.round((Date.now() - t) / 36e5);
+  return h < 1
+    ? "just now"
+    : h < 24
+      ? h + "h ago"
+      : Math.round(h / 24) + "d ago";
+};
+
+// ---------- team group photo ----------
+async function fetchGph(at) {
+  if (gphBusy) return;
+  gphBusy = true;
+  try {
+    if (!at) GPH = { img: "", at: 0 };
+    else {
+      const r = await api("/api/group-photo");
+      GPH = { img: r.img || "", at };
+    }
+  } catch (e) {}
+  gphBusy = false;
+  if (tab === "me" && !prof) render();
+}
+async function setGroupPhoto(file) {
+  try {
+    const img = await fileToImg(file, 1280, 0.8, 400000);
+    await api("/api/group-photo", { method: "PUT", body: { img } });
+    GPH = { img, at: -1 };
+    await load(true);
+  } catch (e) {
+    if (e.status === 401) return load(true);
+    alert("Could not save the photo: " + e.message);
+  }
+}
+const clearGroupPhoto = () => {
+  if (confirm("Remove the team group photo from the home page?"))
+    run(async () => {
+      await api("/api/group-photo", { method: "PUT", body: { img: "" } });
+      GPH = { img: "", at: -1 };
+      await load(true);
+    });
+};
+function gphCard() {
+  const has = !!GPH.img;
+  const body = has
+    ? `<img class="gph" id="gpimg" src="${GPH.img}" alt="Team group photo">`
+    : empty(
+        "📸",
+        GPH.at === -1
+          ? "Loading photo…"
+          : admin
+            ? "Add the team group photo."
+            : "The team group photo will appear here.",
+      );
+  const btns = admin
+    ? `<div class="chips"><button id="gpset">📷 ${has ? "Change group photo" : "Add group photo"}</button>${has ? '<button id="gprm">Remove</button>' : ""}</div>`
+    : "";
+  return `<div class="card"><h2>Team photo</h2>${body}${btns}</div>`;
+}
+
+// ---------- Indian hockey: fixtures + news + history ----------
+// Built-in list (from the Hockey India / tournament schedules). Admins can replace it from the menu: Edit hockey fixtures.
+const DEFM = [
+  [
+    "2026-10-27",
+    "India vs Bangladesh",
+    "Hero Asian Champions Trophy · Jalandhar · 7:00 PM",
+  ],
+  [
+    "2026-10-29",
+    "India vs China",
+    "Asian Champions Trophy · Jalandhar · 7:00 PM",
+  ],
+  [
+    "2026-10-30",
+    "India vs Japan",
+    "Asian Champions Trophy · Jalandhar · 7:00 PM",
+  ],
+  [
+    "2026-11-01",
+    "India vs Malaysia",
+    "Asian Champions Trophy · Jalandhar · 7:00 PM",
+  ],
+  [
+    "2026-11-02",
+    "India vs South Korea",
+    "Asian Champions Trophy · Jalandhar · 7:00 PM",
+  ],
+  ["2026-11-04", "Asian Champions Trophy semi-finals", "Mohali"],
+  ["2026-11-05", "Asian Champions Trophy final and medal matches", "Mohali"],
+  ["2026-11-19", "New Zealand vs India, Test series match 1", "Auckland"],
+  ["2026-11-21", "New Zealand vs India, Test series match 2", "Auckland"],
+  ["2026-11-22", "New Zealand vs India, Test series match 3", "Auckland"],
+  [
+    "2026-12-14",
+    "59th Inter IIT Hockey Championship starts",
+    "IIT Kharagpur · till 21 Dec",
+  ],
+];
+const matchList = () =>
+  (MATCHES || DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2] })))
+    .filter((m) => m.d >= today())
+    .sort((a, b) => a.d.localeCompare(b.d));
+const HIST = [
+  [
+    "1928",
+    "Amsterdam Olympics",
+    "India win their first Olympic gold. It starts a run of six straight Olympic titles (1928 to 1956), led by Dhyan Chand.",
+  ],
+  [
+    "1948",
+    "London Olympics",
+    "First gold as an independent nation, a 4–0 win over Great Britain in the final.",
+  ],
+  ["1964", "Tokyo Olympics", "Gold again, beating Pakistan in the final."],
+  [
+    "1975",
+    "Kuala Lumpur World Cup",
+    "India win their only men’s World Cup, beating Pakistan 2–1 in the final.",
+  ],
+  ["1980", "Moscow Olympics", "The eighth and latest Olympic gold."],
+  [
+    "2021",
+    "Tokyo Olympics",
+    "Bronze, ending a 41-year wait for an Olympic medal (5–4 over Germany).",
+  ],
+  [
+    "2023",
+    "Hangzhou Asian Games",
+    "Gold, with a 5–1 win over Japan in the final.",
+  ],
+  ["2024", "Paris Olympics", "Back-to-back bronze medals, beating Spain 2–1."],
+  ["2026", "Asian Games, Aichi-Nagoya", "India defend their Asian Games gold."],
+];
+async function fetchNews() {
+  if (newsBusy || (NEWS && Date.now() - newsAt < 600000)) return;
+  newsBusy = true;
+  try {
+    NEWS = await api("/api/news");
+    newsAt = Date.now();
+  } catch (e) {
+    NEWS = { latest: [], upcoming: [], err: true };
+    newsAt = Date.now() - 540000;
+  } // on failure try again in a minute
+  newsBusy = false;
+  if (tab === "me" && !prof) render();
+}
+const newsRows = (a) =>
+  a
+    .map(
+      (n) =>
+        `<a class="nw" href="${esc(n.u)}" target="_blank" rel="noopener"><b>${esc(n.t)}</b><span class="mute">${esc(n.s)}${n.s && n.at ? " · " : ""}${ago(n.at)}</span></a>`,
+    )
+    .join("");
+const newsBox = (a, txt) =>
+  !NEWS
+    ? `<p class="mute">Loading news…</p>`
+    : a.length
+      ? newsRows(a.slice(0, 5))
+      : `<p class="mute">${NEWS.err ? "News is not available right now. Check your connection and try again later." : txt}</p>`;
+function upCard() {
+  const rows = matchList()
+    .slice(0, 8)
+    .map((m) => {
+      const dt = new Date(m.d + "T00:00"),
+        dl = dlabel(m.d);
+      return `<div class="fx"><div class="dbx"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString("en-IN", { month: "short" })}</span></div><div class="fxi"><b>${esc(m.t)}</b>${m.v ? `<span class="mute">${esc(m.v)}</span>` : ""}</div><span class="pill ${dl === "Today" || dl === "Tomorrow" ? "g" : ""}">${dl}</span></div>`;
+    })
+    .join("");
+  return `<div class="card span2"><h2>Upcoming Indian hockey</h2>${rows || empty("🗓️", "No upcoming matches in the list.")}
+  <h3 class="chh">Match news</h3>${newsBox((NEWS && NEWS.upcoming) || [], "No match news found right now.")}
+  ${admin ? '<div class="chips"><button id="mxe">✏️ Edit fixtures</button></div>' : ""}</div>`;
+}
+function newsCard() {
+  return `<div class="card"><h2>Latest Indian hockey news <button class="ghost2" id="nwr" aria-label="Refresh news">↻</button></h2>${newsBox((NEWS && NEWS.latest) || [], "No recent news found.")}</div>`;
+}
+function histCard() {
+  return `<div class="card"><h2>Indian hockey history</h2><ul class="tl">${HIST.map((h) => `<li><span class="yr">${h[0]}</span> <b>${esc(h[1])}</b><br><span class="mute">${esc(h[2])}</span></li>`).join("")}</ul></div>`;
+}
+function openMatches() {
+  const d = ensureDlg("mxdlg"),
+    cur = (MATCHES || DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2] })))
+      .slice()
+      .sort((a, b) => a.d.localeCompare(b.d));
+  d.innerHTML = `<h2>Indian hockey fixtures</h2><p class="mute">One per line: <b>YYYY-MM-DD | Match | Place / time</b>. Matches whose date has passed are hidden automatically.</p>
+  <p><textarea id="mxt" rows="10" style="width:100%">${esc(cur.map((m) => [m.d, m.t, m.v].filter((x, i) => i < 2 || x).join(" | ")).join("\n"))}</textarea></p>
+  <div class="ctl"><button class="pri" id="mxs">Save</button><button id="mxr">Reset to default</button><button id="mxc">Cancel</button></div>`;
+  $("mxc").onclick = () => d.close();
+  $("mxr").onclick = () => {
+    if (confirm("Go back to the built-in fixtures list?"))
+      run(async () => {
+        await api("/api/matches", { method: "PUT", body: { reset: true } });
+        d.close();
+        await load(true);
+      });
+  };
+  $("mxs").onclick = () => {
+    const items = [];
+    for (const ln of $("mxt")
+      .value.split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean)) {
+      const [dt, t, ...v] = ln.split("|").map((x) => x.trim());
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dt || "") || !t)
+        return alert(
+          "Check this line:\n" +
+            ln +
+            "\n\nUse: YYYY-MM-DD | Match | Place / time",
+        );
+      items.push({ d: dt, t, v: v.join(" | ") });
+    }
+    run(async () => {
+      await api("/api/matches", { method: "PUT", body: { items } });
+      d.close();
+      await load(true);
+    });
+  };
+  d.showModal();
+}
+
+// ---------- HOME TAB (no attendance figures here; they are on the Attendance tab) ----------
+function vMe() {
+  fetchNews();
+  const first = esc((WHO || "").split(" ")[0] || "there"),
+    mine = pl ? P.find((x) => x.id === me) : null;
+  const sub = pl
+    ? mine
+      ? [mine.position || "Hockey player", mine.roll]
+          .filter(Boolean)
+          .join(" · ")
+      : "Hockey player"
+    : role === "captain"
+      ? "Captain"
+      : role === "vice"
+        ? "Vice-captain"
+        : "Admin";
+  $("view").innerHTML =
+    `${pushCard()}<div class="card hero">${avatar(WHO, MYPH, 60)}<div class="hi"><h2>Hi, ${first} 👋</h2><span class="mute">${esc(sub)}</span></div></div>
+  ${gphCard()}
+  <div class="grid">${nextCard()}${upCard()}${newsCard()}${histCard()}</div>`;
+  if ($("gpset"))
+    $("gpset").onclick = () => pickFiles((f) => setGroupPhoto(f[0]));
+  if ($("gprm")) $("gprm").onclick = clearGroupPhoto;
+  if ($("gpimg")) $("gpimg").onclick = () => openImg(GPH.img);
+  if ($("mxe")) $("mxe").onclick = openMatches;
+  if ($("nwr"))
+    $("nwr").onclick = () => {
+      newsAt = 0;
+      NEWS = null;
+      fetchNews();
+      render();
+    };
+}
+
+// ---------- GALLERY ----------
+async function loadGallery() {
+  galBusy = true;
+  galErr = "";
+  try {
+    const r = await api("/api/gallery");
+    GAL = r.items || [];
+    galLoaded = true;
+  } catch (e) {
+    galErr =
+      "Could not load photos: " +
+      (e.status ? e.message : "check your connection");
+  }
+  galBusy = false;
+  if (tab === "gallery" && !prof) render();
+}
+function vGallery() {
+  if (!galLoaded && !galBusy && !galErr) loadGallery();
+  const grid = GAL.length
+    ? `<div class="gal">${GAL.map((g) => `<button class="gi" data-g="${g.id}" aria-label="Open photo"><img src="${g.thumb}" alt="" loading="lazy"></button>`).join("")}</div>`
+    : empty(
+        "🖼️",
+        galErr ||
+          (galLoaded ? "No photos yet. Add the first one!" : "Loading…"),
+      );
+  $("view").innerHTML =
+    `<div class="card"><h2>Gallery</h2><p class="mute">Team photos. Everyone can add photos. Admins can delete any photo; you can delete your own.</p>
+  <div class="ctl"><button class="pri" id="gadd">📷 Add photos</button>${galErr ? '<button id="gtry">Try again</button>' : ""}</div><p id="gup" class="mute" role="status"></p>${grid}</div>`;
+  $("gadd").onclick = () => pickFiles(uploadPhotos, true);
+  if ($("gtry"))
+    $("gtry").onclick = () => {
+      galErr = "";
+      galLoaded = false;
+      render();
+    };
+  document
+    .querySelectorAll("[data-g]")
+    .forEach((b) => (b.onclick = () => openPhoto(b.dataset.g)));
+}
+async function uploadPhotos(files) {
+  const st = (t) => {
+    const e = $("gup");
+    if (e) e.textContent = t;
+  };
+  let ok = 0;
+  for (let i = 0; i < files.length; i++) {
+    st(`Uploading ${i + 1} of ${files.length}…`);
+    try {
+      const [img, thumb] = await Promise.all([
+        fileToImg(files[i], 1280, 0.8, 400000),
+        fileToImg(files[i], 360, 0.72, 55000),
+      ]);
+      await api("/api/gallery", { method: "POST", body: { img, thumb } });
+      ok++;
+    } catch (e) {
+      if (e.status === 401) {
+        load(true);
+        return;
+      }
+      alert("Photo " + (i + 1) + " was not added: " + e.message);
+      if (e.status === 429 || e.status === 409) break;
+    }
+  }
+  st(ok ? `Added ${ok} photo${ok > 1 ? "s" : ""}.` : "");
+  await loadGallery();
+}
+async function openPhoto(id) {
+  const g = GAL.find((x) => x.id === id);
+  if (!g) return;
+  const d = ensureDlg("phdlg");
+  let full = "";
+  const can = admin || g.mine;
+  d.innerHTML = `<img class="bigimg" id="phi" src="${g.thumb}" alt=""><p class="mute" style="margin:8px 0 0">${esc(g.by)}${g.by && g.at ? " · " : ""}${when(g.at)}</p>
+  <div class="ctl"><a class="btn" id="phdl" download="hockey-photo.jpg" hidden>⬇ Save</a>${admin ? '<button id="phg" disabled>🖼 Use as group photo</button>' : ""}${can ? '<button id="phd" class="dng">🗑 Delete</button>' : ""}<button id="phx">Close</button></div>`;
+  $("phx").onclick = () => d.close();
+  if ($("phg"))
+    $("phg").onclick = () => {
+      if (
+        full &&
+        confirm("Show this photo as the team group photo on the home page?")
+      )
+        run(async () => {
+          await api("/api/group-photo", { method: "PUT", body: { img: full } });
+          GPH = { img: full, at: -1 };
+          d.close();
+          await load(true);
+          alert("Done. It now shows on the Home tab.");
+        });
+    };
+  if ($("phd"))
+    $("phd").onclick = () => {
+      if (confirm("Delete this photo?"))
+        run(async () => {
+          await api("/api/gallery/" + id, { method: "DELETE" });
+          d.close();
+          await loadGallery();
+        });
+    };
+  d.showModal();
+  try {
+    const r = await api("/api/gallery/" + id);
+    full = r.img || "";
+    if (full && d.open) {
+      $("phi").src = full;
+      const a = $("phdl");
+      a.href = full;
+      a.hidden = false;
+      if ($("phg")) $("phg").disabled = false;
+    }
+  } catch (e) {}
+}
+
+// ---------- CHARTS (Attendance tab): line, grouped bar, horizontal bar, donut ----------
+const niceMax = (v) => {
+  const p = Math.pow(10, Math.floor(Math.log10(Math.max(v, 1)))),
+    f = v / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+};
+const num = (v) => String(+(+v).toFixed(1));
+const mshort = (m) =>
+  new Date(m + "-01T00:00").toLocaleDateString("en-IN", { month: "short" }) +
+  (m.slice(5) === "01" ? " ’" + m.slice(2, 4) : "");
+function gbar(cats, series, title) {
+  const L = 34,
+    R = 8,
+    T = 16,
+    B = 26,
+    H = 220,
+    W = Math.max(340, L + R + cats.length * 52),
+    iw = W - L - R,
+    ih = H - T - B;
+  const top = niceMax(Math.max(1, ...series.flatMap((s) => s.v))),
+    y = (v) => T + ih * (1 - v / top),
+    gw = iw / cats.length,
+    bw = Math.min(24, (gw * 0.8) / series.length);
+  const grid = [0, top / 2, top]
+    .map(
+      (g) =>
+        `<line class="gl" x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}"/><text x="${L - 5}" y="${y(g) + 4}" text-anchor="end">${num(g)}</text>`,
+    )
+    .join("");
+  const bars = cats
+    .map((c, i) => {
+      const cx = L + gw * (i + 0.5),
+        x0 = cx - (bw * series.length) / 2;
+      return (
+        series
+          .map((s, j) => {
+            const v = s.v[i],
+              x = x0 + j * bw,
+              h = (ih * v) / top;
+            return `<rect class="gb" x="${x + 1}" y="${y(v)}" width="${bw - 2}" height="${Math.max(h, 0)}" rx="3" fill="${s.c}"><title>${esc(c)} · ${esc(s.n)}: ${num(v)}</title></rect>${bw >= 16 ? `<text class="bv" x="${x + bw / 2}" y="${y(v) - 3}" text-anchor="middle">${num(v)}</text>` : ""}`;
+          })
+          .join("") +
+        `<text x="${cx}" y="${H - 8}" text-anchor="middle">${esc(c)}</text>`
+      );
+    })
+    .join("");
+  return `<div class="chart scx"><svg class="cs" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="${W > 340 ? "max-width:none" : "width:100%;height:auto"}" role="img" aria-label="${esc(title)}">${grid}${bars}</svg></div><div class="lg">${series.map((s) => `<span><i style="background:${s.c}"></i>${esc(s.n)}</span>`).join("")}</div>`;
+}
+function hbar(rows, title) {
+  const rh = 27,
+    L = 104,
+    R = 44,
+    W = 360,
+    H = rows.length * rh + 6,
+    iw = W - L - R;
+  const col = (v) => (v >= 75 ? "var(--p)" : v >= 50 ? "var(--y)" : "var(--a)");
+  const body = rows
+    .map((r, i) => {
+      const y = i * rh + 4,
+        w = Math.max(2, (iw * r.v) / 100),
+        nm = r.l.length > 15 ? r.l.slice(0, 14) + "…" : r.l;
+      return `<g ${r.id ? `data-pf="${esc(r.id)}" style="cursor:pointer"` : ""}><text x="${L - 6}" y="${y + 16}" text-anchor="end" class="hl">${esc(nm)}</text><rect x="${L}" y="${y + 3}" width="${iw}" height="${rh - 12}" rx="5" fill="var(--soft)"/><rect class="hb" x="${L}" y="${y + 3}" width="${w}" height="${rh - 12}" rx="5" fill="${col(r.v)}"><title>${esc(r.l)}: ${r.v}%</title></rect><text class="bv" x="${L + w + 5}" y="${y + 16}">${r.v}%</text></g>`;
+    })
+    .join("");
+  return `<div class="chart"><svg class="cs" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="${esc(title)}">${body}</svg></div><div class="lg"><span><i style="background:var(--p)"></i>75% or more</span><span><i style="background:var(--y)"></i>50 to 74%</span><span><i style="background:var(--a)"></i>under 50%</span></div>`;
+}
+function donut(segs, centre, sub, title) {
+  const S = 180,
+    r = 68,
+    sw = 26,
+    c = S / 2,
+    C = 2 * Math.PI * r,
+    tot = segs.reduce((a, s) => a + s.v, 0);
+  if (!tot) return '<p class="mute">No data for this period.</p>';
+  let off = 0;
+  const arcs = segs
+    .filter((s) => s.v > 0)
+    .map((s) => {
+      const len = (C * s.v) / tot,
+        gap = segs.filter((x) => x.v > 0).length > 1 ? 2 : 0,
+        o = off;
+      off += len;
+      return `<circle class="da" cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${s.c}" stroke-width="${sw}" stroke-dasharray="${Math.max(len - gap, 0.5)} ${C}" stroke-dashoffset="${-o}" transform="rotate(-90 ${c} ${c})"><title>${esc(s.n)}: ${s.v}</title></circle>`;
+    })
+    .join("");
+  return `<div class="dn-wrap"><svg class="cs" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" role="img" aria-label="${esc(title)}"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--soft)" stroke-width="${sw}"/>${arcs}<text x="${c}" y="${c + 4}" text-anchor="middle" class="dn-c">${esc(centre)}</text><text x="${c}" y="${c + 22}" text-anchor="middle" class="dn-s">${esc(sub)}</text></svg>
+  <div class="dn-l">${segs.map((s) => `<div><i style="background:${s.c}"></i><span>${esc(s.n)}</span><b>${s.v}</b><span class="mute">${Math.round((s.v * 100) / tot)}%</span></div>`).join("")}</div></div>`;
+}
+// everything the four charts need, built from the same numbers as the table above them
+function chartBlocks(ttl, pts, st, tr, m, vis) {
+  const ms = months(),
+    per = ms
+      .map((k) => {
+        const q = stats(k).filter((x) => x.t && vis(x)),
+          n = q.length;
+        if (!n) return null;
+        const pr = q.reduce((a, x) => a + x.pr, 0),
+          t = q.reduce((a, x) => a + x.t, 0);
+        return {
+          k,
+          pr: admin ? pr / n : pr,
+          ab: admin ? (t - pr) / n : t - pr,
+          pct: t ? Math.round((pr * 100) / t) : 0,
+        };
+      })
+      .filter(Boolean);
+  const pr = st.reduce((a, x) => a + x.pr, 0),
+    tt = st.reduce((a, x) => a + x.t, 0),
+    ml = m === "all" ? "" : " · " + mfmt(m);
+  const t1 = ttl,
+    t2 = admin
+      ? "Days attended vs missed by month (average per player)"
+      : "My days attended vs missed by month",
+    t3 = admin ? "Attendance % by player" + ml : "My attendance % by month",
+    t4 = (admin ? "Team" : "My") + " present vs absent" + ml;
+  const md = medalFn(st),
+    rows = admin
+      ? st.map((x) => ({
+          l: (md(x) ? md(x) + " " : "") + x.p.name,
+          v: x.pct,
+          id: x.p.id,
+        }))
+      : per.map((x) => ({ l: mshort(x.k), v: x.pct }));
+  return `<div class="card"><h2>Charts</h2>
+  <h3 class="chh">${esc(t1)} <span class="pill">Line</span></h3>${pts.length ? '<div id="ch1" class="chart"></div>' : '<p class="mute">No day-by-day records for this month. Monthly totals only.</p>'}
+  <h3 class="chh">${esc(t2)} <span class="pill">Grouped bar</span></h3>${
+    per.length
+      ? gbar(
+          per.map((x) => mshort(x.k)),
+          [
+            { n: "Attended", c: "var(--p)", v: per.map((x) => x.pr) },
+            { n: "Missed", c: "var(--a)", v: per.map((x) => x.ab) },
+          ],
+          t2,
+        )
+      : '<p class="mute">No data yet.</p>'
+  }
+  <h3 class="chh">${esc(t3)} <span class="pill">Horizontal bar</span></h3>${rows.length ? hbar(rows, t3) : '<p class="mute">No data yet.</p>'}
+  <h3 class="chh">${esc(t4)} <span class="pill">Donut</span></h3>${donut(
+    [
+      { n: "Present", c: "var(--p)", v: pr },
+      { n: "Absent", c: "var(--a)", v: tt - pr },
+    ],
+    tr + "%",
+    admin ? "team turnout" : "attended",
+    t4,
+  )}</div>`;
+}
+
+// =====================================================================================
+// v13: Training tab. Timer (stopwatch / countdown / intervals), smartwatch heart rate (Bluetooth),
+// saved sessions + presets, and tips on how to improve. Training data is private to each person.
+// =====================================================================================
+const APP_V = "v15",
+  ERRS = [];
+addEventListener("error", (e) => {
+  ERRS.push(
+    String(e.message || "error").slice(0, 90) +
+      " (" +
+      String(e.filename || "")
+        .split("/")
+        .pop() +
+      ":" +
+      e.lineno +
+      ")",
+  );
+  ERRS.splice(0, Math.max(0, ERRS.length - 5));
+});
+addEventListener("unhandledrejection", (e) => {
+  ERRS.push(
+    "Promise: " +
+      String((e.reason && e.reason.message) || e.reason).slice(0, 90),
+  );
+  ERRS.splice(0, Math.max(0, ERRS.length - 5));
+});
+const ZC = ["#6ea0ff", "#3fcf86", "#ffb020", "#ff8a3d", "#e5484d"],
+  ZN = ["Z1 very light", "Z2 light", "Z3 moderate", "Z4 hard", "Z5 maximum"];
+const WKT = ["Practice", "Match", "Fitness / gym", "Run / cardio", "Other"];
+let WK = [],
+  wkLoaded = false,
+  wkBusy = false,
+  wkErr = "",
+  wakeLock = null;
+const lsGet = (k, d) => {
+  try {
+    const v = localStorage.getItem(k);
+    return v === null ? d : JSON.parse(v);
+  } catch (e) {
+    return d;
+  }
+};
+const lsSet = (k, v) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch (e) {}
+};
+let T = Object.assign(
+  {
+    mode: "sw",
+    cfg: { min: 10, work: 30, rest: 30, rounds: 8 },
+    run: false,
+    start: 0,
+    acc: 0,
+  },
+  lsGet("hk_timer", {}),
+);
+T.cfg = Object.assign(
+  { min: 10, work: 30, rest: 30, rounds: 8, q: 15, brk: 2, half: 10 },
+  T.cfg,
+);
+T.sc = Array.isArray(T.sc) && T.sc.length === 2 ? T.sc : [0, 0];
+T.hr = [];
+T.lastSec = -1;
+T.ph = -2;
+T.beep = -1;
+const tsave = () =>
+  lsSet("hk_timer", {
+    mode: T.mode,
+    cfg: T.cfg,
+    run: T.run,
+    start: T.start,
+    acc: T.acc,
+    sc: T.sc,
+  });
+const maxHr = () =>
+  Math.max(120, Math.min(230, +lsGet("hk_maxhr", 190) || 190));
+const zoneOf = (b) => {
+  const p = b / maxHr();
+  return p < 0.6 ? 0 : p < 0.7 ? 1 : p < 0.8 ? 2 : p < 0.9 ? 3 : 4;
+};
+const HR = { on: false, bpm: 0, dev: null, name: "" };
+const tel = () => T.acc + (T.run ? Date.now() - T.start : 0);
+function tplan() {
+  const c = T.cfg;
+  if (T.mode === "cd") return { total: c.min * 60000 };
+  if (T.mode === "iv") {
+    const ph = [];
+    for (let i = 0; i < c.rounds; i++) {
+      ph.push({
+        d: c.work * 1000,
+        l: "WORK · round " + (i + 1) + " of " + c.rounds,
+        w: 1,
+      });
+      if (i < c.rounds - 1 && c.rest > 0)
+        ph.push({
+          d: c.rest * 1000,
+          l: "REST · round " + (i + 1) + " of " + c.rounds,
+          w: 0,
+        });
+    }
+    return { phases: ph, total: ph.reduce((a, p) => a + p.d, 0) };
+  }
+  if (T.mode === "mt") {
+    // FIH: 4 quarters, short break after Q1 and Q3, half-time after Q2
+    const ph = [];
+    for (let i = 0; i < 4; i++) {
+      ph.push({
+        d: c.q * 60000,
+        l: "Quarter " + (i + 1) + " of 4",
+        w: 1,
+        qi: i,
+      });
+      if (i < 3) {
+        const hf = i === 1,
+          b = hf ? c.half : c.brk;
+        if (b > 0)
+          ph.push({
+            d: b * 60000,
+            l: hf ? "Half-time" : "Break after quarter " + (i + 1),
+            w: 0,
+          });
+      }
+    }
+    return { phases: ph, total: ph.reduce((a, p) => a + p.d, 0) };
+  }
+  return { total: 0 };
+}
+const fmtT = (ms, up) => {
+  const s = up ? Math.floor(ms / 1000) : Math.ceil(ms / 1000),
+    h = Math.floor(s / 3600),
+    m = Math.floor((s % 3600) / 60);
+  return (
+    (h ? h + ":" + String(m).padStart(2, "0") : m) +
+    ":" +
+    String(s % 60).padStart(2, "0")
+  );
+};
+function tview() {
+  const e = tel(),
+    p = tplan();
+  if (T.mode === "sw")
+    return { t: e, txt: fmtT(e, true), lbl: "Elapsed", ph: -1 };
+  if (T.mode === "cd")
+    return e >= p.total
+      ? { t: 0, txt: "0:00", lbl: "Done", ph: 1, fin: true }
+      : { t: p.total - e, txt: fmtT(p.total - e), lbl: "Time left", ph: 0 };
+  let a = 0;
+  for (let i = 0; i < p.phases.length; i++) {
+    const f = p.phases[i];
+    if (e < a + f.d)
+      return {
+        t: a + f.d - e,
+        txt: fmtT(a + f.d - e),
+        lbl: f.l,
+        ph: i,
+        work: !!f.w,
+      };
+    a += f.d;
+  }
+  return {
+    t: 0,
+    txt: "0:00",
+    lbl: T.mode === "mt" ? "Full time" : "Done",
+    ph: p.phases.length,
+    fin: true,
+  };
+}
+async function wl(on) {
+  try {
+    if (on && navigator.wakeLock) {
+      wakeLock = await navigator.wakeLock.request("screen");
+    } else if (wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch (e) {}
+}
+function ttick() {
+  const v = tview();
+  if (T.run) {
+    if (v.ph !== T.ph) {
+      if (T.ph !== -2 && (T.mode === "iv" || T.mode === "mt") && !v.fin) {
+        playWhistle(v.work ? "long" : T.mode === "mt" ? "final" : "short");
+        if (navigator.vibrate) navigator.vibrate(v.work ? [200] : [80, 60, 80]);
+      }
+      T.ph = v.ph;
+      T.beep = -1;
+    }
+    if (
+      T.mode !== "sw" &&
+      !v.fin &&
+      v.t <= 3000 &&
+      !(T.mode === "mt" && v.work)
+    ) {
+      const c = Math.ceil(v.t / 1000);
+      if (c !== T.beep) {
+        T.beep = c;
+        playClick();
+      }
+    }
+    const sec = Math.floor(tel() / 1000);
+    if (sec !== T.lastSec) {
+      T.lastSec = sec;
+      if (HR.on && HR.bpm) T.hr.push(HR.bpm);
+    }
+    if (v.fin) {
+      T.run = false;
+      T.acc = tplan().total;
+      playWhistle("final");
+      if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+      wl(false);
+      tsave();
+      drawTimerBtns();
+    }
+  }
+  const d = $("tdisp");
+  if (d) {
+    d.textContent = v.txt;
+    $("tlbl").textContent = v.lbl;
+    const b = $("tbox");
+    if (b)
+      b.className =
+        "tbox" +
+        (T.run && (T.mode === "iv" || T.mode === "mt")
+          ? v.work
+            ? " wk"
+            : " rs"
+          : "");
+    const q = $("tq");
+    if (q && T.mode === "mt") {
+      const ps = tplan().phases,
+        h = [0, 1, 2, 3]
+          .map((n) => {
+            const k = ps.findIndex((f) => f.qi === n);
+            return `<span class="qc ${v.ph > k ? "done" : v.ph === k ? "cur" : ""}">Q${n + 1}</span>`;
+          })
+          .join("");
+      if (q.dataset.s !== h) {
+        q.dataset.s = h;
+        q.innerHTML = h;
+      }
+    }
+  }
+}
+setInterval(ttick, 200);
+function tStart() {
+  try {
+    audio();
+  } catch (e) {}
+  if (T.mode !== "sw" && tview().fin) tReset(true);
+  if ((T.mode === "mt" || T.mode === "iv") && T.acc === 0) playWhistle("long");
+  T.start = Date.now();
+  T.run = true;
+  T.ph = -2;
+  wl(true);
+  tsave();
+  ttick();
+  drawTimerBtns();
+}
+function tPause() {
+  T.acc = tel();
+  T.run = false;
+  wl(false);
+  tsave();
+  drawTimerBtns();
+}
+function tReset(quiet) {
+  if (
+    !quiet &&
+    tel() > 5000 &&
+    !confirm("Reset the timer? Unsaved time and heart-rate data will be lost.")
+  )
+    return;
+  T.run = false;
+  T.acc = 0;
+  T.hr = [];
+  T.lastSec = -1;
+  T.ph = -2;
+  T.beep = -1;
+  T.sc = [0, 0];
+  wl(false);
+  tsave();
+  ttick();
+  drawTimerBtns();
+  drawScore();
+}
+const drawScore = () => {
+  if ($("s0")) {
+    $("s0").textContent = T.sc[0];
+    $("s1").textContent = T.sc[1];
+  }
+};
+function goal(i, d) {
+  if (d > 0 && T.run) tPause(); // a goal stops the clock; the centre pass starts it again
+  T.sc[i] = Math.max(0, T.sc[i] + d);
+  tsave();
+  drawScore();
+}
+function drawTimerBtns() {
+  const b = $("tgo");
+  if (!b) return;
+  const m = T.mode === "mt";
+  b.textContent = T.run
+    ? m
+      ? "⏸ Stop clock"
+      : "⏸ Pause"
+    : tel() > 0 && !tview().fin
+      ? m
+        ? "▶ Start clock"
+        : "▶ Resume"
+      : "▶ Start";
+  b.className = T.run ? "big" : "pri big";
+  if ($("tfin")) $("tfin").hidden = tel() < 10000 || T.run;
+}
+// ---------- smartwatch / chest strap: standard Bluetooth heart-rate profile ----------
+function hrParse(e) {
+  const v = e.target.value;
+  return v.getUint8(0) & 1 ? v.getUint16(1, true) : v.getUint8(1);
+}
+async function hrOpen(dev) {
+  const srv = await dev.gatt.connect(),
+    svc = await srv.getPrimaryService("heart_rate"),
+    ch = await svc.getCharacteristic("heart_rate_measurement");
+  await ch.startNotifications();
+  ch.addEventListener("characteristicvaluechanged", (e) => {
+    HR.bpm = hrParse(e);
+    drawHr();
+  });
+  HR.dev = dev;
+  HR.on = true;
+  HR.name = dev.name || "Heart-rate device";
+  drawHr();
+}
+async function hrConnect() {
+  if (!navigator.bluetooth)
+    return alert(
+      "This browser cannot connect to a watch.\n\nUse Chrome on Android (or Chrome / Edge on a computer). iPhone Safari does not support it. You can still add watch numbers by hand after a session.",
+    );
+  try {
+    const dev = await navigator.bluetooth.requestDevice({
+      filters: [{ services: ["heart_rate"] }],
+    });
+    dev.addEventListener("gattserverdisconnected", () => {
+      HR.on = false;
+      HR.bpm = 0;
+      drawHr();
+    });
+    await hrOpen(dev);
+  } catch (e) {
+    if (e.name === "NotFoundError" || e.name === "AbortError") return;
+    alert(
+      "Could not connect: " +
+        e.message +
+        '\n\nOn the watch, turn on "Broadcast heart rate" (or start a heart-rate sensor mode), keep it close, and try again.',
+    );
+  }
+}
+async function hrConnectAny() {
+  if (!navigator.bluetooth)
+    return alert(
+      "This browser cannot connect to a watch.\n\nUse Chrome on Android (or Chrome / Edge on a computer). iPhone Safari does not support it.",
+    );
+  try {
+    const dev = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: ["heart_rate", "battery_service", "device_information"],
+    });
+    dev.addEventListener("gattserverdisconnected", () => {
+      HR.on = false;
+      HR.bpm = 0;
+      drawHr();
+    });
+    try {
+      await hrOpen(dev);
+    } catch (e) {
+      try {
+        dev.gatt.disconnect();
+      } catch (x) {}
+      alert(
+        (dev.name || "This watch") +
+          " connected, but it does not share live heart rate with other apps.\n\nMost boAt watches (Wave Fury and others) talk only to the boAt Crest app. After training, open boAt Crest, then press “Add watch summary” here and type the numbers.",
+      );
+    }
+  } catch (e) {
+    if (e.name === "NotFoundError" || e.name === "AbortError") return;
+    alert("Could not connect: " + e.message);
+  }
+}
+async function hrAgain() {
+  try {
+    if (HR.dev) await hrOpen(HR.dev);
+  } catch (e) {
+    alert("Could not reconnect: " + e.message);
+  }
+}
+function hrOff() {
+  try {
+    if (HR.dev && HR.dev.gatt.connected) HR.dev.gatt.disconnect();
+  } catch (e) {}
+  HR.on = false;
+  HR.bpm = 0;
+  drawHr();
+}
+function drawHr() {
+  const b = $("hrb");
+  if (!b) return;
+  const z = HR.bpm ? zoneOf(HR.bpm) : -1,
+    pc = HR.bpm ? Math.round((HR.bpm * 100) / maxHr()) : 0;
+  b.textContent = HR.on && HR.bpm ? HR.bpm : "--";
+  b.style.color = z >= 0 ? ZC[z] : "";
+  $("hrz").textContent = !HR.on
+    ? HR.dev
+      ? "Disconnected"
+      : "Not connected"
+    : !HR.bpm
+      ? "Waiting for a reading…"
+      : ZN[z] + " · " + pc + "% of max";
+  $("hrz").className = "pill" + (HR.on ? " g" : "");
+  $("hrw").textContent =
+    HR.on && HR.bpm
+      ? pc > 100
+        ? "Above your max. Ease off."
+        : z === 4
+          ? "Maximum effort. Recover soon."
+          : z === 3
+            ? "Hard. Good for intervals."
+            : z <= 1
+              ? "Easy. Fine for warm-up and recovery."
+              : "Steady work."
+      : "";
+  const cb = $("hrc");
+  if (cb) {
+    cb.textContent = HR.on
+      ? "Disconnect"
+      : HR.dev
+        ? "Reconnect"
+        : "Connect watch";
+    cb.onclick = HR.on ? hrOff : HR.dev ? hrAgain : hrConnect;
+  }
+}
+// ---------- saved sessions + presets ----------
+async function loadWk() {
+  wkBusy = true;
+  wkErr = "";
+  try {
+    const r = await api("/api/workouts");
+    WK = r.items || [];
+    wkLoaded = true;
+  } catch (e) {
+    wkErr =
+      "Could not load saved sessions: " +
+      (e.status ? e.message : "check your connection");
+  }
+  wkBusy = false;
+  if (tab === "train" && !prof) render();
+}
+const sessions = () => WK.filter((w) => w.kind !== "preset"),
+  presets = () => WK.filter((w) => w.kind === "preset");
+const mondayOf = (d) => {
+  const t = new Date(d + "T00:00"),
+    k = (t.getDay() + 6) % 7;
+  t.setDate(t.getDate() - k);
+  return (
+    t.getFullYear() +
+    "-" +
+    String(t.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(t.getDate()).padStart(2, "0")
+  );
+};
+const addDays = (d, n) => {
+  const t = new Date(d + "T00:00");
+  t.setDate(t.getDate() + n);
+  return (
+    t.getFullYear() +
+    "-" +
+    String(t.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(t.getDate()).padStart(2, "0")
+  );
+};
+const zbar = (z) => {
+  const t = (z || []).reduce((a, x) => a + x, 0);
+  return t
+    ? `<span class="zb" aria-label="Time in heart-rate zones">${z.map((x, i) => (x ? `<i style="width:${(x * 100) / t}%;background:${ZC[i]}" title="${ZN[i]}: ${Math.round(x / 60)} min"></i>` : "")).join("")}</span>`
+    : "";
+};
+function openSave(fromTimer) {
+  const d = ensureDlg("wkdlg"),
+    h = fromTimer ? T.hr : [],
+    avg = h.length ? Math.round(h.reduce((a, x) => a + x, 0) / h.length) : "",
+    mx = h.length ? Math.max(...h) : "",
+    mn = h.length ? Math.min(...h) : "";
+  const zones = [0, 0, 0, 0, 0];
+  h.forEach((b) => zones[zoneOf(b)]++);
+  const dm = fromTimer ? Math.max(1, Math.round(tel() / 60000)) : "";
+  d.innerHTML = `<h2>${fromTimer ? "Save this session" : "Add watch summary"}</h2>${fromTimer ? "" : '<p class="mute">Open your watch app (for example boAt Crest), find the workout and copy the numbers.</p>'}
+  <label class="fl">Type<select id="wt">${WKT.map((t) => `<option ${fromTimer && T.mode === "mt" && t === "Match" ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+  <div class="ctl"><label class="fl" style="flex:1;margin:0">Date<input id="wd" type="date" value="${today()}"></label><label class="fl" style="flex:1;margin:0">Minutes<input id="wm" type="number" min="1" max="720" value="${dm}"></label></div>
+  <label class="fl" style="margin-top:12px">How hard was it? (1 easy to 10 maximum)<select id="wr"><option value="">Skip</option>${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<option>${n}</option>`).join("")}</select></label>
+  <p class="mute" style="margin:0 0 6px">From your watch (optional)</p>
+  <div class="ctl"><input id="wa" type="number" placeholder="Avg HR" value="${avg}"><input id="wx" type="number" placeholder="Max HR" value="${mx}"></div>
+  <div class="ctl" style="margin-top:8px"><input id="wk" type="number" placeholder="Calories"><input id="wkm" type="number" step="0.1" placeholder="Distance km"></div><div class="ctl" style="margin-top:8px"><input id="wsp" type="number" placeholder="Steps"><input id="wdv" maxlength="30" placeholder="Watch (e.g. boAt Wave Fury)" value="${esc(lsGet("hk_dev", ""))}"></div>
+  <p style="margin-top:10px"><input id="wn" maxlength="200" placeholder="Note (e.g. felt tired, tight hamstring)" value="${fromTimer && T.mode === "mt" && (T.sc[0] || T.sc[1]) ? "Score " + T.sc[0] + "–" + T.sc[1] : ""}"></p>
+  <div class="ctl"><button class="pri" id="wsv">Save</button><button id="wcx">Cancel</button></div>`;
+  $("wcx").onclick = () => d.close();
+  $("wsv").onclick = () => {
+    const dur = Math.round((+$("wm").value || 0) * 60);
+    if (dur < 10) return alert("Enter the minutes trained.");
+    const body = {
+      kind: "session",
+      date: $("wd").value || today(),
+      type: $("wt").value,
+      dur,
+      avg: +$("wa").value || 0,
+      max: +$("wx").value || 0,
+      min: +mn || 0,
+      zones: h.length ? zones : [],
+      rpe: +$("wr").value || 0,
+      kcal: +$("wk").value || 0,
+      km: +$("wkm").value || 0,
+      steps: +$("wsp").value || 0,
+      dev: $("wdv").value.trim(),
+      note: $("wn").value.trim(),
+      src: h.length ? "watch" : "manual",
+    };
+    if (body.dev) lsSet("hk_dev", body.dev);
+    run(async () => {
+      await api("/api/workouts", { method: "POST", body });
+      d.close();
+      if (fromTimer) tReset(true);
+      await loadWk();
+    });
+  };
+  d.showModal();
+}
+function savePreset() {
+  const name = (
+    prompt('Name this timer setup (for example "Sprint 30/30"):') || ""
+  )
+    .trim()
+    .slice(0, 40);
+  if (!name) return;
+  run(async () => {
+    await api("/api/workouts", {
+      method: "POST",
+      body: { kind: "preset", name, mode: T.mode, cfg: T.cfg },
+    });
+    await loadWk();
+  });
+}
+// ---------- how to improve: personal tips from your position, focus, attendance, availability and saved sessions ----------
+const POSK = (x) => {
+  const v = String(x || "").toLowerCase();
+  return /goal|gk|keeper/.test(v)
+    ? "gk"
+    : /def|back|sweep/.test(v)
+      ? "def"
+      : /mid|half/.test(v)
+        ? "mid"
+        : /fwd|forw|strik|attack|wing/.test(v)
+          ? "fwd"
+          : "";
+};
+const POSTIP = {
+  gk: [
+    "🧤",
+    "Goalkeeper focus",
+    "You work in short, explosive bursts: quick dives, fast feet and reaction saves. Train short and sharp with long rests, and keep hips and hamstrings loose.",
+    {
+      mode: "iv",
+      cfg: { work: 20, rest: 40, rounds: 8 },
+      lbl: "Load 20 s on / 40 s off × 8",
+    },
+  ],
+  def: [
+    "🛡️",
+    "Defender focus",
+    "Defenders sprint short distances to close down, then recover and tackle. Work on 5 to 10 m acceleration and getting back fast after being beaten.",
+    {
+      mode: "iv",
+      cfg: { work: 15, rest: 45, rounds: 10 },
+      lbl: "Load 15 s on / 45 s off × 10",
+    },
+  ],
+  mid: [
+    "🔁",
+    "Midfielder focus",
+    "Midfielders cover the most distance. Build your aerobic base, then add repeated sprints so you can still run hard in the fourth quarter.",
+    {
+      mode: "iv",
+      cfg: { work: 30, rest: 30, rounds: 12 },
+      lbl: "Load 30 s on / 30 s off × 12",
+    },
+  ],
+  fwd: [
+    "🎯",
+    "Forward focus",
+    "Forwards need sharp acceleration and finishing when tired. Do 20 to 30 m sprints with good rest, then practise shooting straight after a hard effort.",
+    {
+      mode: "iv",
+      cfg: { work: 20, rest: 40, rounds: 10 },
+      lbl: "Load 20 s on / 40 s off × 10",
+    },
+  ],
+};
+const GOALS = [
+  ["", "Not set"],
+  ["stamina", "Stamina"],
+  ["speed", "Speed"],
+  ["match", "Match fitness"],
+  ["recover", "Recovery"],
+];
+const GOALTIP = {
+  stamina: [
+    "🫁",
+    "Your focus: stamina",
+    "Do two easy steady sessions a week of 25 to 40 minutes where you can still talk, and add about 5 minutes each week.",
+    { mode: "cd", cfg: { min: 30 }, lbl: "Load 30 min countdown" },
+  ],
+  speed: [
+    "⚡",
+    "Your focus: speed",
+    "Sprint with full rest so every rep is fast: 6 sprints of 20 seconds with 60 seconds easy between. Stop when speed drops.",
+    {
+      mode: "iv",
+      cfg: { work: 20, rest: 60, rounds: 6 },
+      lbl: "Load 20 s on / 60 s off × 6",
+    },
+  ],
+  match: [
+    "🏟️",
+    "Your focus: match fitness",
+    "Play a full practice game on the Match timer (4 quarters of 15 minutes with breaks) and save it. Compare your effort quarter by quarter.",
+    { mode: "mt", cfg: {}, lbl: "Load FIH match timer" },
+  ],
+  recover: [
+    "🧘",
+    "Your focus: recovery",
+    "Keep sessions easy: a 20 minute walk or light jog, mobility work, plenty of water and sleep.",
+    { mode: "cd", cfg: { min: 20 }, lbl: "Load 20 min countdown" },
+  ],
+};
+function recs() {
+  const ss = sessions(),
+    out = [],
+    td = today(),
+    m0 = mondayOf(td),
+    m1 = addDays(m0, -7),
+    mm = (x) => x.reduce((a, w) => a + w.dur, 0) / 60;
+  const tw = ss.filter((w) => w.date >= m0),
+    lw = ss.filter((w) => w.date >= m1 && w.date < m0),
+    l7 = ss.filter((w) => w.date > addDays(td, -7)),
+    l28 = ss.filter((w) => w.date > addDays(td, -28));
+  const mine = pl ? P.find((x) => x.id === me) : null,
+    pk = POSK(mine && mine.position);
+  // 1. safety first: marked injured for an upcoming playing day
+  const injD = Object.keys(AVL)
+      .sort()
+      .find((d) => d >= td && AVL[d][me] && AVL[d][me].s === "injured"),
+    inj = !!injD;
+  if (inj)
+    out.push([
+      "🤕",
+      "You are marked injured for " + fmt(injD),
+      "Keep training light until you are fit to play: easy walking, mobility and upper-body work. If the pain is sharp or lasts, get it checked before you return to sprinting.",
+    ]);
+  // 2. your attendance over the last 30 days
+  if (pl) {
+    const ds = dates().filter(
+        (d) => d > addDays(td, -30) && SS[d][me] !== undefined,
+      ),
+      at = ds.filter((d) => SS[d][me]).length;
+    if (ds.length >= 3) {
+      const pc = Math.round((at * 100) / ds.length);
+      if (pc < 60)
+        out.push([
+          "📅",
+          "Come to more practices",
+          "You attended " +
+            at +
+            " of the last " +
+            ds.length +
+            " team practices (" +
+            pc +
+            "%). Regular practice gives the biggest gain in fitness and team play. Aim for at least 75%.",
+        ]);
+      else if (pc >= 90)
+        out.push([
+          "🌟",
+          "Great attendance",
+          "You attended " +
+            at +
+            " of the last " +
+            ds.length +
+            " practices (" +
+            pc +
+            "%). To keep improving, add one short solo session a week focused on your weak spot.",
+        ]);
+    }
+  }
+  // 3. your position and your chosen focus (skipped while injured)
+  if (!inj) {
+    if (pk) out.push(POSTIP[pk]);
+    else if (pl)
+      out.push([
+        "👤",
+        "Add your position",
+        "Ask the captain to set your position (forward, midfielder, defender or goalkeeper) so the tips can match your role.",
+      ]);
+    const g = lsGet("hk_goal", "");
+    if (g && GOALTIP[g]) out.push(GOALTIP[g]);
+  }
+  // 4. your saved sessions
+  if (!ss.length)
+    out.push([
+      "⌚",
+      "Save your first session",
+      "Time a practice with the timer, connect your watch if you can, and save it. More tips appear here after a few sessions.",
+    ]);
+  else {
+    const days7 = new Set(l7.map((w) => w.date)).size;
+    if (days7 < 2)
+      out.push([
+        "🏃",
+        "Train more often",
+        "You trained on " +
+          days7 +
+          " day" +
+          (days7 === 1 ? "" : "s") +
+          " in the last 7 days. Aim for 3 to 5 sessions a week, including the team practices.",
+      ]);
+    else if (days7 >= 6)
+      out.push([
+        "😴",
+        "Take a rest day",
+        "You trained on " +
+          days7 +
+          " of the last 7 days. Keep at least one full rest day a week so your legs recover.",
+      ]);
+    if (lw.length && tw.length) {
+      const a = mm(tw),
+        b = mm(lw);
+      if (a > b * 1.3)
+        out.push([
+          "📈",
+          "Build up gradually",
+          "This week (" +
+            Math.round(a) +
+            " min) is much more than last week (" +
+            Math.round(b) +
+            " min). Try not to raise weekly time by more than about 10 to 15% to lower injury risk.",
+        ]);
+      else if (a < b * 0.6)
+        out.push([
+          "📉",
+          "Volume dropped",
+          "This week has " +
+            Math.round(a) +
+            " min so far against " +
+            Math.round(b) +
+            " min last week. If it was planned, fine. If not, schedule your next sessions now.",
+        ]);
+    }
+    const z = [0, 0, 0, 0, 0];
+    let hrN = 0;
+    l28.forEach((w) => {
+      if (w.zones && w.zones.length === 5 && w.zones.some((x) => x)) {
+        hrN++;
+        w.zones.forEach((x, i) => (z[i] += x));
+      }
+    });
+    const zt = z.reduce((a, x) => a + x, 0);
+    if (hrN >= 2 && zt) {
+      const hard = (z[3] + z[4]) / zt,
+        base = z[1] / zt;
+      if (hard > 0.4)
+        out.push([
+          "🔥",
+          "Too much hard running",
+          "About " +
+            Math.round(hard * 100) +
+            "% of your tracked time is in Zones 4 and 5. Make most of your work easier and keep hard efforts for planned intervals.",
+        ]);
+      else if (hard < 0.1 && hrN >= 3 && !inj)
+        out.push([
+          "⚡",
+          "Add some intensity",
+          "Under 10% of your tracked time is hard. Once a week try 6 to 8 repeats of 30 seconds fast and 60 seconds easy.",
+          {
+            mode: "iv",
+            cfg: { work: 30, rest: 60, rounds: 8 },
+            lbl: "Load 30 s on / 60 s off × 8",
+          },
+        ]);
+      if (base < 0.2)
+        out.push([
+          "🫁",
+          "Build your aerobic base",
+          "Little time in Zone 2. Add one easy 20 to 30 minute steady jog where you can still talk. It helps you recover between sprints in a match.",
+          { mode: "cd", cfg: { min: 25 }, lbl: "Load 25 min countdown" },
+        ]);
+    } else if (l28.length >= 3)
+      out.push([
+        "⌚",
+        "Track heart rate",
+        "Connect a watch or chest strap while timing a session so tips can use your heart-rate zones.",
+      ]);
+    // heart-rate trend in practices: lower average at similar effort = fitter
+    const pr = ss.filter((w) => w.type === "Practice" && w.avg > 0);
+    if (pr.length >= 6) {
+      const a = pr.slice(0, 3).reduce((x, w) => x + w.avg, 0) / 3,
+        b = pr.slice(3, 6).reduce((x, w) => x + w.avg, 0) / 3;
+      if (b - a >= 3)
+        out.push([
+          "💪",
+          "You are getting fitter",
+          "Your average heart rate in your last 3 practices (" +
+            Math.round(a) +
+            " bpm) is lower than in the 3 before (" +
+            Math.round(b) +
+            " bpm). Keep the routine going.",
+        ]);
+      else if (a - b >= 5)
+        out.push([
+          "🩺",
+          "Heart rate is running higher",
+          "Your last 3 practices averaged " +
+            Math.round(a) +
+            " bpm against " +
+            Math.round(b) +
+            " bpm before. Poor sleep, heat, stress or not being fully recovered can cause this. Take it easier for a few days.",
+        ]);
+    }
+    const r = ss.slice(0, 3).filter((w) => w.rpe);
+    if (r.length === 3 && r.reduce((a, w) => a + w.rpe, 0) / 3 >= 8)
+      out.push([
+        "🛌",
+        "You may be run down",
+        "Your last 3 sessions felt 8 or more out of 10. Take an easy day or a shorter session before the next hard one.",
+      ]);
+  }
+  out.push([
+    "🏑",
+    "Hockey basics",
+    "Do the Warm-up tab routine before every session, drink water, and sleep 7 to 9 hours. Recovery is when fitness improves.",
+  ]);
+  return out;
+}
+function vTrain() {
+  if (!wkLoaded && !wkBusy && !wkErr) loadWk();
+  const sup = !!navigator.bluetooth,
+    v = tview(),
+    ss = sessions(),
+    m0 = mondayOf(today()),
+    tw = ss.filter((w) => w.date >= m0);
+  const cfgIn =
+    T.mode === "mt"
+      ? `<label class="fl" style="flex:1;margin:0">Quarter (min)<input id="cq" type="number" min="1" max="60" value="${T.cfg.q}"></label><label class="fl" style="flex:1;margin:0">Break (min)<input id="cbk" type="number" min="0" max="30" value="${T.cfg.brk}"></label><label class="fl" style="flex:1;margin:0">Half-time (min)<input id="chf" type="number" min="0" max="60" value="${T.cfg.half}"></label>`
+      : T.mode === "cd"
+        ? `<label class="fl" style="flex:1;margin:0">Minutes<input id="cmin" type="number" min="1" max="600" value="${T.cfg.min}"></label>`
+        : T.mode === "iv"
+          ? `<label class="fl" style="flex:1;margin:0">Work (s)<input id="cwk" type="number" min="5" max="3600" value="${T.cfg.work}"></label><label class="fl" style="flex:1;margin:0">Rest (s)<input id="crs" type="number" min="0" max="3600" value="${T.cfg.rest}"></label><label class="fl" style="flex:1;margin:0">Rounds<input id="crd" type="number" min="1" max="99" value="${T.cfg.rounds}"></label>`
+          : "";
+  const RC = recs(),
+    pre = presets()
+      .map(
+        (p) =>
+          `<span class="pch"><button data-pr="${p.id}">${esc(p.name)}</button><button class="x" data-pd="${p.id}" aria-label="Delete ${esc(p.name)}">×</button></span>`,
+      )
+      .join("");
+  const rows = ss
+    .slice(0, 30)
+    .map(
+      (w) =>
+        `<div class="wr"><div class="wi"><b>${fmt(w.date)} · ${esc(w.type)}</b><span class="mute">${Math.round(w.dur / 60)} min${w.avg ? " · avg " + w.avg + " / max " + w.max + " bpm" : ""}${w.rpe ? " · effort " + w.rpe + "/10" : ""}${w.kcal ? " · " + w.kcal + " kcal" : ""}${w.km ? " · " + w.km + " km" : ""}${w.steps ? " · " + w.steps + " steps" : ""}${w.dev ? " · ⌚ " + esc(w.dev) : ""}</span>${zbar(w.zones)}${w.note ? `<span class="mute">📝 ${esc(w.note)}</span>` : ""}</div><button class="x" data-wd="${w.id}" aria-label="Delete session">🗑</button></div>`,
+    )
+    .join("");
+  $("view").innerHTML = `<div class="card"><h2>⏱ Timer</h2>
+  <div class="seg">${[
+    ["sw", "Stopwatch"],
+    ["cd", "Countdown"],
+    ["iv", "Intervals"],
+    ["mt", "Match"],
+  ]
+    .map(
+      (m) =>
+        `<button type="button" data-m="${m[0]}" class="${T.mode === m[0] ? "on" : ""}">${m[1]}</button>`,
+    )
+    .join("")}</div>
+  ${cfgIn ? `<div class="ctl">${cfgIn}</div>` : ""}
+  ${T.mode === "mt" ? '<div id="tq" class="tq"></div>' : ""}<div id="tbox" class="tbox"><div id="tlbl" class="tl2">${v.lbl}</div><div id="tdisp" class="tdisp" aria-live="off">${v.txt}</div></div>
+  <div class="ctl"><button id="tgo"></button><button id="trs">Reset</button></div>
+  ${T.mode === "mt" ? `<div class="sb"><div><span class="mute">My team</span><b id="s0">${T.sc[0]}</b><span><button data-goal="0">＋ Goal</button><button class="x" data-goalm="0" aria-label="Remove a goal">−</button></span></div><span class="sbc">:</span><div><span class="mute">Opponent</span><b id="s1">${T.sc[1]}</b><span><button data-goal="1">＋ Goal</button><button class="x" data-goalm="1" aria-label="Remove a goal">−</button></span></div></div><p class="mute" style="margin:0 0 8px;text-align:center;font-size:.82rem">Like an official match: 4 quarters of 15 minutes, 2 minute breaks, 10 minute half-time. A goal stops the clock; press Start clock for the centre pass. Stop the clock for injuries or time-outs.</p>` : ""}<div class="ctl"><button class="pri" id="tfin" hidden>💾 Finish and save session</button></div>
+  <div class="chips">${pre}${T.mode !== "sw" ? '<button id="tsp">＋ Save this setup</button>' : ""}<button id="tman">✍ Add watch summary</button></div>
+  ${pre ? '<p class="mute" style="margin:6px 0 0">Tap a saved setup to load it.</p>' : ""}</div>
+  <div class="card"><h2>⌚ Smartwatch heart rate</h2>
+  <div class="hrbig"><b id="hrb">--</b><span>bpm</span></div><div class="ctl" style="justify-content:center"><span id="hrz" class="pill">Not connected</span></div><p id="hrw" class="mute" style="text-align:center;margin:6px 0 10px"></p>
+  <div class="ctl"><button class="pri" id="hrc"></button><button id="hrany">Try boAt / other watch</button></div><div class="ctl" style="margin-top:8px"><label class="fl" style="flex:1;margin:0">Your max HR<input id="hmx" type="number" min="120" max="230" value="${maxHr()}"></label></div>
+  <p class="mute" style="margin:8px 0 0">Heart rate is saved with the session while the timer runs. Not sure of your max? <button class="lnk" id="hage">Estimate from age</button></p>
+  <details class="hlp"><summary>Which watches work?</summary><p class="mute">${sup ? "" : "<b>This browser cannot connect to a watch.</b> "}Connection uses standard Bluetooth heart rate, in Chrome on Android or on a computer (not iPhone Safari). Chest straps (Polar, Wahoo, Coospo and similar) work directly. Garmin watches work with <i>Broadcast heart rate</i> turned on. <b>boAt watches (Wave Fury and similar)</b> sync only through the boAt Crest app, so live connection is not expected to work: press <i>Try boAt / other watch</i> to check, and if it fails use <i>Add watch summary</i> after training and copy the numbers from boAt Crest. Apple Watch, Galaxy Watch and Fitbit behave the same way.</p></details></div>
+  <div class="card"><h2>💡 How to improve${pl && WHO ? " · " + esc(WHO.split(" ")[0]) : ""}</h2><label class="fl" style="margin-bottom:6px">My focus<select id="goal">${GOALS.map((g) => `<option value="${g[0]}" ${lsGet("hk_goal", "") === g[0] ? "selected" : ""}>${g[1]}</option>`).join("")}</select></label><p class="mute" style="margin:0 0 6px;font-size:.85rem">Tips use your position, focus, attendance, availability and saved sessions.</p>${RC.map((r, i) => `<div class="rc"><span class="ic">${r[0]}</span><span><b>${esc(r[1])}</b><br><span class="mute">${esc(r[2])}</span>${r[3] ? `<br><button class="tipb" data-act="${i}">⏱ ${esc(r[3].lbl)}</button>` : ""}</span></div>`).join("")}<p class="mute" style="margin:10px 0 0;font-size:.8rem">General fitness tips from your saved data, not medical advice. Stop and rest if you feel dizzy, have chest pain or feel unwell.</p></div>
+  <div class="card"><h2>Saved sessions</h2>${ss.length ? `<div class="stats"><div><b>${tw.length}</b>This week</div><div><b>${Math.round(tw.reduce((a, w) => a + w.dur, 0) / 60)}</b>Minutes this week</div><div><b>${ss.length}</b>Total saved</div></div>` : ""}${rows || empty("📋", wkErr || (wkLoaded ? "No saved sessions yet." : "Loading…"))}${wkErr ? '<div class="ctl"><button id="wtry">Try again</button></div>' : ""}<p class="mute" style="margin:8px 0 0;font-size:.8rem">Only you can see your training data.</p></div>`;
+  drawTimerBtns();
+  drawHr();
+  ttick();
+  document.querySelectorAll("[data-m]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (T.run || tel() > 0) {
+          if (!confirm("Switching timer type resets the timer. Continue?"))
+            return;
+          tReset(true);
+        }
+        T.mode = b.dataset.m;
+        tsave();
+        vTrain();
+      }),
+  );
+  const bindCfg = (id, k, lo, hi) => {
+    const e = $(id);
+    if (e)
+      e.onchange = () => {
+        T.cfg[k] = Math.max(lo, Math.min(hi, Math.round(+e.value) || lo));
+        e.value = T.cfg[k];
+        tsave();
+        ttick();
+      };
+  };
+  bindCfg("cq", "q", 1, 60);
+  bindCfg("cbk", "brk", 0, 30);
+  bindCfg("chf", "half", 0, 60);
+  bindCfg("cmin", "min", 1, 600);
+  bindCfg("cwk", "work", 5, 3600);
+  bindCfg("crs", "rest", 0, 3600);
+  bindCfg("crd", "rounds", 1, 99);
+  $("tgo").onclick = () => (T.run ? tPause() : tStart());
+  $("trs").onclick = () => tReset();
+  $("tfin").onclick = () => {
+    if (T.run) tPause();
+    openSave(true);
+  };
+  $("tman").onclick = () => openSave(false);
+  if ($("tsp")) $("tsp").onclick = savePreset;
+  document
+    .querySelectorAll("[data-goal]")
+    .forEach((b) => (b.onclick = () => goal(+b.dataset.goal, 1)));
+  document
+    .querySelectorAll("[data-goalm]")
+    .forEach((b) => (b.onclick = () => goal(+b.dataset.goalm, -1)));
+  $("goal").onchange = (e) => {
+    lsSet("hk_goal", e.target.value);
+    vTrain();
+  };
+  document.querySelectorAll("[data-act]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const a = RC[+b.dataset.act][3];
+        if (!a) return;
+        if (T.run || tel() > 0) {
+          if (!confirm("Load this setup and reset the timer?")) return;
+          tReset(true);
+        }
+        T.mode = a.mode;
+        T.cfg = Object.assign({}, T.cfg, a.cfg);
+        tsave();
+        vTrain();
+        window.scrollTo(0, 0);
+      }),
+  );
+  $("hrany").onclick = hrConnectAny;
+  $("hmx").onchange = (e) => {
+    lsSet("hk_maxhr", Math.max(120, Math.min(230, +e.target.value || 190)));
+    vTrain();
+  };
+  $("hage").onclick = () => {
+    const a = +prompt("Your age in years:");
+    if (a >= 10 && a <= 90) {
+      lsSet("hk_maxhr", 220 - Math.round(a));
+      vTrain();
+    }
+  };
+  document.querySelectorAll("[data-pr]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const p = WK.find((x) => x.id === b.dataset.pr);
+        if (!p) return;
+        if (T.run || tel() > 0) {
+          if (!confirm("Load this setup and reset the timer?")) return;
+          tReset(true);
+        }
+        T.mode = p.mode;
+        T.cfg = Object.assign({}, T.cfg, p.cfg);
+        tsave();
+        vTrain();
+      }),
+  );
+  document.querySelectorAll("[data-pd]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (confirm("Delete this saved setup?"))
+          run(async () => {
+            await api("/api/workouts/" + b.dataset.pd, { method: "DELETE" });
+            await loadWk();
+          });
+      }),
+  );
+  document.querySelectorAll("[data-wd]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (confirm("Delete this session?"))
+          run(async () => {
+            await api("/api/workouts/" + b.dataset.wd, { method: "DELETE" });
+            await loadWk();
+          });
+      }),
+  );
+  if ($("wtry"))
+    $("wtry").onclick = () => {
+      wkErr = "";
+      wkLoaded = false;
+      render();
+    };
+}
+
+// ---------- bug reports ----------
+let BG = [],
+  bgLoaded = false,
+  bgBusy = false,
+  bgErr = "";
+const bugInfo = () =>
+  [
+    "App " + APP_V,
+    "role " + role,
+    "page " + tab,
+    "screen " + innerWidth + "x" + innerHeight,
+    standalone() ? "installed app" : "browser",
+    navigator.onLine ? "online" : "offline",
+    (navigator.userAgent.match(
+      /(Android [\d.]+|iPhone OS [\d_]+|Windows NT [\d.]+|Mac OS X [\d_]+)/,
+    ) || [""])[0],
+    (navigator.userAgent.match(/(Chrome|Firefox|Safari|Edg)\/[\d.]+/) || [
+      "",
+    ])[0],
+    ERRS.length ? "errors: " + ERRS.slice(-3).join(" | ") : "",
+  ]
+    .filter(Boolean)
+    .join(" · ")
+    .slice(0, 600);
+function openBug() {
+  const d = ensureDlg("bgdlg");
+  let shot = "";
+  d.innerHTML = `<h2>🐞 Report a bug</h2><p class="mute">Tell us what went wrong. More detail means a faster fix.</p>
+  <label class="fl">Where did it happen?<select id="bgp">${tabsFor()
+    .map(
+      (t) => `<option ${t[0] === tab ? "selected" : ""}>${esc(t[2])}</option>`,
+    )
+    .join(
+      "",
+    )}<option>Login or menu</option><option>Other</option></select></label>
+  <label class="fl">What happened?<textarea id="bgt" rows="4" maxlength="1000" placeholder="What I did, what I expected, what happened instead" style="width:100%"></textarea></label>
+  <div class="ctl"><button id="bgs">📷 Add screenshot</button></div><p id="bgi" class="mute" role="status"></p>
+  <label class="fl" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="bgd" checked style="width:auto"> Include app and device details (never passwords)</label>
+  <div class="ctl"><button class="pri" id="bgsend">Send report</button><button id="bgx">Cancel</button></div>`;
+  $("bgx").onclick = () => d.close();
+  $("bgs").onclick = () =>
+    pickFiles((f) =>
+      fileToImg(f[0], 900, 0.7, 240000)
+        .then((x) => {
+          shot = x;
+          $("bgi").textContent = "Screenshot added.";
+        })
+        .catch((e) => alert(e.message)),
+    );
+  $("bgsend").onclick = () => {
+    const text = $("bgt").value.trim();
+    if (text.length < 5) return alert("Please describe what went wrong.");
+    run(async () => {
+      await api("/api/bugs", {
+        method: "POST",
+        body: {
+          text,
+          page: $("bgp").value,
+          info: $("bgd").checked ? bugInfo() : "",
+          shot,
+        },
+      });
+      d.close();
+      alert("Thank you. Your report was sent.");
+    });
+  };
+  d.showModal();
+}
+async function loadBugs() {
+  bgBusy = true;
+  bgErr = "";
+  try {
+    const r = await api("/api/bugs");
+    BG = r.items || [];
+    bgLoaded = true;
+  } catch (e) {
+    bgErr =
+      "Could not load reports: " +
+      (e.status ? e.message : "check your connection");
+  }
+  bgBusy = false;
+  if (tab === "bugs" && !prof) render();
+}
+const bugText = (b) =>
+  `🐞 *Hockey app bug*\nPage: ${b.page || "-"}\nFrom: ${b.by || "-"} (${b.role})\nDate: ${when(b.at)}\n\n${b.text}${b.info ? "\n\nDetails: " + b.info : ""}`;
+function vBugs() {
+  if (!bgLoaded && !bgBusy && !bgErr) loadBugs();
+  const open = BG.filter((b) => b.status !== "fixed"),
+    fixed = BG.filter((b) => b.status === "fixed");
+  const row = (
+    b,
+  ) => `<div class="bgc ${b.status === "fixed" ? "fx2" : ""}"><div class="bgh"><b>${esc(b.page || "Bug")}</b><span class="pill ${b.status === "fixed" ? "g" : "r"}">${b.status === "fixed" ? "Fixed" : "Open"}</span></div><p style="margin:4px 0">${esc(b.text)}</p><span class="mute" style="font-size:.82rem">${esc(b.by || "")} (${esc(b.role)}) · ${when(b.at)}</span>${b.info ? `<details class="hlp"><summary>Device details</summary><p class="mute">${esc(b.info)}</p></details>` : ""}
+  <div class="chips">${b.hasShot ? `<button data-bs="${b.id}">🖼 Screenshot</button>` : ""}<button data-bsh="${b.id}">⤴ Share</button><button data-bst="${b.id}">${b.status === "fixed" ? "Reopen" : "✔ Mark fixed"}</button><button class="x" data-bdl="${b.id}">🗑</button></div></div>`;
+  $("view").innerHTML =
+    `<div class="card"><h2>Bug reports (${open.length} open)</h2><p class="mute">Sent by team members from the menu → Report a bug.</p>${BG.length ? open.map(row).join("") + (fixed.length ? `<h3 class="chh">Fixed (${fixed.length})</h3>` + fixed.map(row).join("") : "") : empty("🎉", bgErr || (bgLoaded ? "No bug reports." : "Loading…"))}${bgErr ? '<div class="ctl"><button id="bgtry">Try again</button></div>' : ""}</div>`;
+  if ($("bgtry"))
+    $("bgtry").onclick = () => {
+      bgErr = "";
+      bgLoaded = false;
+      render();
+    };
+  document.querySelectorAll("[data-bs]").forEach(
+    (b) =>
+      (b.onclick = () =>
+        run(async () => {
+          const r = await api("/api/bugs/" + b.dataset.bs + "/shot");
+          if (r.img) openImg(r.img);
+        })),
+  );
+  document.querySelectorAll("[data-bsh]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const x = BG.find((y) => y.id === b.dataset.bsh);
+        if (x) shareText(bugText(x), "Hockey app bug");
+      }),
+  );
+  document.querySelectorAll("[data-bst]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const x = BG.find((y) => y.id === b.dataset.bst);
+        if (x)
+          run(async () => {
+            await api("/api/bugs/" + x.id, {
+              method: "PUT",
+              body: { status: x.status === "fixed" ? "open" : "fixed" },
+            });
+            await loadBugs();
+          });
+      }),
+  );
+  document.querySelectorAll("[data-bdl]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (confirm("Delete this report?"))
+          run(async () => {
+            await api("/api/bugs/" + b.dataset.bdl, { method: "DELETE" });
+            await loadBugs();
+          });
+      }),
+  );
+}
+
 $("hp").onclick = openMyProfile;
 boot();
 setInterval(() => {
@@ -2858,6 +5107,11 @@ function lastVenue() {
   } catch (e) {}
   return v || "Sports Complex";
 }
+const NEEDR = ["injured", "out", "maybe"];
+const reasonBox = (d, id, cur, why) =>
+  NEEDR.includes(cur)
+    ? `<span class="rsn"><input type="text" maxlength="120" placeholder="Reason (e.g. exam, unwell, out of town)" value="${esc(why || "")}" data-rd="${d}" data-rid="${esc(id)}" aria-label="Reason"><button type="button" data-rsv>${why ? "Update" : "Save"}</button></span>`
+    : "";
 const avChips = (d, id, cur) =>
   `<span class="avc">${AVS.map((a) => `<button type="button" class="${cur === a[0] ? "on " + a[0] : ""}" data-av="${a[0]}" data-d="${d}" data-id="${esc(id)}" aria-pressed="${cur === a[0]}">${a[1]} ${a[2]}</button>`).join("")}</span>`;
 function avCounts(d) {
@@ -2878,7 +5132,7 @@ function availBlock(d, compact) {
   if (!d || !PL[d] || PL[d].status === "cancelled") return "";
   if (role === "player") {
     const cur = ((AVL[d] || {})[me] || {}).s || "";
-    return `<div class="avb"><div class="mute" style="margin:6px 0 4px">${compact ? "" : "<b>Will you be there?</b> "}${cur ? "You said: <b>" + avLabel(cur) + "</b>. Tap again to clear." : "Tell the captain if you can come."}</div>${avChips(d, me, cur)}</div>`;
+    return `<div class="avb"><div class="mute" style="margin:6px 0 4px">${compact ? "" : "<b>Will you be there?</b> "}${cur ? "You said: <b>" + avLabel(cur) + "</b>. Tap again to clear." : "Tell the captain if you can come."}</div>${avChips(d, me, cur)}${reasonBox(d, me, cur, ((AVL[d] || {})[me] || {}).why)}</div>`;
   }
   if (!admin) return "";
   const { c, none } = avCounts(d);
@@ -2899,7 +5153,36 @@ document.addEventListener("click", (e) => {
     return;
   }
   const o = e.target.closest && e.target.closest("[data-avd]");
-  if (o) openAvail(o.dataset.avd);
+  if (o) {
+    openAvail(o.dataset.avd);
+    return;
+  }
+  const sv = e.target.closest && e.target.closest("[data-rsv]");
+  if (sv) {
+    const inp = sv.parentNode.querySelector("input"),
+      d = inp.dataset.rd,
+      id = inp.dataset.rid,
+      cur = ((AVL[d] || {})[id] || {}).s || "";
+    if (!cur) return;
+    run(async () => {
+      await api("/api/avail/" + d, {
+        method: "PUT",
+        body: { id, s: cur, reason: inp.value.trim() },
+      });
+      await load();
+      if ($("avdlg").open) drawAvail(d);
+    });
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (
+    e.key === "Enter" &&
+    e.target.matches &&
+    e.target.matches("input[data-rd]")
+  ) {
+    e.preventDefault();
+    e.target.parentNode.querySelector("[data-rsv]").click();
+  }
 });
 function drawAvail(d) {
   const r = AVL[d] || {},
@@ -2913,14 +5196,16 @@ function drawAvail(d) {
   );
   dg.innerHTML = `<h2>Availability</h2><p class="mute" style="margin-top:-6px"><b>${dlong(d)}</b>${PL[d] && PL[d].venue ? " · 📍 " + esc(PL[d].venue) : ""}</p>
   <div class="avs" style="margin-bottom:8px">${AVS.map((a) => `<span class="${a[0]}">${a[1]} ${a[2]} <b>${c[a[0]]}</b></span>`).join("")}<span class="none">⏳ No reply <b>${none}</b></span></div>
-  <div class="avl">${ps.map((p) => `<div class="avr"><span class="avn">${avatar(p.name, p.photo, 28)} ${esc(p.name)}</span>${avChips(d, p.id, (r[p.id] || {}).s || "")}</div>`).join("")}</div>
+  <div class="avl">${ps.map((p) => `<div class="avr"><span class="avn">${avatar(p.name, p.photo, 28)} ${esc(p.name)}</span>${avChips(d, p.id, (r[p.id] || {}).s || "")}${reasonBox(d, p.id, (r[p.id] || {}).s || "", (r[p.id] || {}).why)}</div>`).join("")}</div>
   <div class="ctl"><button type="button" class="pri" id="avsh">⤴ Share list</button><button type="button" id="avx">Close</button></div>`;
   $("avx").onclick = () => dg.close();
   $("avsh").onclick = () => {
     const g = (k) =>
       ps
         .filter((p) => ((r[p.id] || {}).s || "") === k)
-        .map((p) => "• " + p.name)
+        .map(
+          (p) => "• " + p.name + (r[p.id].why ? " (" + r[p.id].why + ")" : ""),
+        )
         .join("\n");
     const part = (k, t) => (g(k) ? `\n${t}\n${g(k)}\n` : "");
     shareText(

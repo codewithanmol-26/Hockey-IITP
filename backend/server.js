@@ -298,7 +298,7 @@ const bust = () => {
 };
 async function readAll() {
   if (cache && Date.now() - cacheAt < 10000) return cache;
-  const [pl, se, le, pn, rl, wl, ad, ac, sc, tp, gp, stf, av] =
+  const [pl, se, le, pn, rl, wl, ad, ac, sc, tp, gp, stf, av, gph, mt] =
     await Promise.all([
       ...[
         "players",
@@ -315,6 +315,8 @@ async function readAll() {
       db.collection("config").doc("group").get(),
       db.collection("config").doc("staff").get(),
       db.collection("avail").get(),
+      db.collection("config").doc("groupPhoto").get(),
+      db.collection("config").doc("matches").get(),
     ]);
   const out = {
     players: pl.docs.map((d) => ({ id: d.id, ...d.data() })),
@@ -342,6 +344,9 @@ async function readAll() {
     created: d.data().created || 0,
   })); // names only, never codes
   out.group = gp.exists ? gp.data().url || "" : "";
+  out.groupPhotoAt = gph.exists ? gph.data().at || 0 : 0; // only a stamp; the picture itself is fetched separately
+  out.matches =
+    mt.exists && Array.isArray(mt.data().items) ? mt.data().items : null; // null = never edited, the app shows its built-in list
   out.staff = stf.exists ? stf.data() : {}; // captain / vice profile photos
   out.accounts = ac.docs.map((d) => d.id); // which players have signed up (ids only)
   out.template = tp.exists ? tp.data().text : "";
@@ -409,6 +414,8 @@ app.get(
       warmup: all.warmup,
       schedule: all.schedule,
       group: all.group,
+      groupPhotoAt: all.groupPhotoAt,
+      matches: all.matches,
     });
   }),
 );
@@ -451,6 +458,138 @@ app.delete(
   }),
 );
 
+// ---- push notifications (Web Push, free). Needs VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY; without them everything else still works. ----
+let wp = null;
+function webpush() {
+  if (wp !== null) return wp || null;
+  try {
+    if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+      wp = false;
+      return null;
+    }
+    const w = require("web-push");
+    w.setVapidDetails(
+      process.env.VAPID_SUBJECT || "mailto:hockey@example.com",
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY,
+    );
+    wp = w;
+    return w;
+  } catch (e) {
+    console.error("push disabled:", e.message);
+    wp = false;
+    return null;
+  }
+}
+const subId = (ep) =>
+  crypto.createHash("sha256").update(String(ep)).digest("hex").slice(0, 40);
+const todayIST = () =>
+  new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+app.get(
+  "/api/push/key",
+  h(async (req, res) => {
+    if (!(await who(req)))
+      return res.status(401).json({ error: "Login required" });
+    if (!webpush())
+      return res
+        .status(503)
+        .json({
+          error:
+            "Push notifications are not set up on the server yet (VAPID keys missing).",
+        });
+    res.json({ key: process.env.VAPID_PUBLIC_KEY });
+  }),
+);
+app.post(
+  "/api/push/subscribe",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const sub = (req.body || {}).sub || {},
+      k = sub.keys || {};
+    if (
+      !/^https:\/\/\S{10,600}$/.test(String(sub.endpoint || "")) ||
+      typeof k.p256dh !== "string" ||
+      typeof k.auth !== "string"
+    )
+      return res.status(400).json({ error: "Bad subscription" });
+    await db
+      .collection("pushSubs")
+      .doc(subId(sub.endpoint))
+      .set({
+        sub: {
+          endpoint: sub.endpoint,
+          keys: { p256dh: k.p256dh.slice(0, 200), auth: k.auth.slice(0, 100) },
+        },
+        role: u.role,
+        uid: u.id || u.role,
+        at: Date.now(),
+      });
+    res.json({ ok: true });
+  }),
+);
+app.post(
+  "/api/push/unsubscribe",
+  h(async (req, res) => {
+    if (!(await who(req)))
+      return res.status(401).json({ error: "Login required" });
+    const ep = (req.body || {}).endpoint;
+    if (ep) await db.collection("pushSubs").doc(subId(ep)).delete();
+    res.json({ ok: true });
+  }),
+);
+async function pushAll(payload) {
+  const w = webpush();
+  if (!w) return;
+  const [snap, gone] = await Promise.all([
+    db.collection("pushSubs").get(),
+    db.collection("players").where("removed", "==", true).get(),
+  ]);
+  const removed = new Set(gone.docs.map((d) => d.id)),
+    body = JSON.stringify(payload);
+  await Promise.all(
+    snap.docs.map(async (d) => {
+      const x = d.data();
+      if (x.role === "player" && removed.has(x.uid)) return;
+      try {
+        await w.sendNotification(x.sub, body, { TTL: 86400 });
+      } catch (e) {
+        if (e.statusCode === 404 || e.statusCode === 410)
+          await d.ref.delete().catch(() => {});
+        else console.error("push failed", e.statusCode || e.message);
+      }
+    }),
+  );
+}
+// ev: 'new' | 'cancel' | 'back'. A failed push never breaks saving the playing day.
+async function pushPlan(ev, date, p) {
+  try {
+    const when = new Date(date + "T00:00:00Z").toLocaleDateString("en-IN", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+    const bits = [when, p.time, p.venue ? "📍 " + p.venue : "", p.note]
+      .filter(Boolean)
+      .join(" · ");
+    const title =
+      ev === "cancel"
+        ? "❌ Playing day cancelled"
+        : ev === "back"
+          ? "🏑 Playing day is back on"
+          : "🏑 Playing day scheduled";
+    await pushAll({
+      title,
+      body: ev === "cancel" ? bits + " is cancelled." : bits,
+      tag: "hk-plan-" + date,
+      url: "./",
+    });
+  } catch (e) {
+    console.error("pushPlan", e.message);
+  }
+}
+
 app.put(
   "/api/plans/:date",
   auth,
@@ -465,15 +604,15 @@ app.put(
       return res
         .status(409)
         .json({ error: "A playing day already exists on that date" });
-    await db
-      .collection("plans")
-      .doc(to)
-      .set({
-        time: str(b.time, 30),
-        venue: str(b.venue, 80),
-        note: str(b.note),
-        status: b.status === "cancelled" ? "cancelled" : "planned",
-      });
+    const prevSnap = await db.collection("plans").doc(from).get(),
+      prev = prevSnap.exists ? prevSnap.data() : null;
+    const plan = {
+      time: str(b.time, 30),
+      venue: str(b.venue, 80),
+      note: str(b.note),
+      status: b.status === "cancelled" ? "cancelled" : "planned",
+    };
+    await db.collection("plans").doc(to).set(plan);
     if (to !== from) {
       // moved to another date: carry the availability answers along
       const old = await db.collection("avail").doc(from).get();
@@ -483,6 +622,15 @@ app.put(
       }
       await db.collection("plans").doc(from).delete();
     }
+    // tell everyone who turned on push: a new playing day, a cancelled one, or a cancelled one that is back on (only for today or later)
+    let ev = null;
+    const now = plan.status === "cancelled";
+    if (to === from) {
+      if (!prev && !now) ev = "new";
+      else if (prev && prev.status !== "cancelled" && now) ev = "cancel";
+      else if (prev && prev.status === "cancelled" && !now) ev = "back";
+    }
+    if (ev && to >= todayIST()) await pushPlan(ev, to, plan);
     done(res);
   }),
 );
@@ -509,6 +657,8 @@ app.put(
       s = b.s === "" ? "" : b.s;
     if (s !== "" && !AV.includes(s))
       return res.status(400).json({ error: "Bad status" });
+    if (b.reason !== undefined && typeof b.reason !== "string")
+      return res.status(400).json({ error: "Bad reason" });
     const id = u.role === "player" ? u.id : String(b.id || "");
     const pl = await db.collection("players").doc(id).get();
     if (!pl.exists || pl.data().removed)
@@ -518,8 +668,19 @@ app.put(
     const ref = db.collection("avail").doc(req.params.date),
       cur = await ref.get(),
       r = cur.exists ? cur.data().r || {} : {};
+    const prevA = r[id];
     if (s === "") delete r[id];
-    else r[id] = { s, at: Date.now() };
+    else
+      r[id] = {
+        s,
+        why:
+          s === "active"
+            ? ""
+            : b.reason !== undefined
+              ? str(b.reason, 120).trim()
+              : (prevA && prevA.why) || "",
+        at: Date.now(),
+      }; // the reason is kept when only the status changes, cleared for "active"
     await ref.set({ r });
     done(res);
   }),
@@ -554,6 +715,26 @@ app.post(
       joined: str(b.joined, 10),
       contact: phone(b.contact),
     });
+    done(res);
+  }),
+);
+// A player edits their own details (not roll number or joining date, those stay with the captain/admins)
+app.put(
+  "/api/me/profile",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u || u.role !== "player")
+      return res.status(401).json({ error: "Login required" });
+    const b = req.body || {},
+      name = str(b.name, 40).trim();
+    if (!name) return res.status(400).json({ error: "Name required" });
+    const contact = phone(b.contact);
+    if (contact && contact.replace(/\D/g, "").length < 10)
+      return res.status(400).json({ error: "Enter a 10 digit contact number" });
+    const upd = { name, position: str(b.position, 40).trim(), contact };
+    for (const k of ["email", "size", "jerseyName", "jerseyNo"])
+      if (b[k] !== undefined) upd[k] = str(b[k], 40).trim();
+    await db.collection("players").doc(u.id).update(upd);
     done(res);
   }),
 );
@@ -1019,6 +1200,450 @@ app.put(
       .doc("template")
       .set({ text: str((req.body || {}).text, 1500) });
     done(res);
+  }),
+);
+
+// ---- team group photo (home page) ----
+// Any logged-in person can read it; only captain / vice / admins change it. The picture lives in its own document so that
+// the 20-second data refresh stays small: /api/data only carries a time stamp (groupPhotoAt).
+const bigImgOk = (v, max) =>
+  typeof v === "string" &&
+  /^data:image\/(jpeg|png|webp);base64,/.test(v) &&
+  v.length < max;
+app.get(
+  "/api/group-photo",
+  h(async (req, res) => {
+    if (!(await who(req)))
+      return res.status(401).json({ error: "Login required" });
+    const [m, b] = await Promise.all([
+      db.collection("config").doc("groupPhoto").get(),
+      db.collection("blobs").doc("groupPhoto").get(),
+    ]);
+    res.json({
+      img: b.exists ? b.data().img || "" : "",
+      at: m.exists ? m.data().at || 0 : 0,
+    });
+  }),
+);
+app.put(
+  "/api/group-photo",
+  auth,
+  h(async (req, res) => {
+    const img = (req.body || {}).img;
+    if (img === "") {
+      await Promise.all([
+        db.collection("blobs").doc("groupPhoto").delete(),
+        db.collection("config").doc("groupPhoto").set({ at: 0 }),
+      ]);
+      return done(res);
+    }
+    if (!bigImgOk(img, 420000))
+      return res.status(400).json({ error: "Photo too large or not an image" });
+    await db.collection("blobs").doc("groupPhoto").set({ img });
+    await db
+      .collection("config")
+      .doc("groupPhoto")
+      .set({ at: Date.now(), by: str(req.user.name || req.user.role, 40) });
+    done(res);
+  }),
+);
+
+// ---- gallery: everyone logged in can look and add; staff can delete any photo, others only their own ----
+// A small thumbnail (listed together) and the full picture (loaded when opened) are kept in two collections.
+const ukey = (u) =>
+  u.role === "player" ? "p:" + u.id : u.role === "admin" ? "a:" + u.id : u.role;
+async function nameOf(u) {
+  if (u.role === "player") {
+    const d = await db.collection("players").doc(u.id).get();
+    return d.exists ? d.data().name : "Player";
+  }
+  return (
+    u.name || { captain: "Captain", vice: "Vice-captain" }[u.role] || "Admin"
+  );
+}
+const GAL_MAX = 200;
+app.get(
+  "/api/gallery",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const snap = await db
+        .collection("gallery")
+        .orderBy("at", "desc")
+        .limit(60)
+        .get(),
+      k = ukey(u);
+    res.json({
+      items: snap.docs.map((d) => ({
+        id: d.id,
+        thumb: d.data().thumb,
+        by: d.data().by || "",
+        at: d.data().at || 0,
+        mine: d.data().key === k,
+      })),
+    });
+  }),
+);
+app.get(
+  "/api/gallery/:id",
+  h(async (req, res) => {
+    if (!(await who(req)))
+      return res.status(401).json({ error: "Login required" });
+    const d = await db.collection("galleryFull").doc(req.params.id).get();
+    if (!d.exists) return res.status(404).json({ error: "Photo not found" });
+    res.json({ img: d.data().img });
+  }),
+);
+app.post(
+  "/api/gallery",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    if (limited("gal" + ukey(u), 30))
+      return res
+        .status(429)
+        .json({ error: "Too many uploads. Wait a minute." });
+    const { img, thumb } = req.body || {};
+    if (!bigImgOk(img, 420000) || !bigImgOk(thumb, 60000))
+      return res.status(400).json({ error: "Photo too large or not an image" });
+    const n = (await db.collection("gallery").count().get()).data().count;
+    if (n >= GAL_MAX)
+      return res
+        .status(409)
+        .json({
+          error: "The gallery is full. Ask an admin to delete old photos.",
+        });
+    const ref = db.collection("gallery").doc();
+    await Promise.all([
+      ref.set({ thumb, by: await nameOf(u), key: ukey(u), at: Date.now() }),
+      db.collection("galleryFull").doc(ref.id).set({ img }),
+    ]);
+    res.json({ ok: true, id: ref.id });
+  }),
+);
+app.delete(
+  "/api/gallery/:id",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const ref = db.collection("gallery").doc(req.params.id),
+      d = await ref.get();
+    if (!d.exists) return res.status(404).json({ error: "Photo not found" });
+    if (u.role === "player" && d.data().key !== ukey(u))
+      return res
+        .status(403)
+        .json({ error: "You can delete only your own photos" });
+    await Promise.all([
+      ref.delete(),
+      db.collection("galleryFull").doc(req.params.id).delete(),
+    ]);
+    res.json({ ok: true });
+  }),
+);
+
+// ---- Indian hockey: fixtures list (edited by admins) + live headlines (Google News feed, no key needed) ----
+app.put(
+  "/api/matches",
+  auth,
+  h(async (req, res) => {
+    const b = req.body || {};
+    if (b.reset) {
+      await db.collection("config").doc("matches").delete();
+      return done(res);
+    }
+    const items = (Array.isArray(b.items) ? b.items : [])
+      .slice(0, 40)
+      .map((i) => ({
+        d: str((i || {}).d, 10),
+        t: str((i || {}).t, 100).trim(),
+        v: str((i || {}).v, 100).trim(),
+      }))
+      .filter((i) => /^\d{4}-\d{2}-\d{2}$/.test(i.d) && i.t);
+    await db.collection("config").doc("matches").set({ items });
+    done(res);
+  }),
+);
+const NEWS_Q = {
+  latest: "India hockey when:14d",
+  upcoming: "India hockey upcoming match schedule when:30d",
+};
+const newsCache = {};
+const unesc = (s) =>
+  String(s || "")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+async function fetchNews(kind) {
+  const c = newsCache[kind];
+  if (c && Date.now() - c.at < 15 * 60e3) return c.items;
+  const url =
+    "https://news.google.com/rss/search?q=" +
+    encodeURIComponent(NEWS_Q[kind]) +
+    "&hl=en-IN&gl=IN&ceid=IN:en";
+  const r = await fetch(url, {
+    signal: AbortSignal.timeout(7000),
+    headers: { "user-agent": "Mozilla/5.0 (hockey-attendance)" },
+  });
+  if (!r.ok) throw new Error("news " + r.status);
+  const xml = await r.text(),
+    items = [];
+  for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const b = m[1],
+      g = (t) => {
+        const x = b.match(
+          new RegExp("<" + t + "[^>]*>([\\s\\S]*?)</" + t + ">"),
+        );
+        return x ? unesc(x[1]) : "";
+      };
+    let title = g("title");
+    const src = g("source"),
+      link = g("link");
+    if (src && title.endsWith(" - " + src))
+      title = title.slice(0, -(src.length + 3));
+    if (!/^https?:\/\/\S+$/.test(link) || !title) continue;
+    items.push({
+      t: title.slice(0, 200),
+      u: link.slice(0, 600),
+      s: src.slice(0, 60),
+      at: Date.parse(g("pubDate")) || 0,
+    });
+  }
+  items.sort((a, b) => b.at - a.at);
+  const out = items.slice(0, 8);
+  newsCache[kind] = { at: Date.now(), items: out };
+  return out;
+}
+app.get(
+  "/api/news",
+  h(async (req, res) => {
+    if (!(await who(req)))
+      return res.status(401).json({ error: "Login required" });
+    const out = { latest: [], upcoming: [] };
+    await Promise.all(
+      Object.keys(NEWS_Q).map(async (k) => {
+        try {
+          out[k] = await fetchNews(k);
+        } catch (e) {
+          if (newsCache[k]) out[k] = newsCache[k].items;
+          else out.err = true;
+        }
+      }),
+    );
+    res.json(out);
+  }),
+);
+
+// ---- training: saved sessions (timer / smartwatch data) and timer presets. Private: each person only ever sees their own. ----
+const WK_TYPES = [
+  "Practice",
+  "Match",
+  "Fitness / gym",
+  "Run / cardio",
+  "Other",
+];
+const nm = (v, lo, hi) => {
+  v = +v;
+  return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : 0;
+};
+app.get(
+  "/api/workouts",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const snap = await db
+      .collection("workouts")
+      .where("key", "==", ukey(u))
+      .get(); // sorted here, so no Firestore index is needed
+    const items = snap.docs
+      .map((d) => {
+        const x = d.data();
+        delete x.key;
+        return { id: d.id, ...x };
+      })
+      .sort((a, b) => (b.at || 0) - (a.at || 0))
+      .slice(0, 300);
+    res.json({ items });
+  }),
+);
+app.post(
+  "/api/workouts",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    if (limited("wk" + ukey(u), 30))
+      return res.status(429).json({ error: "Too many saves. Wait a minute." });
+    const b = req.body || {},
+      k = ukey(u);
+    if (
+      (await db.collection("workouts").where("key", "==", k).get()).size >= 600
+    )
+      return res
+        .status(409)
+        .json({ error: "Too many saved items. Delete some old ones." });
+    let doc;
+    if (b.kind === "preset") {
+      const name = str(b.name, 40).trim(),
+        c = b.cfg || {};
+      if (!name || !["sw", "cd", "iv", "mt"].includes(b.mode))
+        return res
+          .status(400)
+          .json({ error: "A name and a timer type are needed" });
+      doc = {
+        kind: "preset",
+        name,
+        mode: b.mode,
+        cfg: {
+          min: nm(c.min, 1, 600) || 10,
+          work: nm(c.work, 5, 3600) || 30,
+          rest: nm(c.rest, 0, 3600),
+          rounds: nm(c.rounds, 1, 99) || 8,
+          q: nm(c.q, 1, 60) || 15,
+          brk: c.brk === undefined ? 2 : nm(c.brk, 0, 30),
+          half: c.half === undefined ? 10 : nm(c.half, 0, 60),
+        },
+      };
+    } else {
+      const dur = Math.round(nm(b.dur, 0, 43200));
+      if (dur < 10)
+        return res
+          .status(400)
+          .json({ error: "The session is too short to save" });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date || ""))
+        return res.status(400).json({ error: "Bad date" });
+      const z = (Array.isArray(b.zones) ? b.zones : [])
+        .slice(0, 5)
+        .map((x) => Math.round(nm(x, 0, 43200)));
+      doc = {
+        kind: "session",
+        date: b.date,
+        type: WK_TYPES.includes(b.type) ? b.type : "Other",
+        dur,
+        avg: Math.round(nm(b.avg, 0, 250)),
+        max: Math.round(nm(b.max, 0, 250)),
+        min: Math.round(nm(b.min, 0, 250)),
+        zones: z.length === 5 ? z : [],
+        rpe: Math.round(nm(b.rpe, 0, 10)),
+        kcal: Math.round(nm(b.kcal, 0, 6000)),
+        km: Math.round(nm(b.km, 0, 200) * 10) / 10,
+        note: str(b.note, 200).trim(),
+        steps: Math.round(nm(b.steps, 0, 100000)),
+        dev: str(b.dev, 30).trim(),
+        src: ["watch", "manual"].includes(b.src) ? b.src : "manual",
+      };
+    }
+    doc.key = k;
+    doc.at = Date.now();
+    const ref = await db.collection("workouts").add(doc);
+    res.json({ ok: true, id: ref.id });
+  }),
+);
+app.delete(
+  "/api/workouts/:id",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const ref = db.collection("workouts").doc(req.params.id),
+      d = await ref.get();
+    if (!d.exists || d.data().key !== ukey(u))
+      return res.status(404).json({ error: "Not found" });
+    await ref.delete();
+    res.json({ ok: true });
+  }),
+);
+
+// ---- bug reports: anyone logged in can send one; the captain / vice-captain read, share, mark fixed or delete ----
+app.post(
+  "/api/bugs",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    if (limited("bug" + ukey(u), 5))
+      return res
+        .status(429)
+        .json({ error: "Too many reports. Wait a minute." });
+    const b = req.body || {},
+      text = str(b.text, 1000).trim();
+    if (text.length < 5)
+      return res.status(400).json({ error: "Please describe what went wrong" });
+    if (b.shot && !bigImgOk(b.shot, 260000))
+      return res
+        .status(400)
+        .json({ error: "Screenshot too large or not an image" });
+    if ((await db.collection("bugs").count().get()).data().count >= 300)
+      return res
+        .status(409)
+        .json({
+          error: "Too many open reports. Ask the captain to clear old ones.",
+        });
+    await db
+      .collection("bugs")
+      .add({
+        text,
+        page: str(b.page, 40),
+        info: str(b.info, 600),
+        shot: b.shot || "",
+        by: await nameOf(u),
+        role: u.role,
+        at: Date.now(),
+        status: "open",
+      });
+    res.json({ ok: true });
+  }),
+);
+app.get(
+  "/api/bugs",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const snap = await db
+      .collection("bugs")
+      .orderBy("at", "desc")
+      .limit(100)
+      .get();
+    res.json({
+      items: snap.docs.map((d) => {
+        const x = d.data();
+        const hasShot = !!x.shot;
+        delete x.shot;
+        return { id: d.id, hasShot, ...x };
+      }),
+    });
+  }),
+);
+app.get(
+  "/api/bugs/:id/shot",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const d = await db.collection("bugs").doc(req.params.id).get();
+    if (!d.exists) return res.status(404).json({ error: "Not found" });
+    res.json({ img: d.data().shot || "" });
+  }),
+);
+app.put(
+  "/api/bugs/:id",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const st = (req.body || {}).status;
+    if (!["open", "fixed"].includes(st))
+      return res.status(400).json({ error: "Bad status" });
+    await db.collection("bugs").doc(req.params.id).update({ status: st });
+    res.json({ ok: true });
+  }),
+);
+app.delete(
+  "/api/bugs/:id",
+  auth,
+  owner,
+  h(async (req, res) => {
+    await db.collection("bugs").doc(req.params.id).delete();
+    res.json({ ok: true });
   }),
 );
 
