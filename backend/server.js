@@ -297,8 +297,8 @@ const bust = () => {
   cache = null;
   pubCache = null;
 };
-async function readAll() {
-  if (cache && Date.now() - cacheAt < 10000) return cache;
+async function readAll(fresh) {
+  if (!fresh && cache && Date.now() - cacheAt < 10000) return cache;
   const [
     pl,
     se,
@@ -417,7 +417,7 @@ app.get(
   h(async (req, res) => {
     const p = await who(req);
     if (!p) return res.status(401).json({ error: "Login required" });
-    const all = await readAll();
+    const all = await readAll(req.query.fresh === "1");
     if (p.role !== "player") {
       const myPhoto =
         p.role === "admin"
@@ -619,7 +619,7 @@ async function pushAll(payload, only) {
       if (x.role === "player" && removed.has(x.uid)) return;
       if (only && !(x.role === "player" && only.has(x.uid))) return; // tagged-only message
       try {
-        await w.sendNotification(x.sub, body, { TTL: 86400 });
+        await w.sendNotification(x.sub, body, { TTL: 86400, timeout: 3000 });
       } catch (e) {
         if (e.statusCode === 404 || e.statusCode === 410)
           await d.ref.delete().catch(() => {});
@@ -697,7 +697,11 @@ app.put(
       else if (prev && prev.status !== "cancelled" && now) ev = "cancel";
       else if (prev && prev.status === "cancelled" && !now) ev = "back";
     }
-    if (ev && to >= todayIST()) await pushPlan(ev, to, plan);
+    if (ev && to >= todayIST())
+      await Promise.race([
+        pushPlan(ev, to, plan),
+        new Promise((r) => setTimeout(r, 4000)),
+      ]); // a slow push service must never block saving
     done(res);
   }),
 );

@@ -570,6 +570,7 @@ try {
   token = localStorage.getItem("hk_token") || "";
 } catch (e) {}
 async function api(path, o = {}) {
+  if (o.method && o.method !== "GET") window.__wrote = Date.now(); // after a save, the next data load skips the server's 10 second cache
   const r = await fetch(API + path, {
     method: o.method || "GET",
     headers: {
@@ -883,7 +884,10 @@ function boot() {
 async function load(force) {
   if (!token) return;
   try {
-    const d = await api("/api/data");
+    const d = await api(
+      "/api/data" +
+        (Date.now() - (window.__wrote || 0) < 30000 ? "?fresh=1" : ""),
+    );
     const key = JSON.stringify(d);
     if (!force && key === lastJs && loaded && !err) return;
     lastJs = key;
@@ -2610,6 +2614,21 @@ function nextPlan() {
 }
 let planSel = "",
   planMon = "";
+function wkOpen() {
+  const t = new Date(today() + "T00:00"),
+    out = [];
+  for (let k = 0; k < 7; k++) {
+    const d =
+      t.getFullYear() +
+      "-" +
+      String(t.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(t.getDate()).padStart(2, "0");
+    if (!PL[d] && SCH.team[dayIdx(d)][3]) out.push(d);
+    t.setDate(t.getDate() + 1);
+  }
+  return out;
+}
 function vPlan() {
   const td = today(),
     ks = Object.keys(PL).sort();
@@ -2626,13 +2645,15 @@ function vPlan() {
       p = PL[d],
       st = p ? (p.status === "cancelled" ? "cx" : SS[d] ? "dn" : "pl") : "";
     cells.push(
-      `<button type="button" class="cd ${st} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}"><b>${n}</b>${p ? "<i></i>" : ""}</button>`,
+      `<button type="button" class="cd ${st} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}"><b>${n}</b>${p ? "<i></i>" : !p && d >= td && SCH.team[dayIdx(d)][3] ? '<i class="wk"></i>' : ""}</button>`,
     );
   }
   const dayCard = (d) => {
     const p = PL[d];
-    if (!p)
-      return `<p class="mute" style="margin:0 0 10px">No playing day on ${dlong(d)}.</p>${admin ? '<button class="pri" data-a="new">Schedule this day</button>' : ""}`;
+    if (!p) {
+      const w = SCH.team[dayIdx(d)];
+      return `<p class="mute" style="margin:0 0 6px">No playing day is scheduled on ${dlong(d)}.</p>${w[3] ? `<p style="margin:0 0 10px">Weekly timetable: <b>${esc(w[1])}</b> · ⏰ ${esc(w[3])}</p>` : `<p class="mute" style="margin:0 0 10px">${esc(w[0])} is a rest day in the weekly timetable.</p>`}${admin ? `<div class="chips"><button class="pri" data-a="new">Schedule this day</button>${wkOpen().length ? `<button data-a="wk">Schedule the next 7 days</button>` : ""}</div>` : ""}`;
+    }
     const c = p.status === "cancelled",
       r = SCH.team[dayIdx(d)];
     return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> ${c ? '<span class="pill r">Cancelled</span>' : d >= td ? `<span class="pill g">${dlabel(d)}</span>` : ""} ${SS[d] ? '<span class="pill g">Attendance recorded</span>' : ""}</p>
@@ -2642,11 +2663,11 @@ function vPlan() {
   };
   const fd = PL[planSel] ? td : planSel;
   $("view").innerHTML =
-    `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${fd}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(fd)][3])}"></div><div class="ctl"><input id="pv" placeholder="Venue" maxlength="80" value="${esc(lastVenue())}" style="flex:1"></div><div class="ctl"><input id="pn" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pa">Add</button></div></div>` : ""}
+    `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${fd}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(fd)][3])}"></div><div class="ctl"><input id="pv" placeholder="Venue" maxlength="80" value="${esc(lastVenue())}" style="flex:1"></div><div class="ctl"><input id="pn" name="hk-plan-note" autocomplete="off" autocorrect="off" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pa">Add</button></div></div>` : ""}
   <div class="card"><h2>Playing days</h2>
   <div class="calh"><button type="button" data-mn="-1" aria-label="Previous month">‹</button><b>${mfmt(planMon)}</b><button type="button" data-mn="1" aria-label="Next month">›</button><button type="button" data-tdy="1">Today</button></div>
   <div class="cal"><span class="cw">M</span><span class="cw">T</span><span class="cw">W</span><span class="cw">T</span><span class="cw">F</span><span class="cw">S</span><span class="cw">S</span>${cells.join("")}</div>
-  <p class="mute calk"><span class="k pl"></span>Playing <span class="k dn"></span>Attendance taken <span class="k cx"></span>Cancelled</p>
+  <p class="mute calk"><span class="k pl"></span>Playing <span class="k dn"></span>Attendance taken <span class="k cx"></span>Cancelled <span class="k wk"></span>Weekly timetable, not scheduled yet</p>
   <div class="daysel">${dayCard(planSel)}</div></div>`;
   document.querySelectorAll("[data-cd]").forEach(
     (b) =>
@@ -2677,6 +2698,9 @@ function vPlan() {
   $("pa").onclick = () => {
     const d = $("pd").value;
     if (!d) return;
+    const ab = $("pa");
+    ab.disabled = true;
+    ab.textContent = "Adding…";
     run(async () => {
       await api("/api/plans/" + d, {
         method: "PUT",
@@ -2692,7 +2716,13 @@ function vPlan() {
       } catch (e) {}
       planSel = d;
       planMon = d.slice(0, 7);
-      await load();
+      await load(true);
+      alert(fmt(d) + " added as a playing day.");
+    }).finally(() => {
+      if ($("pa")) {
+        $("pa").disabled = false;
+        $("pa").textContent = "Add";
+      }
     });
   };
   document.querySelectorAll("[data-a]").forEach(
@@ -2705,6 +2735,32 @@ function vPlan() {
           $("pt").value = SCH.team[dayIdx(planSel)][3];
           window.scrollTo(0, 0);
           $("pt").focus();
+        } else if (a === "wk") {
+          const ds = wkOpen();
+          if (
+            !ds.length ||
+            !confirm(
+              "Schedule " +
+                ds.length +
+                " playing day(s) from the weekly timetable (" +
+                ds.map(fmt).join(", ") +
+                ")?",
+            )
+          )
+            return;
+          run(async () => {
+            for (const x of ds)
+              await api("/api/plans/" + x, {
+                method: "PUT",
+                body: {
+                  time: SCH.team[dayIdx(x)][3],
+                  venue: lastVenue(),
+                  note: "",
+                  status: "planned",
+                },
+              });
+            await load(true);
+          });
         } else if (a === "take") {
           takeDate = d;
           tab = "take";
