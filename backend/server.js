@@ -297,7 +297,19 @@ const bust = () => {
   cache = null;
   pubCache = null;
 };
+let lastGood = null;
 async function readAll(fresh) {
+  try {
+    return await readAllRaw(fresh);
+  } catch (e) {
+    if (lastGood) {
+      console.error("readAll failed, serving the last good copy:", e.message);
+      return lastGood;
+    }
+    throw e;
+  }
+}
+async function readAllRaw(fresh) {
   if (!fresh && cache && Date.now() - cacheAt < 10000) return cache;
   const [
     pl,
@@ -406,6 +418,7 @@ async function readAll(fresh) {
     sd && sd.team && sd.gk ? { team: rows(sd.team), gk: rows(sd.gk) } : null;
   cache = out;
   cacheAt = Date.now();
+  lastGood = out;
   return out;
 }
 
@@ -482,6 +495,7 @@ app.get(
       matches: all.matches,
       names: all.names,
       team: all.team,
+      announcements: all.announcements,
     });
   }),
 );
@@ -1272,7 +1286,9 @@ app.post(
     a.by = str(req.user.name || req.user.role, 40);
     a.byId = str(req.user.id || req.user.role, 40);
     await db.collection("announcements").add(a);
-    const ids = await tagTargets(a.tags).catch(() => new Set());
+    const ids = a.tags.length
+      ? await tagTargets(a.tags).catch(() => new Set())
+      : null; // no tags = for everybody
     pushAll(
       {
         title: "📢 " + (a.title || "New announcement"),
@@ -2071,7 +2087,30 @@ app.delete(
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ error: "Server error" });
+  const m = String((err && err.message) || ""),
+    code = err && err.code;
+  if (err && err.type === "entity.too.large")
+    return res
+      .status(413)
+      .json({ error: "That file is too large. Use a smaller photo." });
+  if (err && err.type === "entity.parse.failed")
+    return res.status(400).json({ error: "Bad request. Please try again." });
+  if (code === 8 || /RESOURCE_EXHAUSTED|quota/i.test(m))
+    return res
+      .status(503)
+      .json({
+        error:
+          "The database daily limit is used up. It resets every day, please try again later.",
+      });
+  if (
+    code === 4 ||
+    code === 14 ||
+    /DEADLINE_EXCEEDED|UNAVAILABLE|ECONNRESET|ETIMEDOUT/i.test(m)
+  )
+    return res
+      .status(503)
+      .json({ error: "The database is slow right now. Please try again." });
+  res.status(500).json({ error: "Server error. Please try again." });
 });
 if (require.main === module)
   app.listen(PORT, () =>

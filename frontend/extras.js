@@ -310,3 +310,9 @@ function normSch(s) {
   });
   return out;
 }
+
+if (document.getElementById("netr"))
+  document.getElementById("netr").onclick = () => {
+    setNet("📡 Trying again…");
+    load(true);
+  };

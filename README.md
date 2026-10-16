@@ -160,3 +160,14 @@ No command line needed: open the app > ⋮ menu > **Set up push notifications**.
 - **Tagging** in announcements and in each Schedule day (admins: *Tag people*). Tag a player, or a group: Everyone, Goalkeepers, Forwards, Midfielders, Defenders (matched from the player's position). Tagged players see a highlighted "You are tagged" card and a dot on that day in the week strip. New announcements send a push notification to tagged players only (to everybody if *Everyone* is tagged). Schedule rows keep their tags in `config/schedule` (`g`).
 - **Day / night toggle**: ☀️/🌙 button in the header (also on the public page) and ⋮ > Appearance > *Night mode*. The choice is kept on that phone; *Use my phone's setting* goes back to automatic.
 - No new environment variables. Redeploy, then reload the app once.
+
+## v18.1
+- **Playing days calendar** now shows the weekly timetable: future days that have a timing get a dotted ring until scheduled. Tapping an unscheduled date shows what the timetable says, with **Schedule this day** and **Schedule the next 7 days** (admins). The note box no longer gets auto-filled by the phone.
+- **Saves show up at once.** Vercel can run several server copies, each caching the data for 10 seconds, so a day you just added could be missing from the reload. After any save the app now asks for fresh data (`/api/data?fresh=1`). Cache is `hk-v20`.
+- **Add playing day**: the save no longer waits more than 4 seconds for push notifications (a slow push service used to hold the reply). The Add button shows *Adding…* and confirms when done.
+
+## v18.2: slow internet and server errors
+- **The screen no longer disappears.** The last good copy of the data is saved on the phone. If the connection is slow or drops, or the server errors, the app keeps showing it with a small bar ("Slow or no connection. Showing your last saved data.") and a **Retry** button, and keeps retrying by itself every 8 seconds. Opening the app with no connection shows the saved data straight away. Logging out clears it.
+- Every request has a time limit (25 s, 90 s for photos) and repeats itself when safe (data loads 3 times, saves 2 times). Adding new things (POST) is never repeated, so nothing is saved twice. When a save fails, the message says so and the screen stays as it is.
+- The app files also open from the phone's saved copy if the network takes more than 3.5 s (cache `hk-v22`).
+- **Server fixes:** players never received announcements (fixed); an announcement without tags now notifies everybody (it used to notify nobody); if the database fails the server serves its last good copy instead of "Server error"; errors now say what happened (database daily limit reached, database slow, photo too large).

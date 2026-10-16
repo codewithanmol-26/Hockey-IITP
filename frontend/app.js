@@ -569,23 +569,58 @@ let token = "";
 try {
   token = localStorage.getItem("hk_token") || "";
 } catch (e) {}
+const netWait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Every request has a time limit and (when safe) retries by itself, so a slow connection never leaves the app hanging.
 async function api(path, o = {}) {
-  if (o.method && o.method !== "GET") window.__wrote = Date.now(); // after a save, the next data load skips the server's 10 second cache
-  const r = await fetch(API + path, {
-    method: o.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: "Bearer " + token } : {}),
-    },
-    body: o.body ? JSON.stringify(o.body) : undefined,
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const e = new Error(j.error || "Error " + r.status);
-    e.status = r.status;
-    throw e;
+  const m = o.method || "GET";
+  if (m !== "GET") window.__wrote = Date.now(); // after a save, the next data load skips the server's 10 second cache
+  const body = o.body ? JSON.stringify(o.body) : undefined;
+  const tmo = o.timeout || (body && body.length > 200000 ? 90000 : 25000);
+  const tries = m === "GET" ? 3 : m === "POST" ? 1 : 2; // POST is never repeated, it could be saved twice
+  let last;
+  for (let i = 0; i < tries; i++) {
+    const ac = new AbortController(),
+      tm = setTimeout(() => ac.abort(), tmo);
+    try {
+      const r = await fetch(API + path, {
+        method: m,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: "Bearer " + token } : {}),
+        },
+        body,
+        signal: ac.signal,
+      });
+      const j = await r.json().catch(() => ({}));
+      clearTimeout(tm);
+      if (!r.ok) {
+        const e = new Error(j.error || "Error " + r.status);
+        e.status = r.status;
+        if ([502, 503, 504].includes(r.status) && i < tries - 1) {
+          last = e;
+          await netWait(1200 * (i + 1));
+          continue;
+        }
+        throw e;
+      }
+      return j;
+    } catch (e) {
+      clearTimeout(tm);
+      if (e.status) throw e;
+      last = new Error(
+        e.name === "AbortError"
+          ? "The connection is too slow. Please try again."
+          : "No internet connection. Please try again.",
+      );
+      last.network = true;
+      if (i < tries - 1) {
+        await netWait(1200 * (i + 1));
+        continue;
+      }
+      throw last;
+    }
   }
-  return j;
+  throw last;
 }
 let SCH = {
   team: [
@@ -738,7 +773,14 @@ async function run(fn) {
     if (e.status === 401) {
       alert("Your login expired or was switched off. Please log in again.");
       load(true);
-    } else alert("Could not save: " + e.message);
+    } else
+      alert(
+        e.network
+          ? "Not saved: " +
+              e.message +
+              " Your screen is unchanged, so press the button again when the connection is better."
+          : "Could not save: " + e.message,
+      );
   }
 }
 
@@ -843,6 +885,8 @@ function saveToken(t) {
 function logout() {
   pushDrop(token);
   token = "";
+  cacheDrop();
+  setNet("");
   try {
     localStorage.removeItem("hk_token");
   } catch (e) {}
@@ -876,11 +920,114 @@ function logout() {
 function boot() {
   askOpenInApp();
   if (!token) return showPublic();
+  const c = cacheLoad();
+  if (c) {
+    useData(c, true);
+    setNet("📡 Showing saved data. Updating…");
+  }
   showApp();
   render();
   load(true);
 }
 
+// ---- the last good copy of the data is kept on the phone, so a slow or dead connection never empties the screen ----
+const CK = "hk_cache";
+function cacheSave(d) {
+  try {
+    const t = JSON.stringify({ k: token.slice(-20), d });
+    if (t.length < 4500000) localStorage.setItem(CK, t);
+    else localStorage.removeItem(CK);
+  } catch (e) {
+    try {
+      localStorage.removeItem(CK);
+    } catch (x) {}
+  }
+}
+function cacheLoad() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CK) || "null");
+    return c && c.k === token.slice(-20) && c.d && c.d.role ? c.d : null;
+  } catch (e) {
+    return null;
+  }
+}
+function cacheDrop() {
+  try {
+    localStorage.removeItem(CK);
+  } catch (e) {}
+}
+function setNet(msg) {
+  const n = $("net");
+  if (!n) return;
+  if (!msg) {
+    n.hidden = true;
+    return;
+  }
+  $("netm").textContent = msg;
+  n.hidden = false;
+}
+let retryT = 0;
+function useData(d, force) {
+  const key = JSON.stringify(d);
+  if (!force && key === lastJs && loaded && !err) return;
+  lastJs = key;
+  role = d.role;
+  admin = ["captain", "vice", "admin"].includes(role);
+  pl = role === "player";
+  me = d.me || "";
+  owner = role === "captain" || role === "vice";
+  WHO =
+    d.name ||
+    (role === "captain"
+      ? "Captain"
+      : role === "vice"
+        ? "Vice-captain"
+        : "Admin");
+  const by = (a, b) =>
+      (a.n || 999) - (b.n || 999) ||
+      String(a.name).localeCompare(String(b.name)),
+    all = d.players || [];
+  P = all.filter((p) => !p.removed).sort(by);
+  RM = all
+    .filter((p) => p.removed)
+    .sort((a, b) => (b.removedAt || 0) - (a.removedAt || 0));
+  SS = d.sessions;
+  L = d.legacy;
+  PL = d.plans;
+  AVL = d.avail || {};
+  RL = d.rules || [];
+  WL = d.warmup || [];
+  ADM = d.admins || [];
+  ACC = d.accounts || [];
+  TPL = d.template || "";
+  SCH = normSch(d.schedule);
+  ANN = Array.isArray(d.announcements) ? d.announcements : [];
+  GROUP = d.group || window.WA_GROUP || "";
+  MATCHES = Array.isArray(d.matches) ? d.matches : null;
+  if ((d.groupPhotoAt || 0) !== GPH.at) fetchGph(d.groupPhotoAt || 0);
+  STAFF = d.staff || {};
+  NAMES = d.names || {};
+  ADMID = d.adminId || "";
+  MYPH = pl ? (all[0] || {}).photo || "" : d.myPhoto || "";
+  MYPID = d.myPlayerId || "";
+  TEAM = d.team || TEAM;
+  {
+    const lp = MYPID && !pl ? all.find((x) => x.id === MYPID) : null;
+    if (lp) {
+      if (lp.photo) MYPH = lp.photo;
+      if (role === "captain" || role === "vice") WHO = lp.name;
+    }
+  }
+  loaded = true;
+  err = "";
+  showApp();
+  render();
+  checkAlerts();
+  if (!pushChecked) {
+    pushChecked = true;
+    pushState().then(() => render());
+  }
+}
 async function load(force) {
   if (!token) return;
   try {
@@ -888,81 +1035,39 @@ async function load(force) {
       "/api/data" +
         (Date.now() - (window.__wrote || 0) < 30000 ? "?fresh=1" : ""),
     );
-    const key = JSON.stringify(d);
-    if (!force && key === lastJs && loaded && !err) return;
-    lastJs = key;
-    role = d.role;
-    admin = ["captain", "vice", "admin"].includes(role);
-    pl = role === "player";
-    me = d.me || "";
-    owner = role === "captain" || role === "vice";
-    WHO =
-      d.name ||
-      (role === "captain"
-        ? "Captain"
-        : role === "vice"
-          ? "Vice-captain"
-          : "Admin");
-    const by = (a, b) =>
-        (a.n || 999) - (b.n || 999) ||
-        String(a.name).localeCompare(String(b.name)),
-      all = d.players || [];
-    P = all.filter((p) => !p.removed).sort(by);
-    RM = all
-      .filter((p) => p.removed)
-      .sort((a, b) => (b.removedAt || 0) - (a.removedAt || 0));
-    SS = d.sessions;
-    L = d.legacy;
-    PL = d.plans;
-    AVL = d.avail || {};
-    RL = d.rules || [];
-    WL = d.warmup || [];
-    ADM = d.admins || [];
-    ACC = d.accounts || [];
-    TPL = d.template || "";
-    SCH = normSch(d.schedule);
-    ANN = Array.isArray(d.announcements) ? d.announcements : [];
-    GROUP = d.group || window.WA_GROUP || "";
-    MATCHES = Array.isArray(d.matches) ? d.matches : null;
-    if ((d.groupPhotoAt || 0) !== GPH.at) fetchGph(d.groupPhotoAt || 0);
-    STAFF = d.staff || {};
-    NAMES = d.names || {};
-    ADMID = d.adminId || "";
-    MYPH = pl ? (all[0] || {}).photo || "" : d.myPhoto || "";
-    MYPID = d.myPlayerId || "";
-    TEAM = d.team || TEAM;
-    {
-      const lp = MYPID && !pl ? all.find((x) => x.id === MYPID) : null;
-      if (lp) {
-        if (lp.photo) MYPH = lp.photo;
-        if (role === "captain" || role === "vice") WHO = lp.name;
-      }
-    }
-    loaded = true;
-    err = "";
-    showApp();
-    render();
-    checkAlerts();
-    if (!pushChecked) {
-      pushChecked = true;
-      pushState().then(() => render());
-    }
+    window.__wrote = 0;
+    setNet("");
+    cacheSave(d);
+    useData(d, force);
   } catch (e) {
     if (e.status === 401) {
       token = "";
+      cacheDrop();
       try {
         localStorage.removeItem("hk_token");
       } catch (x) {}
       loaded = false;
       lastJs = "";
+      setNet("");
       showLogin();
       return;
     }
-    err = e.status
-      ? "The server replied: " + e.message
-      : "Cannot reach the server. Check your connection and try again.";
-    showApp();
-    render();
+    if (loaded) {
+      // keep showing what we have, just say so
+      setNet(
+        e.network
+          ? "📡 Slow or no connection. Showing your last saved data."
+          : "⚠️ Server is busy. Showing your last saved data.",
+      );
+    } else {
+      err = e.status
+        ? e.message
+        : "Cannot reach the server. Check your connection and try again.";
+      showApp();
+      render();
+    }
+    clearTimeout(retryT);
+    retryT = setTimeout(() => load(true), 8000); // keeps trying quietly
   }
 }
 
