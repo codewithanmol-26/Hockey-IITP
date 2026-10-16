@@ -24,26 +24,17 @@ function pickPhoto(cb) {
   const f = document.createElement("input");
   f.type = "file";
   f.accept = "image/*";
-  f.onchange = () => {
+  f.onchange = async () => {
     const fl = f.files[0];
     if (!fl) return;
-    const rd = new FileReader();
-    rd.onload = () => {
-      const im = new Image();
-      im.onload = () => {
-        const S = 180,
-          c = document.createElement("canvas");
-        c.width = c.height = S;
-        const m = Math.min(im.width, im.height),
-          x = (im.width - m) / 2,
-          y = (im.height - m) / 2;
-        c.getContext("2d").drawImage(im, x, y, m, m, 0, 0, S, S);
-        cb(c.toDataURL("image/jpeg", 0.78));
-      };
-      im.onerror = () => alert("That file is not a picture.");
-      im.src = rd.result;
-    };
-    rd.readAsDataURL(fl);
+    const out = await cropFile(fl, {
+      title: "Crop profile photo",
+      ars: [["Square", 1]],
+      out: 240,
+      q: 0.82,
+      cap: 55000,
+    });
+    if (out) cb(out);
   };
   f.click();
 }
@@ -495,23 +486,14 @@ function reportText(sc, v) {
     dl
   );
 }
+// Percentage = days present / TOTAL WORKING (playing) DAYS. The total is the same for every player: a day the player
+// missed, or has no mark for, counts as absent. Present days never exceed the total.
 function statsFor(p, m) {
-  let t = 0,
-    pr = 0;
-  const j = (p.joined || "0000-00").slice(0, 7);
-  for (const k in L)
-    if ((m === "all" || k === m) && j <= k) {
-      t += L[k].days;
-      pr += L[k].att[p.id] || 0;
-    }
-  for (const d in SS)
-    if (m === "all" || d.startsWith(m)) {
-      const r = SS[d][p.id];
-      if (r !== undefined) {
-        t++;
-        if (r) pr++;
-      }
-    }
+  const t = rdays(m);
+  let pr = 0;
+  for (const k in L) if (m === "all" || k === m) pr += L[k].att[p.id] || 0;
+  for (const d in SS) if ((m === "all" || d.startsWith(m)) && SS[d][p.id]) pr++;
+  pr = Math.min(pr, t);
   return { p, pr, t, pct: t ? Math.round((pr * 100) / t) : 0 };
 }
 function openReport(pre) {
@@ -760,25 +742,7 @@ async function run(fn) {
 }
 
 function stats(m) {
-  return P.map((p) => {
-    let t = 0,
-      pr = 0;
-    const j = (p.joined || "0000-00").slice(0, 7);
-    for (const k in L)
-      if ((m === "all" || k === m) && j <= k) {
-        t += L[k].days;
-        pr += L[k].att[p.id] || 0;
-      }
-    for (const d in SS)
-      if (m === "all" || d.startsWith(m)) {
-        const r = SS[d][p.id];
-        if (r !== undefined) {
-          t++;
-          if (r) pr++;
-        }
-      }
-    return { p, pr, t, pct: t ? Math.round((pr * 100) / t) : 0 };
-  });
+  return P.map((p) => statsFor(p, m));
 }
 
 let RL = [],
@@ -836,6 +800,7 @@ const empty = (e, t) =>
 // ---- screens: login page first, then the app ----
 function showLogin() {
   $("app").hidden = true;
+  $("pub").hidden = true;
   $("login").hidden = false;
   $("menu").hidden = true;
   $("pr").value = "";
@@ -852,6 +817,7 @@ function showLogin() {
 }
 function showApp() {
   $("login").hidden = true;
+  $("pub").hidden = true;
   $("app").hidden = false;
   document.title = "Hockey Attendance";
 }
@@ -895,16 +861,20 @@ function logout() {
   tab = "me";
   prof = null;
   MYPH = "";
+  MYPID = "";
   P = [];
   RM = [];
   SS = {};
   L = {};
   PL = {};
   AVL = {};
-  showLogin();
+  ANN = [];
+  annAll = false;
+  showPublic();
 }
 function boot() {
-  if (!token) return showLogin();
+  askOpenInApp();
+  if (!token) return showPublic();
   showApp();
   render();
   load(true);
@@ -946,13 +916,24 @@ async function load(force) {
     ADM = d.admins || [];
     ACC = d.accounts || [];
     TPL = d.template || "";
-    SCH = d.schedule && d.schedule.team ? d.schedule : JSON.parse(SCH0);
+    SCH = normSch(d.schedule);
+    ANN = Array.isArray(d.announcements) ? d.announcements : [];
     GROUP = d.group || window.WA_GROUP || "";
     MATCHES = Array.isArray(d.matches) ? d.matches : null;
     if ((d.groupPhotoAt || 0) !== GPH.at) fetchGph(d.groupPhotoAt || 0);
     STAFF = d.staff || {};
+    NAMES = d.names || {};
     ADMID = d.adminId || "";
     MYPH = pl ? (all[0] || {}).photo || "" : d.myPhoto || "";
+    MYPID = d.myPlayerId || "";
+    TEAM = d.team || TEAM;
+    {
+      const lp = MYPID && !pl ? all.find((x) => x.id === MYPID) : null;
+      if (lp) {
+        if (lp.photo) MYPH = lp.photo;
+        if (role === "captain" || role === "vice") WHO = lp.name;
+      }
+    }
     loaded = true;
     err = "";
     showApp();
@@ -1110,7 +1091,7 @@ function drawMenu() {
     menuActs.push(fn);
     return `<button class="mi ${o.on ? "on" : ""} ${o.cls || ""}" data-k="${menuActs.length - 1}"${o.sw !== undefined ? ' role="switch" aria-checked="' + o.sw + '"' : ""}><span class="i">${ic}</span><span class="t">${label}</span>${o.sw !== undefined ? `<span class="sw ${o.sw ? "on" : ""}"></span>` : ""}</button>`;
   };
-  let h = "";
+  let h = menuHead("Menu");
   const more = tabsFor().filter((t) => !PRIMARY.includes(t[0])); // tabs already on the bottom bar / top bar are not repeated here
   if (more.length)
     h +=
@@ -1127,8 +1108,25 @@ function drawMenu() {
       mi("📷", "Change team group photo", () =>
         pickFiles((f) => setGroupPhoto(f[0])),
       ) +
-      mi("🏑", "Edit Indian hockey fixtures", openMatches);
+      mi("🏑", "Edit Indian hockey fixtures", openMatches) +
+      (owner ? mi("🎖️", "Edit captain & coach names", openNames) : "");
   h +=
+    `<div class="ms">Appearance</div>` +
+    mi(
+      isDark() ? "🌙" : "☀️",
+      "Night mode",
+      () => {
+        toggleTheme();
+        drawMenu();
+      },
+      { sw: isDark() },
+    ) +
+    (themePref()
+      ? mi("📱", "Use my phone's day / night setting", () => {
+          setTheme("");
+          drawMenu();
+        })
+      : "") +
     `<div class="ms">Share</div>` +
     mi("📊", "Share attendance report", () => openReport()) +
     mi("📲", "Share this app", shareApp);
@@ -1165,7 +1163,8 @@ function drawMenu() {
         drawMenu();
       },
       { sw: alertOn },
-    );
+    ) +
+    (owner ? mi("🛠️", "Set up push notifications", openPushHelp) : "");
   h +=
     `<div class="ms">App</div>` +
     mi("📅", "Add schedule to calendar", icsDownload) +
@@ -1192,16 +1191,7 @@ function drawMenu() {
     );
   m.innerHTML = h;
   bindVol("mvol", "mvolv", playClick);
-  m.querySelectorAll(".mi").forEach(
-    (b) =>
-      (b.onclick = () => {
-        const k = +b.dataset.k,
-          keep = b.hasAttribute("role");
-        if (!keep) m.hidden = true;
-        $("mb").setAttribute("aria-expanded", String(keep));
-        menuActs[k]();
-      }),
-  );
+  wireMenu(m);
 }
 $("mb").onclick = (e) => {
   e.stopPropagation();
@@ -1215,10 +1205,7 @@ $("mb").onclick = (e) => {
   $("mb").setAttribute("aria-expanded", "true");
 };
 document.addEventListener("click", (e) => {
-  if (
-    !e.composedPath().includes($("menu")) &&
-    !e.composedPath().includes($("mb"))
-  )
+  if (!e.composedPath().includes($("menu")) && !e.target.closest(".mbtn"))
     $("menu").hidden = true;
 });
 document.addEventListener("keydown", (e) => {
@@ -1337,7 +1324,13 @@ function weekMsg(k) {
   return (
     `🏑 *Inter IIT Hockey: Weekly schedule${k === "gk" ? " (Goalkeepers)" : ""}*\n\n` +
     SCH[k]
-      .map((r) => (r[3] ? `*${r[0]}*: ${r[1]}, ${r[3]}` : `*${r[0]}*: ${r[1]}`))
+      .map(
+        (r) =>
+          (r[3] ? `*${r[0]}*: ${r[1]}, ${r[3]}` : `*${r[0]}*: ${r[1]}`) +
+          ((r[4] || []).length
+            ? " " + r[4].map((t) => "@" + t.n).join(" ")
+            : ""),
+      )
       .join("\n") +
     "\n\nReport on time. Timings may shift based on turf availability and the coach's call."
   );
@@ -1529,7 +1522,13 @@ async function setPush(on) {
       pushOn = false;
     }
   } catch (e) {
-    alert("Could not change push notifications: " + (e.message || e));
+    if (/VAPID|not set up/i.test(String(e.message))) {
+      if (owner) openPushHelp();
+      else
+        alert(
+          "Push notifications are not switched on for the team yet.\n\nAsk the captain to open the menu and choose “Set up push notifications”. Until then, “Alert 15 min before practice” still works.",
+        );
+    } else alert("Could not change push notifications: " + (e.message || e));
   }
 }
 function pushDrop(tk) {
@@ -1655,6 +1654,7 @@ function render() {
           : "Player";
   $("who").textContent = loaded ? (WHO === rn ? rn : WHO + " · " + rn) : "";
   $("hp").innerHTML = loaded ? avatar(WHO, MYPH, 34) : "";
+  $("xb").hidden = !(loaded && !err && !prof && !PRIMARY.includes(tab)); // ✕ on pages that were opened from the menu: goes back to Home
   if (!$("menu").hidden) drawMenu();
   if (err) {
     $("view").innerHTML =
@@ -1670,21 +1670,31 @@ function render() {
     vProfile();
     return;
   }
-  ({
-    take: vTake,
-    me: vMe,
-    plan: vPlan,
-    stats: vStats,
-    schedule: vSched,
-    gallery: vGallery,
-    train: vTrain,
-    bugs: vBugs,
-    rules: vRules,
-    warmup: vWarm,
-    players: vPlayers,
-    removed: vRemoved,
-    admins: vAdmins,
-  })[tab]();
+  try {
+    ({
+      take: vTake,
+      me: vMe,
+      plan: vPlan,
+      stats: vStats,
+      schedule: vSched,
+      gallery: vGallery,
+      train: vTrain,
+      bugs: vBugs,
+      rules: vRules,
+      warmup: vWarm,
+      players: vPlayers,
+      removed: vRemoved,
+      admins: vAdmins,
+    })[tab]();
+  } catch (e) {
+    console.error(e);
+    $("view").innerHTML =
+      `<div class="card">${empty("⚠️", "This page could not be shown: " + esc(e.message))}<div class="ctl" style="justify-content:center"><button class="pri" id="rt">Reload data</button></div></div>`;
+    $("rt").onclick = () => {
+      lastJs = "";
+      load(true);
+    };
+  }
 }
 const dayIdx = (d) => (new Date(d + "T00:00").getDay() + 6) % 7;
 
@@ -1882,15 +1892,12 @@ function matrix(ds) {
   <tr><th class="sc">Player</th>${ds.map((d) => `<th title="${fmt(d)}">${+d.slice(8)}</th>`).join("")}<th>Total</th></tr>
   ${ps
     .map((p) => {
-      let pr = 0,
-        t = 0;
+      let pr = 0;
+      const t = ds.length;
       const c = ds
         .map((d) => {
           const v = SS[d][p.id];
-          if (v !== undefined) {
-            t++;
-            if (v) pr++;
-          }
+          if (v) pr++;
           return `<td class="${v === true ? "y" : v === false ? "x" : "o"}" title="${esc(p.name)} · ${fmt(d)}">${v === true ? "✔" : v === false ? "✘" : ""}</td>`;
         })
         .join("");
@@ -1984,16 +1991,19 @@ function vStats() {
   <div class="stats"><div><b>${n}</b>Playing days</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
   ${admin ? podium(st, medal) : tier ? `<div class="tier"><span>${tier[0]}</span><div><b>${tier[1]} level</b><br><span class="mute">Gold 90% or more · Silver 75% or more · Bronze 60% or more</span></div></div>` : ""}
   <table><tr><th>Player</th><th class="n">Present</th><th class="n">Days</th><th>%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
-  ${L[m] ? '<p class="mute">Includes the imported register totals. Players who joined mid-month show a lower %.</p>' : ""}
+  <p class="mute">% = days present ÷ total working days (${n}). The total is the same for every player; a missed day counts as absent.</p>${L[m] ? '<p class="mute">Includes the imported register totals.</p>' : ""}
   <div class="chips"><button id="shr">⤴ Share report</button></div></div>
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
   <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selDate}"></div>${day}
-  <div class="chips">${live
+  <details class="dlist"><summary>Show all playing dates (${live.filter((d) => admin || SS[d][me] !== undefined).length})</summary><div class="chips">${live
     .filter((d) => admin || SS[d][me] !== undefined)
     .reverse()
-    .map((d) => `<button data-d="${d}">${fmt(d)}</button>`)
-    .join("")}</div></div>`;
+    .map(
+      (d) =>
+        `<button data-d="${d}" class="${d === selDate ? "pri" : ""}">${fmt(d)}</button>`,
+    )
+    .join("")}</div></details></div>`;
   $("gm").onchange = (e) => {
     gMonth = e.target.value;
     vStats();
@@ -2050,16 +2060,17 @@ function vSched() {
   const rows = SCH[sch],
     i = schDay,
     r = rows[i];
+  let dayTags = (r[4] || []).slice();
   $("view").innerHTML = `<div class="card"><h2>Weekly practice schedule</h2>
   <div class="seg2"><button class="${sch === "team" ? "on" : ""}" data-s="team">Team</button><button class="${sch === "gk" ? "on" : ""}" data-s="gk">Goalkeepers</button></div>
-  <div class="week">${rows.map((x, k) => `<button type="button" class="wd ${k === ti ? "today" : ""} ${k === i ? "sel" : ""} ${x[3] ? "" : "rest"}" data-w="${k}" aria-pressed="${k === i}" aria-label="${x[0]}"><b>${DAB[k]}</b><span>${x[3] ? "🏑" : "😴"}</span></button>`).join("")}</div>
+  <div class="week">${rows.map((x, k) => `<button type="button" class="wd ${k === ti ? "today" : ""} ${k === i ? "sel" : ""} ${x[3] ? "" : "rest"}" data-w="${k}" aria-pressed="${k === i}" aria-label="${x[0]}"><b>${DAB[k]}</b><span>${x[3] ? "🏑" : "😴"}</span>${tagMine(x[4]) ? '<i class="tdot" title="You are tagged"></i>' : ""}</button>`).join("")}</div>
   <div class="dayc ${r[3] ? "" : "rest"} ${i === ti ? "today" : ""}">
     <div class="dhead"><span class="dbadge">${DAB[i]}</span><span class="dm"><b>${esc(r[1])}</b><small>${r[3] ? "⏰ " + esc(r[3]) : "Rest day"}</small></span>${i === ti ? '<span class="pill g">Today</span>' : ""}</div>
-    <div class="db"><p>${esc(r[2])}</p>
+    <div class="db"><p>${esc(r[2])}</p>${(r[4] || []).length ? `<div class="kv"><span>Tagged</span><b>${tagChips(r[4])}</b></div>${tagMine(r[4]) ? '<p class="note" style="margin:8px 0">📌 You are tagged for this session.</p>' : ""}` : ""}
       <div class="kv"><span>Day</span><b>${r[0]}</b></div><div class="kv"><span>Timing</span><b>${r[3] ? esc(r[3]) : "No session"}</b></div><div class="kv"><span>Next date</span><b>${fmt(nextDateOf(i))}</b></div>
-      ${admin ? `<div class="edit"><label class="fl">Session name<input id="de-t" value="${esc(r[1])}" maxlength="60"></label><label class="fl">Details<input id="de-x" value="${esc(r[2])}" maxlength="200"></label><label class="fl">Timing, e.g. 6:30–8:30 PM (empty = rest day)<input id="de-m" value="${esc(r[3])}" maxlength="30"></label></div>` : ""}
+      ${admin ? `<div class="edit"><label class="fl">Session name<input id="de-t" value="${esc(r[1])}" maxlength="60"></label><label class="fl">Details<input id="de-x" value="${esc(r[2])}" maxlength="200"></label><label class="fl">Timing, e.g. 6:30–8:30 PM (empty = rest day)<input id="de-m" value="${esc(r[3])}" maxlength="30"></label><div class="fl">Tag players for this session<div id="de-g" class="tgsel"></div><button type="button" id="de-gb">🏷️ Tag people</button></div></div>` : ""}
       <div class="chips"><button data-sh="1">⤴ Share this day</button>${admin ? `<button class="pri" data-sv="1">Save changes</button>${r[3] ? `<button data-nx="1">Schedule next ${r[0]}</button>` : ""}` : ""}</div></div></div>
-  <p class="mute">Tap a day above to see it. Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: Kiran Chaudhary.</p>
+  <p class="mute">Tap a day above to see it. Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: ${esc(nameOf2("coach"))}.</p>
   <div class="chips"><button id="wsch">⤴ Share whole week</button><button id="wcal">📅 Add to calendar</button></div></div>`;
   $("wsch").onclick = () => shareText(weekMsg(sch), "Weekly schedule");
   $("wcal").onclick = icsDownload;
@@ -2077,13 +2088,27 @@ function vSched() {
         vSched();
       }),
   );
+  const paintDT = () => {
+    const g = $("de-g");
+    if (g)
+      g.innerHTML = dayTags.length
+        ? tagChips(dayTags)
+        : '<span class="mute">Nobody tagged</span>';
+  };
+  paintDT();
+  if ($("de-gb"))
+    $("de-gb").onclick = () =>
+      pickTags(dayTags, (t) => {
+        dayTags = t;
+        paintDT();
+      });
   document
     .querySelectorAll("[data-sh]")
     .forEach(
       (b) =>
         (b.onclick = () =>
           shareText(
-            `🏑 *Inter IIT Hockey: ${r[0]}*\n${r[1]}\n${r[2]}\n⏰ ${r[3] || "Rest day"}`,
+            `🏑 *Inter IIT Hockey: ${r[0]}*\n${r[1]}\n${r[2]}\n⏰ ${r[3] || "Rest day"}${(r[4] || []).length ? "\n🏷️ " + r[4].map((t) => "@" + t.n).join(" ") : ""}`,
             "Practice",
           )),
     );
@@ -2095,6 +2120,7 @@ function vSched() {
           $("de-t").value.trim(),
           $("de-x").value.trim(),
           $("de-m").value.trim(),
+          dayTags,
         ];
         run(async () => {
           await api("/api/schedule", {
@@ -2714,7 +2740,17 @@ const when = (t) =>
     : "";
 // ---- profile photo + shared helpers ----
 const photoBtns = (own, path, ph, extra) =>
-  `<div class="chips" style="justify-content:center">${extra || ""}<button data-ph="c">📷 ${ph ? "Change photo" : "Add photo"}</button>${ph ? '<button data-ph="x">Remove photo</button>' : ""}</div>`;
+  `<div class="chips" style="justify-content:center">${extra || ""}<button data-ph="c">📷 ${ph ? "Change photo" : "Add photo"}</button>${ph ? '<button data-ph="x">Remove photo</button>' : ""}<button data-cv="c">🖼 Cover picture</button><button data-cv="x" hidden>Remove cover</button></div>`;
+function bindCover(k, id) {
+  document.querySelectorAll("[data-cv]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (b.dataset.cv === "x") return removeCover(k, id);
+        pickFiles((f) => setCover(k, id, f[0]));
+      }),
+  );
+  applyCover(k, id);
+}
 function bindPhoto(own, path) {
   document.querySelectorAll("[data-ph]").forEach(
     (b) =>
@@ -2733,12 +2769,17 @@ function bindPhoto(own, path) {
   );
 }
 const openProf = (k, id) => {
+  if (k === "s" && TEAM[id] && TEAM[id].pid) {
+    k = "p";
+    id = TEAM[id].pid;
+  } // captain / vice-captain who are also players show the player profile
   prof = { k, id };
   render();
   window.scrollTo(0, 0);
 };
 function openMyProfile() {
   if (role === "player") openProf("p", me);
+  else if (MYPID && P.some((x) => x.id === MYPID)) openProf("p", MYPID);
   else if (role === "admin") openProf("a", ADMID);
   else openProf("s", role);
 }
@@ -3004,15 +3045,34 @@ function vAdmins() {
   $("view").innerHTML =
     `<div class="card"><h2>Team staff</h2>${st.map((s) => `<div class="row link" role="button" tabindex="0" data-sf="${s[0]}"><span class="sw-row">${avatar(s[1], STAFF[s[0]], 40)}<span><b>${s[1]}</b><br><span class="mute">Full access</span></span></span><span class="chev">›</span></div>`).join("")}</div>
   <div class="card"><h2>Admins</h2><p class="mute">Admins can take attendance and edit everything except this list. They log in under <b>Captain / Admin</b> → Admin with their name and code. Use the switch to turn an admin's access on or off without deleting them. Tap an admin to open their profile.</p>
-  <div class="ctl"><input id="an2" placeholder="Name" maxlength="40"><input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30" autocomplete="new-password"><button class="pri" id="aadd">Add admin</button></div>
-  ${ADM.map((a) => `<div class="row link" role="button" tabindex="0" data-af="${esc(a.id)}"><span class="sw-row"><button class="sw ${a.disabled ? "" : "on"}" role="switch" aria-checked="${!a.disabled}" aria-label="Access for ${esc(a.name)}" data-tg="${esc(a.id)}"></button>${avatar(a.name, a.photo, 40)}<span>${esc(a.name)}<br><span class="pill ${a.disabled ? "r" : "g"}">${a.disabled ? "Access off" : "Access on"}</span></span></span><button class="dng" data-adm="${esc(a.id)}">Remove</button></div>`).join("") || empty("🛡️", "No extra admins yet.")}</div>`;
+  <div class="ctl"><label class="fl" style="flex:1;margin:0">Is this admin a<select id="akind"><option value="">Choose…</option><option value="player">Player</option><option value="instructor">Instructor</option></select></label><label class="fl" id="aplw" style="flex:1;margin:0" hidden>Which player<select id="apl"><option value="">Choose a player…</option>${P.map((x) => `<option value="${esc(x.id)}" data-n="${esc(x.name)}">${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}</select></label></div>
+  <div class="ctl"><input id="an2" placeholder="Name (used to log in)" maxlength="40"><input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30" autocomplete="new-password"><button class="pri" id="aadd">Add admin</button></div>
+  ${ADM.map((a) => `<div class="row link" role="button" tabindex="0" data-af="${esc(a.id)}"><span class="sw-row"><button class="sw ${a.disabled ? "" : "on"}" role="switch" aria-checked="${!a.disabled}" aria-label="Access for ${esc(a.name)}" data-tg="${esc(a.id)}"></button>${avatar(a.name, a.photo, 40)}<span>${esc(a.name)}<br><span class="pill ${a.disabled ? "r" : "g"}">${a.disabled ? "Access off" : "Access on"}</span> <span class="pill">${a.kind === "player" ? "Player" : a.kind === "instructor" ? "Instructor" : "Type not set"}</span></span></span><button class="dng" data-adm="${esc(a.id)}">Remove</button></div>`).join("") || empty("🛡️", "No extra admins yet.")}</div>`;
+  $("akind").onchange = () => {
+    $("aplw").hidden = $("akind").value !== "player";
+  };
+  $("apl").onchange = () => {
+    const o = $("apl").selectedOptions[0];
+    if (o && o.dataset.n) $("an2").value = o.dataset.n;
+  };
   $("aadd").onclick = () => {
-    const name = $("an2").value.trim(),
+    const kind = $("akind").value,
+      pid = $("apl").value,
+      name = $("an2").value.trim(),
       code = $("ac").value;
+    if (!kind)
+      return alert(
+        "First choose whether this admin is a Player or an Instructor.",
+      );
+    if (kind === "player" && !pid)
+      return alert("Choose which player this admin is.");
     if (!name || code.length < 4)
       return alert("Enter a name and a code of at least 4 characters.");
     run(async () => {
-      await api("/api/admins", { method: "POST", body: { name, code } });
+      await api("/api/admins", {
+        method: "POST",
+        body: { name, code, kind, playerId: kind === "player" ? pid : "" },
+      });
       await load();
     });
   };
@@ -3095,7 +3155,7 @@ function vProfile() {
       .join(" · ");
     h = `${back}<div class="card prof"><div class="cover"></div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
-    <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}</div>
+    <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill g">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill g">🎖️ Vice-captain</span>' : ""}${ADM.some((a) => a.kind === "player" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill g">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
     ${canPh ? photoBtns(own, photoPath, p.photo, '<button class="pri" id="pedit">✏️ Edit profile</button>') : ""}
     ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
     <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} playing days</p><div class="dots">${dots}</div></div>` : ""}</div></div>
@@ -3105,6 +3165,7 @@ function vProfile() {
       ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}</div>` : ""}</div></div>`;
     $("view").innerHTML = h;
     if ($("pedit")) $("pedit").onclick = () => openEdit(p, own);
+    bindCover("p", id);
     if ($("prst"))
       $("prst").onclick = () => {
         if (
@@ -3179,7 +3240,11 @@ function vProfile() {
       sub = "Admin";
       photoPath = "/api/admins/" + id + "/photo";
       canPh = own || owner;
-      acts = `${kv("Role", "Admin")}${kv("Access", a.disabled ? '<span class="pill r">Off</span>' : '<span class="pill g">On</span>')}${a.created ? kv("Added", when(a.created)) : ""}${owner && ADM.some((x) => x.id === id) ? `<div class="chips" style="margin-top:12px"><button id="atg">${a.disabled ? "Turn access on" : "Turn access off"}</button><button class="dng" id="arm">Remove admin</button></div>` : ""}`;
+      const lpl =
+        a.kind === "player" && a.playerId
+          ? [...P, ...RM].find((x) => x.id === a.playerId)
+          : null;
+      acts = `${kv("Role", "Admin")}${kv("Type", a.kind === "player" ? "Player" + (lpl ? " · " + esc(lpl.name) : "") : a.kind === "instructor" ? "Instructor" : "<i>not set</i>")}${lpl ? `<div class="chips"><button id="apv">👤 View player profile</button></div>` : ""}${owner && ADM.some((x) => x.id === id) ? `<div class="edit"><label class="fl">Change type<select id="ak"><option value="">Choose…</option><option value="player" ${a.kind === "player" ? "selected" : ""}>Player</option><option value="instructor" ${a.kind === "instructor" ? "selected" : ""}>Instructor</option></select></label><label class="fl" id="akpw" ${a.kind === "player" ? "" : "hidden"}>Which player<select id="akp">${P.map((x) => `<option value="${esc(x.id)}" ${a.playerId === x.id ? "selected" : ""}>${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}</select></label><button id="aks">Save type</button></div>` : ""}${kv("Access", a.disabled ? '<span class="pill r">Off</span>' : '<span class="pill g">On</span>')}${a.created ? kv("Added", when(a.created)) : ""}${owner && ADM.some((x) => x.id === id) ? `<div class="chips" style="margin-top:12px"><button id="atg">${a.disabled ? "Turn access on" : "Turn access off"}</button><button class="dng" id="arm">Remove admin</button></div>` : ""}`;
     } else {
       own = role === id;
       name = id === "captain" ? "Captain" : "Vice-captain";
@@ -3187,10 +3252,32 @@ function vProfile() {
       sub = name;
       photoPath = "";
       canPh = own;
-      acts = `${kv("Role", name)}${kv("Access", "Full: attendance, players, admins")}`;
+      acts = `${kv("Role", name)}${kv("Access", "Full: attendance, players, admins")}${own && owner ? `<div class="note" style="margin-top:10px">You are not linked to a player record yet. If you also play, link yourself to get the same profile as the other players. <div class="chips"><button class="pri" id="lkme">🔗 Link my player profile</button></div></div>` : ""}`;
     }
     $("view").innerHTML =
       `${back}<div class="card prof"><div class="cover"></div><div class="pavw">${avatar(name, ph, 104, "big")}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+    if ($("lkme")) $("lkme").onclick = openNames;
+    if (k === "s") bindCover("s", id);
+    if ($("apv"))
+      $("apv").onclick = () =>
+        openProf("p", (ADM.find((x) => x.id === id) || {}).playerId);
+    if ($("ak"))
+      $("ak").onchange = () => {
+        $("akpw").hidden = $("ak").value !== "player";
+      };
+    if ($("aks"))
+      $("aks").onclick = () => {
+        const kd = $("ak").value;
+        if (!kd) return alert("Choose Player or Instructor.");
+        run(async () => {
+          await api("/api/admins/" + id, {
+            method: "PUT",
+            body: { kind: kd, playerId: kd === "player" ? $("akp").value : "" },
+          });
+          await load(true);
+        });
+      };
+    if (k === "a") bindCover("a", id);
     if ($("atg"))
       $("atg").onclick = () => {
         const a = ADM.find((x) => x.id === id);
@@ -3422,7 +3509,19 @@ async function fetchGph(at) {
 }
 async function setGroupPhoto(file) {
   try {
-    const img = await fileToImg(file, 1280, 0.8, 400000);
+    const img = await cropFile(file, {
+      title: "Crop team photo",
+      ars: [
+        ["16:9", 16 / 9],
+        ["4:3", 4 / 3],
+        ["Square", 1],
+        ["Original", 0],
+      ],
+      out: 1280,
+      q: 0.8,
+      cap: 400000,
+    });
+    if (!img) return;
     await api("/api/group-photo", { method: "PUT", body: { img } });
     GPH = { img, at: -1 };
     await load(true);
@@ -3633,10 +3732,13 @@ function vMe() {
       : role === "vice"
         ? "Vice-captain"
         : "Admin";
-  $("view").innerHTML =
-    `${pushCard()}<div class="card hero">${avatar(WHO, MYPH, 60)}<div class="hi"><h2>Hi, ${first} 👋</h2><span class="mute">${esc(sub)}</span></div></div>
+  $("view").innerHTML = `${pushCard()}${welcomeHero()}
+  ${annCard()}${myInfoCard()}${featTiles()}${teamCard()}
   ${gphCard()}
   <div class="grid">${nextCard()}${upCard()}${newsCard()}${histCard()}</div>`;
+  bindHome();
+  bindAnn();
+  heroCover();
   if ($("gpset"))
     $("gpset").onclick = () => pickFiles((f) => setGroupPhoto(f[0]));
   if ($("gprm")) $("gprm").onclick = clearGroupPhoto;
@@ -3699,10 +3801,24 @@ async function uploadPhotos(files) {
   for (let i = 0; i < files.length; i++) {
     st(`Uploading ${i + 1} of ${files.length}…`);
     try {
-      const [img, thumb] = await Promise.all([
-        fileToImg(files[i], 1280, 0.8, 400000),
-        fileToImg(files[i], 360, 0.72, 55000),
-      ]);
+      const img = await cropFile(files[i], {
+        title:
+          files.length > 1
+            ? "Crop photo " + (i + 1) + " of " + files.length
+            : "Crop photo",
+        ars: [
+          ["Original", 0],
+          ["4:3", 4 / 3],
+          ["Square", 1],
+          ["16:9", 16 / 9],
+        ],
+        out: 1280,
+        q: 0.8,
+        cap: 400000,
+        skip: true,
+      });
+      if (!img) continue;
+      const thumb = await fileToImg(await dataToBlob(img), 360, 0.72, 55000);
       await api("/api/gallery", { method: "POST", body: { img, thumb } });
       ok++;
     } catch (e) {
@@ -3916,7 +4032,7 @@ function chartBlocks(ttl, pts, st, tr, m, vis) {
 // v13: Training tab. Timer (stopwatch / countdown / intervals), smartwatch heart rate (Bluetooth),
 // saved sessions + presets, and tips on how to improve. Training data is private to each person.
 // =====================================================================================
-const APP_V = "v15",
+const APP_V = "v17",
   ERRS = [];
 addEventListener("error", (e) => {
   ERRS.push(
@@ -4811,9 +4927,9 @@ function vTrain() {
   ${pre ? '<p class="mute" style="margin:6px 0 0">Tap a saved setup to load it.</p>' : ""}</div>
   <div class="card"><h2>⌚ Smartwatch heart rate</h2>
   <div class="hrbig"><b id="hrb">--</b><span>bpm</span></div><div class="ctl" style="justify-content:center"><span id="hrz" class="pill">Not connected</span></div><p id="hrw" class="mute" style="text-align:center;margin:6px 0 10px"></p>
-  <div class="ctl"><button class="pri" id="hrc"></button><button id="hrany">Try boAt / other watch</button></div><div class="ctl" style="margin-top:8px"><label class="fl" style="flex:1;margin:0">Your max HR<input id="hmx" type="number" min="120" max="230" value="${maxHr()}"></label></div>
+  <div class="ctl"><button class="pri" id="hrc"></button><button id="hrany">Try boAt / other watch</button></div><div class="ctl" style="margin-top:8px"><button id="hrqr">📷 Scan QR code on the watch</button></div>${watchBox()}<div class="ctl" style="margin-top:8px"><label class="fl" style="flex:1;margin:0">Your max HR<input id="hmx" type="number" min="120" max="230" value="${maxHr()}"></label></div>
   <p class="mute" style="margin:8px 0 0">Heart rate is saved with the session while the timer runs. Not sure of your max? <button class="lnk" id="hage">Estimate from age</button></p>
-  <details class="hlp"><summary>Which watches work?</summary><p class="mute">${sup ? "" : "<b>This browser cannot connect to a watch.</b> "}Connection uses standard Bluetooth heart rate, in Chrome on Android or on a computer (not iPhone Safari). Chest straps (Polar, Wahoo, Coospo and similar) work directly. Garmin watches work with <i>Broadcast heart rate</i> turned on. <b>boAt watches (Wave Fury and similar)</b> sync only through the boAt Crest app, so live connection is not expected to work: press <i>Try boAt / other watch</i> to check, and if it fails use <i>Add watch summary</i> after training and copy the numbers from boAt Crest. Apple Watch, Galaxy Watch and Fitbit behave the same way.</p></details></div>
+  <details class="hlp"><summary>Which watches work?</summary><p class="mute">${sup ? "" : "<b>This browser cannot connect to a watch.</b> "}<b>Two ways to connect:</b> press <i>Connect watch</i> (Bluetooth), or press <i>Scan QR code on the watch</i> and then <i>Connect this watch</i> so only your watch shows in the list. Connection uses standard Bluetooth heart rate, in Chrome on Android or on a computer (not iPhone Safari). Chest straps (Polar, Wahoo, Coospo and similar) work directly. Garmin watches work with <i>Broadcast heart rate</i> turned on. <b>boAt watches (Wave Fury and similar)</b> sync only through the boAt Crest app, so live connection is not expected to work: press <i>Try boAt / other watch</i> to check, and if it fails use <i>Add watch summary</i> after training and copy the numbers from boAt Crest. Apple Watch, Galaxy Watch and Fitbit behave the same way.</p></details></div>
   <div class="card"><h2>💡 How to improve${pl && WHO ? " · " + esc(WHO.split(" ")[0]) : ""}</h2><label class="fl" style="margin-bottom:6px">My focus<select id="goal">${GOALS.map((g) => `<option value="${g[0]}" ${lsGet("hk_goal", "") === g[0] ? "selected" : ""}>${g[1]}</option>`).join("")}</select></label><p class="mute" style="margin:0 0 6px;font-size:.85rem">Tips use your position, focus, attendance, availability and saved sessions.</p>${RC.map((r, i) => `<div class="rc"><span class="ic">${r[0]}</span><span><b>${esc(r[1])}</b><br><span class="mute">${esc(r[2])}</span>${r[3] ? `<br><button class="tipb" data-act="${i}">⏱ ${esc(r[3].lbl)}</button>` : ""}</span></div>`).join("")}<p class="mute" style="margin:10px 0 0;font-size:.8rem">General fitness tips from your saved data, not medical advice. Stop and rest if you feel dizzy, have chest pain or feel unwell.</p></div>
   <div class="card"><h2>Saved sessions</h2>${ss.length ? `<div class="stats"><div><b>${tw.length}</b>This week</div><div><b>${Math.round(tw.reduce((a, w) => a + w.dur, 0) / 60)}</b>Minutes this week</div><div><b>${ss.length}</b>Total saved</div></div>` : ""}${rows || empty("📋", wkErr || (wkLoaded ? "No saved sessions yet." : "Loading…"))}${wkErr ? '<div class="ctl"><button id="wtry">Try again</button></div>' : ""}<p class="mute" style="margin:8px 0 0;font-size:.8rem">Only you can see your training data.</p></div>`;
   drawTimerBtns();
@@ -4884,6 +5000,7 @@ function vTrain() {
       }),
   );
   $("hrany").onclick = hrConnectAny;
+  bindWatch();
   $("hmx").onchange = (e) => {
     lsSet("hk_maxhr", Math.max(120, Math.min(230, +e.target.value || 190)));
     vTrain();

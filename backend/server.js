@@ -295,29 +295,49 @@ let cache = null,
   cacheAt = 0;
 const bust = () => {
   cache = null;
+  pubCache = null;
 };
 async function readAll() {
   if (cache && Date.now() - cacheAt < 10000) return cache;
-  const [pl, se, le, pn, rl, wl, ad, ac, sc, tp, gp, stf, av, gph, mt] =
-    await Promise.all([
-      ...[
-        "players",
-        "sessions",
-        "legacy",
-        "plans",
-        "rules",
-        "warmup",
-        "admins",
-        "accounts",
-      ].map((c) => db.collection(c).get()),
-      db.collection("config").doc("schedule").get(),
-      db.collection("config").doc("template").get(),
-      db.collection("config").doc("group").get(),
-      db.collection("config").doc("staff").get(),
-      db.collection("avail").get(),
-      db.collection("config").doc("groupPhoto").get(),
-      db.collection("config").doc("matches").get(),
-    ]);
+  const [
+    pl,
+    se,
+    le,
+    pn,
+    rl,
+    wl,
+    ad,
+    ac,
+    sc,
+    tp,
+    gp,
+    stf,
+    av,
+    gph,
+    mt,
+    nmd,
+    an,
+  ] = await Promise.all([
+    ...[
+      "players",
+      "sessions",
+      "legacy",
+      "plans",
+      "rules",
+      "warmup",
+      "admins",
+      "accounts",
+    ].map((c) => db.collection(c).get()),
+    db.collection("config").doc("schedule").get(),
+    db.collection("config").doc("template").get(),
+    db.collection("config").doc("group").get(),
+    db.collection("config").doc("staff").get(),
+    db.collection("avail").get(),
+    db.collection("config").doc("groupPhoto").get(),
+    db.collection("config").doc("matches").get(),
+    db.collection("config").doc("staffNames").get(),
+    db.collection("announcements").get(),
+  ]);
   const out = {
     players: pl.docs.map((d) => ({ id: d.id, ...d.data() })),
     sessions: {},
@@ -342,16 +362,46 @@ async function readAll() {
     disabled: !!d.data().disabled,
     photo: d.data().photo || "",
     created: d.data().created || 0,
+    kind: d.data().kind || "",
+    playerId: d.data().playerId || "",
   })); // names only, never codes
   out.group = gp.exists ? gp.data().url || "" : "";
   out.groupPhotoAt = gph.exists ? gph.data().at || 0 : 0; // only a stamp; the picture itself is fetched separately
   out.matches =
     mt.exists && Array.isArray(mt.data().items) ? mt.data().items : null; // null = never edited, the app shows its built-in list
   out.staff = stf.exists ? stf.data() : {}; // captain / vice profile photos
+  out.names = nmd.exists ? nmd.data() : {}; // captain / vice / coach display names (shown on the public page)
+  {
+    const nv = out.names,
+      lk = nv.links || {},
+      pl2 = (k) =>
+        out.players.find((x) => x.id === lk[k] && !x.removed) || null;
+    const one = (k) => {
+      const q = pl2(k);
+      return {
+        name: nv[k] || (q ? q.name : ""),
+        photo: (q && q.photo) || out.staff[k] || "",
+        pid: q ? q.id : "",
+      };
+    };
+    out.team = {
+      captain: one("captain"),
+      vice: one("vice"),
+      coach: { name: nv.coach || "" },
+    };
+  } // captain / vice-captain can also be players: their name + photo come from the player record
   out.accounts = ac.docs.map((d) => d.id); // which players have signed up (ids only)
   out.template = tp.exists ? tp.data().text : "";
   const sd = sc.exists ? sc.data() : null;
-  const rows = (a) => a.map((o) => [o.d, o.t, o.x, o.m]);
+  out.announcements = an.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort(
+      (a, b) =>
+        (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (b.at || 0) - (a.at || 0),
+    )
+    .slice(0, 60);
+  const rows = (a) =>
+    a.map((o) => [o.d, o.t, o.x, o.m, Array.isArray(o.g) ? o.g : []]); // 5th item = tagged people / groups
   out.schedule =
     sd && sd.team && sd.gk ? { team: rows(sd.team), gk: rows(sd.gk) } : null;
   cache = out;
@@ -373,11 +423,25 @@ app.get(
         p.role === "admin"
           ? (all.admins.find((x) => x.id === p.id) || {}).photo || ""
           : (all.staff || {})[p.role] || "";
+      const lk = (all.names || {}).links || {},
+        myAd =
+          p.role === "admin"
+            ? all.admins.find((x) => x.id === p.id) || {}
+            : null;
+      const myPlayerId =
+        p.role === "admin"
+          ? myAd.kind === "player"
+            ? myAd.playerId
+            : ""
+          : lk[p.role] || "";
+      const myKind = p.role === "admin" ? myAd.kind || "" : "player";
       const full = {
         role: p.role,
         name: p.name || "",
         adminId: p.id || "",
         myPhoto,
+        myPlayerId,
+        myKind,
         ...all,
       };
       if (!["captain", "vice"].includes(p.role)) delete full.admins; // only captain / vice manage the admin list
@@ -416,6 +480,8 @@ app.get(
       group: all.group,
       groupPhotoAt: all.groupPhotoAt,
       matches: all.matches,
+      names: all.names,
+      team: all.team,
     });
   }),
 );
@@ -538,7 +604,7 @@ app.post(
     res.json({ ok: true });
   }),
 );
-async function pushAll(payload) {
+async function pushAll(payload, only) {
   const w = webpush();
   if (!w) return;
   const [snap, gone] = await Promise.all([
@@ -551,6 +617,7 @@ async function pushAll(payload) {
     snap.docs.map(async (d) => {
       const x = d.data();
       if (x.role === "player" && removed.has(x.uid)) return;
+      if (only && !(x.role === "player" && only.has(x.uid))) return; // tagged-only message
       try {
         await w.sendNotification(x.sub, body, { TTL: 86400 });
       } catch (e) {
@@ -1120,12 +1187,122 @@ app.put(
           t: str((r || [])[1], 60),
           x: str((r || [])[2], 200),
           m: str((r || [])[3], 30),
+          g: cleanTags((r || [])[4]),
         }));
     const team = fix((req.body || {}).team),
       gk = fix((req.body || {}).gk);
     if (team.length !== 7 || gk.length !== 7)
       return res.status(400).json({ error: "Need 7 days" });
     await db.collection("config").doc("schedule").set({ team, gk });
+    done(res);
+  }),
+);
+
+// ---- tags: a tag is { k: 'p:<player id>' or 'g:all|gk|fwd|mid|def', n: label } ----
+const GROUPS = {
+  all: "Everyone",
+  gk: "Goalkeepers",
+  fwd: "Forwards",
+  mid: "Midfielders",
+  def: "Defenders",
+};
+const GROUP_RE = {
+  gk: /goal|keeper|\bgk\b/i,
+  fwd: /forward|wing|striker/i,
+  mid: /mid|half/i,
+  def: /back|defen/i,
+};
+function cleanTags(a) {
+  const seen = new Set();
+  return (Array.isArray(a) ? a : [])
+    .slice(0, 40)
+    .map((t) => ({ k: str(t && t.k, 60), n: str(t && t.n, 60) }))
+    .filter(
+      (t) =>
+        /^(p:[^\s/]{1,40}|g:(all|gk|fwd|mid|def))$/.test(t.k) &&
+        !seen.has(t.k) &&
+        seen.add(t.k),
+    )
+    .map((t) => ({
+      k: t.k,
+      n: t.k.startsWith("g:") ? GROUPS[t.k.slice(2)] : t.n || t.k.slice(2),
+    }));
+}
+// ids of the players a tag list points at (null = everyone)
+async function tagTargets(tags) {
+  if (!tags.length) return new Set();
+  if (tags.some((t) => t.k === "g:all")) return null;
+  const ids = new Set(
+    tags.filter((t) => t.k.startsWith("p:")).map((t) => t.k.slice(2)),
+  );
+  const gs = tags.filter((t) => t.k.startsWith("g:")).map((t) => t.k.slice(2));
+  if (gs.length)
+    (await db.collection("players").get()).docs.forEach((d) => {
+      const x = d.data();
+      if (
+        !x.removed &&
+        gs.some((g) => GROUP_RE[g].test(x.pos || x.position || ""))
+      )
+        ids.add(d.id);
+    });
+  return ids;
+}
+
+// ---- announcements (admins write, everybody reads through /api/data) ----
+const annBody = (b) => ({
+  title: str(b.title, 80).trim(),
+  text: str(b.text, 1500).trim(),
+  tags: cleanTags(b.tags),
+  pinned: !!b.pinned,
+});
+app.post(
+  "/api/announcements",
+  auth,
+  h(async (req, res) => {
+    const a = annBody(req.body || {});
+    if (!a.text)
+      return res
+        .status(400)
+        .json({ error: "Write the announcement text first" });
+    a.at = Date.now();
+    a.by = str(req.user.name || req.user.role, 40);
+    a.byId = str(req.user.id || req.user.role, 40);
+    await db.collection("announcements").add(a);
+    const ids = await tagTargets(a.tags).catch(() => new Set());
+    pushAll(
+      {
+        title: "📢 " + (a.title || "New announcement"),
+        body: a.text.slice(0, 140),
+        tag: "hk-ann-" + a.at,
+        url: "./",
+      },
+      ids === null ? undefined : ids,
+    ).catch(() => {});
+    done(res);
+  }),
+);
+app.put(
+  "/api/announcements/:id",
+  auth,
+  h(async (req, res) => {
+    const ref = db.collection("announcements").doc(req.params.id),
+      cur = await ref.get();
+    if (!cur.exists)
+      return res.status(404).json({ error: "Announcement not found" });
+    const a = annBody(req.body || {});
+    if (!a.text)
+      return res
+        .status(400)
+        .json({ error: "Write the announcement text first" });
+    await ref.set({ ...cur.data(), ...a, edited: Date.now() });
+    done(res);
+  }),
+);
+app.delete(
+  "/api/announcements/:id",
+  auth,
+  h(async (req, res) => {
+    await db.collection("announcements").doc(req.params.id).delete();
     done(res);
   }),
 );
@@ -1155,12 +1332,31 @@ app.post(
           error:
             "An admin with that name already exists. Use a different name.",
         });
+    const kind =
+        b.kind === "player"
+          ? "player"
+          : b.kind === "instructor"
+            ? "instructor"
+            : "",
+      playerId = kind === "player" ? str(b.playerId, 40) : "";
+    if (!kind)
+      return res.status(400).json({ error: "Choose Player or Instructor" });
+    if (
+      kind === "player" &&
+      !(playerId && (await db.collection("players").doc(playerId).get()).exists)
+    )
+      return res
+        .status(400)
+        .json({ error: "Choose which player this admin is" });
     const salt = crypto.randomBytes(16).toString("hex");
     await db
       .collection("admins")
       .add({
         name,
         disabled: false,
+        kind,
+        playerId,
+        created: Date.now(),
         salt,
         hash: crypto.scryptSync(code, salt, 32).toString("hex"),
       });
@@ -1176,7 +1372,26 @@ app.put(
     const ref = db.collection("admins").doc(req.params.id);
     if (!(await ref.get()).exists)
       return res.status(404).json({ error: "No such admin" });
-    await ref.update({ disabled: !!(req.body || {}).disabled });
+    const b = req.body || {},
+      upd = {};
+    if (b.disabled !== undefined) upd.disabled = !!b.disabled;
+    if (b.kind !== undefined) {
+      if (!["player", "instructor"].includes(b.kind))
+        return res.status(400).json({ error: "Choose Player or Instructor" });
+      upd.kind = b.kind;
+      upd.playerId = b.kind === "player" ? str(b.playerId, 40) : "";
+      if (
+        b.kind === "player" &&
+        !(
+          upd.playerId &&
+          (await db.collection("players").doc(upd.playerId).get()).exists
+        )
+      )
+        return res
+          .status(400)
+          .json({ error: "Choose which player this admin is" });
+    }
+    await ref.update(upd);
     done(res);
   }),
 );
@@ -1435,6 +1650,208 @@ app.get(
       }),
     );
     res.json(out);
+  }),
+);
+
+// ---- public page (no login): app features, captain, coach, team photos and hockey news ----
+// Only team-level, non-personal information is sent: names and photos of the captain / vice-captain / coach,
+// the team group photo, a few recent gallery thumbnails, fixtures, news and the WhatsApp group link.
+// Players' names, roll numbers, contact details and attendance are NEVER part of this reply.
+let pubCache = null,
+  pubAt = 0;
+app.get(
+  "/api/public",
+  h(async (req, res) => {
+    if (limited("pub" + req.ip, 60))
+      return res
+        .status(429)
+        .json({ error: "Too many requests. Wait a minute." });
+    if (pubCache && Date.now() - pubAt < 60000) return res.json(pubCache);
+    const [all, gb, gs] = await Promise.all([
+      readAll(),
+      db.collection("blobs").doc("groupPhoto").get(),
+      db.collection("gallery").orderBy("at", "desc").limit(8).get(),
+    ]);
+    const out = {
+      team: all.team,
+      group: all.group || "",
+      matches: all.matches,
+      groupPhoto: gb.exists ? gb.data().img || "" : "",
+      gallery: gs.docs.map((d) => d.data().thumb).filter(Boolean),
+      latest: [],
+      upcoming: [],
+      playersCount: all.players.filter((p) => !p.removed).length,
+    };
+    await Promise.all(
+      Object.keys(NEWS_Q).map(async (k) => {
+        try {
+          out[k] = await fetchNews(k);
+        } catch (e) {
+          if (newsCache[k]) out[k] = newsCache[k].items;
+          else out.err = true;
+        }
+      }),
+    );
+    pubCache = out;
+    pubAt = Date.now();
+    res.json(out);
+  }),
+);
+// Captain / vice-captain set the names shown on the public page, and which player record is the captain's / vice-captain's own
+app.put(
+  "/api/staff-names",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const b = req.body || {},
+      o = {};
+    for (const k of ["captain", "vice", "coach"])
+      if (b[k] !== undefined) o[k] = str(b[k], 40).trim();
+    if (b.links && typeof b.links === "object") {
+      const links = {};
+      for (const k of ["captain", "vice"])
+        if (b.links[k] !== undefined) {
+          const id = str(b.links[k], 40);
+          if (id && !(await db.collection("players").doc(id).get()).exists)
+            return res.status(400).json({ error: "That player was not found" });
+          links[k] = id;
+        }
+      o.links = links;
+    }
+    await db.collection("config").doc("staffNames").set(o, { merge: true });
+    pubCache = null;
+    done(res);
+  }),
+);
+
+// ---- profile cover (background) pictures. Kept apart from the main data so the 20-second refresh stays small. ----
+// k: p = player, a = admin, s = captain / vice-captain.  Anyone logged in can look; only the owner of the profile or staff can change it.
+app.get(
+  "/api/cover/:k/:id",
+  h(async (req, res) => {
+    if (!(await who(req)))
+      return res.status(401).json({ error: "Login required" });
+    const d = await db
+      .collection("blobs")
+      .doc("cover_" + req.params.k + "_" + req.params.id)
+      .get();
+    res.json({ img: d.exists ? d.data().img || "" : "" });
+  }),
+);
+app.put(
+  "/api/cover/:k/:id",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const { k, id } = req.params,
+      staff = u.role !== "player";
+    const ok =
+      k === "p"
+        ? staff || u.id === id
+        : k === "a"
+          ? (u.role === "admin" && u.id === id) ||
+            ["captain", "vice"].includes(u.role)
+          : k === "s"
+            ? u.role === id
+            : false;
+    if (!ok || !/^[\w-]{1,40}$/.test(id))
+      return res.status(403).json({ error: "You cannot change this cover" });
+    const img = (req.body || {}).img;
+    const ref = db.collection("blobs").doc("cover_" + k + "_" + id);
+    if (img === "") {
+      await ref.delete();
+      return done(res);
+    }
+    if (!bigImgOk(img, 160000))
+      return res
+        .status(400)
+        .json({ error: "Picture too large or not an image" });
+    await ref.set({ img });
+    done(res);
+  }),
+);
+
+// ---- push notifications: setup help for the captain ----
+app.get(
+  "/api/push/setup",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const n = (await db.collection("pushSubs").count().get()).data().count;
+    res.json({
+      configured: !!webpush(),
+      devices: n,
+      hasPublic: !!process.env.VAPID_PUBLIC_KEY,
+      hasPrivate: !!process.env.VAPID_PRIVATE_KEY,
+      hasSubject: !!process.env.VAPID_SUBJECT,
+    });
+  }),
+);
+// makes a fresh VAPID key pair (nothing is stored). The captain copies both values into Vercel > Environment Variables.
+app.post(
+  "/api/push/generate",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", {
+      namedCurve: "prime256v1",
+    });
+    const pub = publicKey.export({ format: "jwk" }),
+      prv = privateKey.export({ format: "jwk" });
+    const raw = Buffer.concat([
+      Buffer.from([4]),
+      Buffer.from(pub.x, "base64url"),
+      Buffer.from(pub.y, "base64url"),
+    ]);
+    res.json({ publicKey: raw.toString("base64url"), privateKey: prv.d });
+  }),
+);
+app.post(
+  "/api/push/test",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const w = webpush();
+    if (!w)
+      return res
+        .status(503)
+        .json({
+          error:
+            "Push notifications are not set up on the server yet (VAPID keys missing).",
+        });
+    const snap = await db
+      .collection("pushSubs")
+      .where("uid", "==", req.user.id || req.user.role)
+      .get();
+    if (snap.empty)
+      return res
+        .status(409)
+        .json({
+          error:
+            "This device is not subscribed yet. Turn on “Push” in the menu first.",
+        });
+    let sent = 0;
+    await Promise.all(
+      snap.docs.map(async (d) => {
+        try {
+          await w.sendNotification(
+            d.data().sub,
+            JSON.stringify({
+              title: "🏑 Test notification",
+              body: "Push notifications are working.",
+              tag: "hk-test",
+              url: "./",
+            }),
+            { TTL: 600 },
+          );
+          sent++;
+        } catch (e) {
+          if (e.statusCode === 404 || e.statusCode === 410)
+            await d.ref.delete().catch(() => {});
+        }
+      }),
+    );
+    res.json({ ok: true, sent });
   }),
 );
 

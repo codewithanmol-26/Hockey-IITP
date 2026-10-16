@@ -30,7 +30,11 @@ Test the backend alone: open `https://YOUR-SITE.vercel.app/api/health` - you sho
 If it shows "Backend not configured", a variable above is missing or the JSON was pasted wrongly.
 
 ## How it works for everyone
-- **Login first.** Nothing is shown or sent without a login. The first screen is the login page, then the Home page.
+- **Public page (no login):** shows app features, captain, vice-captain, coach, team photos, fixtures and news. Players' names, contact details and attendance are never sent without a login. **Log in** opens the login page (✕ goes back). The captain sets the names under ⋮ > *Edit captain & coach names*.
+- **Open in app / Continue in web** is asked once per browser session. A website cannot force-launch an installed app, so *Open in app* installs it (or explains how).
+- **Attendance %** = days present ÷ total working days. The total is the same for every player; a missed day counts as absent.
+- **Smartwatch:** Training tab > *Scan QR code on the watch*, then *Connect this watch* (Bluetooth). Live heart rate needs a watch that shares standard Bluetooth heart rate.
+- **Login for the app itself:** after login, Home shows personal details and feature shortcuts.
   Players: roll number + their own code. Captain / Vice-captain / Admin: **Captain / Admin** tab.
 - **Install as an app:** *Install app* on the login page or in the ⋮ menu (Chrome/Edge/Android). On iPhone: Safari > Share > Add to Home Screen. The icons are in `frontend/icons/`.
 - **⋮ menu** lists every tab plus tools: Add students, WhatsApp template (admins), Alerts on/off, calendar file, Install, Hockey WhatsApp group, Log out. Each option appears once.
@@ -136,3 +140,23 @@ Taken from the WhatsApp group screenshots and stored in `backend/seed.json` unde
 - **Removed students** redone: summary, search, filter, sort, select many, bulk restore, bulk delete forever (type DELETE), and per card Restore, Edit, Call, WhatsApp and Delete forever.
 - **Medals** 🥇🥈🥉 in the Attendance tab: a podium and medals in the table and the player bar chart (ties share a medal). Players see their own level instead (Gold 90%+, Silver 75%+, Bronze 60%+).
 - **Watch**: "Try boAt / other watch" (scans for any Bluetooth device and tells you if it shares heart rate), "Add watch summary" now also takes steps and the watch name. boAt watches normally talk only to the boAt Crest app.
+
+## Push notifications (one-time setup, captain / vice-captain)
+No command line needed: open the app > ⋮ menu > **Set up push notifications**. It makes the keys and shows the steps:
+1. Press **Generate keys**.
+2. Vercel > your project > Settings > Environment Variables: add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (`mailto:you@example.com`).
+3. Vercel > Deployments > latest > ⋯ > **Redeploy**.
+4. Every phone: ⋮ menu > *Push: day scheduled / cancelled* ON > Allow. iPhone: Add to Home Screen first (iOS 16.4+).
+5. Back in the setup window press **Send me a test**.
+
+## Profiles
+- Captain and vice-captain can be players too: ⋮ > *Edit captain & coach names* > link each to their player record. They then get the normal player profile (roll no, position, jersey, attendance).
+- Every profile can have a cover (background) picture. All photo uploads open a crop screen first.
+- Adding an admin asks **Player or Instructor** (a player admin is linked to their player record).
+
+## v18 additions
+- **Schedule tab hardened.** The weekly schedule is rebuilt row by row when it loads, so a missing, short or damaged saved schedule falls back to the built-in week instead of leaving the tab blank. A page that fails to draw now shows a message and a *Reload data* button instead of freezing. Service worker cache is now `hk-v18`.
+- **Announcements on Home** (below the welcome card). Everybody reads them; admins use **＋ New**, Edit, Delete and can pin one to the top. Stored in Firestore `announcements/<id>` (title, text, tags, pinned, by, at).
+- **Tagging** in announcements and in each Schedule day (admins: *Tag people*). Tag a player, or a group: Everyone, Goalkeepers, Forwards, Midfielders, Defenders (matched from the player's position). Tagged players see a highlighted "You are tagged" card and a dot on that day in the week strip. New announcements send a push notification to tagged players only (to everybody if *Everyone* is tagged). Schedule rows keep their tags in `config/schedule` (`g`).
+- **Day / night toggle**: ☀️/🌙 button in the header (also on the public page) and ⋮ > Appearance > *Night mode*. The choice is kept on that phone; *Use my phone's setting* goes back to automatic.
+- No new environment variables. Redeploy, then reload the app once.

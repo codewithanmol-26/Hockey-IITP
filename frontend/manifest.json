@@ -4,6 +4,8 @@
   "description": "Attendance, schedule and rules for the Inter IIT hockey team",
   "start_url": "./",
   "scope": "./",
+  "handle_links": "preferred",
+  "launch_handler": { "client_mode": "focus-existing" },
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0b2a4a",

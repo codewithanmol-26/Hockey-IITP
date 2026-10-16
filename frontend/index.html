@@ -14,14 +14,31 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Hockey">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-  <!-- 1. Login page: the first thing everyone sees. Nothing else loads until you are logged in. -->
+  <!-- 0. Public page: what everyone sees without logging in (features, captain, coach, photos, news) -->
+  <div id="pub" hidden>
+    <header>
+      <div class="brand"><img src="icons/icon-192.png" alt="" width="34" height="34">
+        <div>
+          <h1>Inter IIT Hockey</h1><span class="who">Team app</span>
+        </div>
+      </div>
+      <div class="hb"><button id="pthm" class="thb" type="button"
+          aria-label="Switch day or night mode">🌙</button><button id="pli" class="pri plog">Log in</button><button
+          id="pmb" class="mbtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋮</button></div>
+    </header>
+    <main id="pview"></main>
+  </div>
+
+  <!-- 1. Login page: reached from the public page with "Log in". The ✕ goes back to the public page. -->
   <section id="login" hidden>
     <div class="lg-card">
+      <button type="button" id="lgx" class="lgx" aria-label="Close and go back">✕</button>
       <img class="lg-logo" src="icons/icon-192.png" alt="" width="84" height="84">
       <h1>Inter IIT Hockey</h1>
       <p class="lg-sub">Attendance · Schedule · Rules</p>
@@ -62,8 +79,11 @@
           <h1>Inter IIT Hockey</h1><span id="who" class="who"></span>
         </div>
       </div>
-      <div class="hb"><button id="hp" class="hi" aria-label="My profile"></button><button id="mb" aria-label="Menu"
-          aria-haspopup="true" aria-expanded="false">⋮</button></div>
+      <div class="hb"><button id="thm" class="thb" type="button"
+          aria-label="Switch day or night mode">🌙</button><button id="xb" class="hx"
+          aria-label="Close this page and go back to Home" hidden>✕</button><button id="hp" class="hi"
+          aria-label="My profile"></button><button id="mb" class="mbtn" aria-label="Menu" aria-haspopup="true"
+          aria-expanded="false">⋮</button></div>
     </header>
     <nav id="nav" aria-label="Main"></nav>
     <main id="view"></main>
@@ -99,6 +119,28 @@
         id="tcx">Cancel</button></div>
   </dialog>
 
+  <dialog id="oia" aria-labelledby="oiat">
+    <button type="button" class="dx" id="oiax" aria-label="Close">✕</button>
+    <img src="icons/icon-192.png" alt="" width="64" height="64"
+      style="border-radius:16px;display:block;margin:0 auto 10px">
+    <h2 id="oiat" style="text-align:center;margin-bottom:4px">Open in the app?</h2>
+    <p class="mute" style="text-align:center">The app is faster, works from your home screen and can send you reminders.
+    </p>
+    <p id="oiam" class="note" hidden></p>
+    <div class="ctl" style="flex-direction:column"><button class="pri big" id="oiaa">📲 Open in app</button><button
+        class="big" id="oiaw">🌐 Continue in web</button></div>
+  </dialog>
+
+  <dialog id="qrdlg">
+    <button type="button" class="dx" id="qrx" aria-label="Close scanner">✕</button>
+    <h2>Scan watch QR code</h2>
+    <p class="mute">Open the QR code on your watch (usually under <i>Settings → About</i> or <i>Pair / Connect</i>) and
+      hold it in front of the camera.</p>
+    <div class="qrv"><video id="qrvid" playsinline muted></video><i class="qrf"></i></div>
+    <p id="qrm" class="mute" role="status">Starting camera…</p>
+    <div class="ctl"><button id="qrpick">🖼 Scan from a photo</button><button id="qrc">Cancel</button></div>
+  </dialog>
+
   <dialog id="avdlg"></dialog>
   <dialog id="pdlg"></dialog>
 
@@ -119,7 +161,7 @@
       addEventListener('unhandledrejection', function (e) { add('Promise: ' + (e.reason && e.reason.message || e.reason)) });
       setTimeout(function () {
         var a = document.getElementById('app'), l = document.getElementById('login');
-        if ((a && !a.hidden) || (l && !l.hidden)) return;
+        var pb = document.getElementById('pub'); if ((a && !a.hidden) || (l && !l.hidden) || (pb && !pb.hidden)) return;
         document.getElementById('fatalmsg').textContent = errs.join('\n') || 'No error message (the page did not reach the login screen).'; document.getElementById('fatal').hidden = false
       }, 4000);
       document.getElementById('fatalfix').onclick = function () {
@@ -129,14 +171,9 @@
     })();
   </script>
   <script src="config.js"></script>
+  <script src="public.js"></script>
+  <script src="extras.js"></script>
   <script src="app.js"></script>
-
-  <script>
-  window.va = window.va || function () {
-    (window.vaq = window.vaq || []).push(arguments);
-  };
-</script>
-<script defer src="/_vercel/insights/script.js"></script>
 </body>
 
 </html>
