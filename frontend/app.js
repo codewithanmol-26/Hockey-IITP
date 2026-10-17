@@ -522,7 +522,7 @@ function openReport(pre) {
     const sc = $("rsc").value,
       v = $("rv").value,
       pl = sc === "person" ? P.find((p) => p.id === v) : null;
-    phn = (adm && pl && pl.contact) || "";
+    phn = "";
     $("shx").value = reportText(sc, v);
     links();
   };
@@ -1098,35 +1098,105 @@ $("lf").onsubmit = async (e) => {
 };
 
 // ---- player login / first-time signup ----
-let pStep = "roll";
+let pStep = "roll",
+  pInfo = {},
+  pTimer = 0;
 const pErr = (x) => {
   $("pe").textContent =
-    x.status === 429
+    x.status === 429 && !x.message
       ? "Too many tries. Wait a minute."
-      : x.status
+      : x.status || x.network
         ? x.message
         : "Cannot reach the server.";
 };
-function pForm(hasAcc) {
-  pStep = hasAcc ? "login" : "signup";
+function pCount(sec) {
+  // "send again" button counts down
+  clearInterval(pTimer);
+  let n = sec;
+  const tick = () => {
+    const b = $("presend");
+    if (!b) {
+      clearInterval(pTimer);
+      return;
+    }
+    b.disabled = n > 0;
+    b.textContent =
+      n > 0 ? "Send the code again in " + n + "s" : "Send the code again";
+    if (n-- <= 0) clearInterval(pTimer);
+  };
+  tick();
+  pTimer = setInterval(tick, 1000);
+}
+function pForm(hasAcc, info) {
+  clearInterval(pTimer);
+  pInfo = info || {};
   $("pgo").hidden = true;
-  $("pa").innerHTML = hasAcc
-    ? `<label class="fl">Your code<input id="pc" type="password" placeholder="Your unique code" autocomplete="current-password" required></label><button class="pri big" id="plg">Log in</button><p class="hint">Forgot your code? Ask the captain to press <b>Reset code</b> for you, then sign up again.</p>`
-    : `<p class="note">First time here. Confirm the contact number you gave the captain, then choose your own unique code. You will use it to log in next time.</p><label class="fl">Contact number<input id="po" inputmode="tel" placeholder="Your contact number" autocomplete="tel" maxlength="15" required></label><label class="fl">Choose your unique code<input id="pc" type="password" placeholder="4 or more characters" maxlength="30" autocomplete="new-password" required></label><button class="pri big" id="plg">Create account &amp; log in</button>`;
+  if (hasAcc) {
+    pStep = "login";
+    $("pa").innerHTML =
+      `<label class="fl">Your code<input id="pc" type="password" placeholder="Your unique code" autocomplete="current-password" required></label><button class="pri big" id="plg">Log in</button><p class="hint">Forgot your code? Ask the captain to press <b>Reset code</b> for you, then sign up again.</p>`;
+    $("pe").textContent = "";
+    $("pc").focus();
+    return;
+  }
+  pStep = "email";
+  $("pa").innerHTML =
+    `<p class="note">First time here. We will send a 6 digit code to your e-mail to confirm it is you.</p>` +
+    (pInfo.emailHint
+      ? `<p>The code goes to the e-mail the captain saved for you: <b>${esc(pInfo.emailHint)}</b></p>`
+      : `<label class="fl">Your e-mail${pInfo.domain ? " (@" + esc(pInfo.domain) + ")" : ""}<input id="pm" type="email" inputmode="email" autocomplete="email" placeholder="${pInfo.domain ? "you@" + esc(pInfo.domain) : "you@example.com"}" maxlength="120" required></label>`) +
+    `<button class="pri big" id="psend">Send code</button>`;
   $("pe").textContent = "";
-  ($("po") || $("pc")).focus();
+  if ($("pm")) $("pm").focus();
+}
+function pOtp(sentTo, wait) {
+  pStep = "otp";
+  $("pa").innerHTML =
+    `<p class="note">We sent a 6 digit code to <b>${esc(sentTo)}</b>. It works for 10 minutes. Look in spam or junk if you cannot see it.</p>
+  <label class="fl">Code from the e-mail<input id="po" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="6 digits" required></label>
+  <label class="fl">Choose your unique code<input id="pc" type="password" placeholder="4 or more characters" maxlength="30" autocomplete="new-password" required></label>
+  <button class="pri big" id="plg">Create account &amp; log in</button><button type="button" id="presend" disabled>Send the code again</button>`;
+  $("presend").onclick = async () => {
+    $("pe").textContent = "";
+    $("presend").disabled = true;
+    try {
+      const r = await api("/api/player/otp", {
+        method: "POST",
+        body: { roll: $("pr").value.trim(), email: pInfo.typed || "" },
+      });
+      $("pe").textContent = "A new code was sent.";
+      pCount(r.wait || 60);
+    } catch (x) {
+      pErr(x);
+      pCount(x.status === 429 ? 30 : 0);
+    }
+  };
+  pCount(wait || 60);
+  $("po").focus();
 }
 $("pf").onsubmit = async (e) => {
   e.preventDefault();
   $("pe").textContent = "";
-  const roll = $("pr").value.trim();
+  const roll = $("pr").value.trim(),
+    btn = e.submitter || $("pf").querySelector("button.pri:not([hidden])");
+  if (btn) btn.disabled = true;
   try {
     if (pStep === "roll") {
       const r = await api("/api/player/check", {
         method: "POST",
         body: { roll },
       });
-      pForm(r.hasAccount);
+      pForm(r.hasAccount, r);
+      return;
+    }
+    if (pStep === "email") {
+      const em = $("pm") ? $("pm").value.trim() : "";
+      const r = await api("/api/player/otp", {
+        method: "POST",
+        body: { roll, email: em },
+      });
+      pInfo.typed = em;
+      pOtp(r.sentTo, r.wait);
       return;
     }
     const r =
@@ -1137,18 +1207,22 @@ $("pf").onsubmit = async (e) => {
           })
         : await api("/api/player/signup", {
             method: "POST",
-            body: { roll, contact: $("po").value.trim(), code: $("pc").value },
+            body: { roll, otp: $("po").value.trim(), code: $("pc").value },
           });
+    clearInterval(pTimer);
     saveToken(r.token);
     tab = "me";
     boot();
   } catch (x) {
     pErr(x);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 };
 $("pr").oninput = () => {
   if (pStep !== "roll") {
     pStep = "roll";
+    clearInterval(pTimer);
     $("pa").innerHTML = "";
     $("pgo").hidden = false;
   }
@@ -1273,6 +1347,7 @@ function drawMenu() {
       },
       { sw: alertOn },
     ) +
+    mi("📨", "Send me a test notification", testPush) +
     (owner ? mi("🛠️", "Set up push notifications", openPushHelp) : "");
   h +=
     `<div class="ms">App</div>` +
@@ -1357,7 +1432,7 @@ $("sf").onsubmit = async (e) => {
       "/api/players/bulk",
       {
         players: [
-          { name: $("sn").value, roll: $("sr").value, contact: $("sc").value },
+          { name: $("sn").value, roll: $("sr").value, email: $("sc").value },
         ],
       },
       $("sf").querySelector("button"),
@@ -1372,7 +1447,7 @@ $("sba").onclick = async () => {
     .value.split("\n")
     .map((l) => l.split(/\t|,/).map((x) => x.trim()))
     .filter((a) => a.some(Boolean))
-    .map((a) => ({ name: a[0], roll: a[1], contact: a[2] }));
+    .map((a) => ({ name: a[0], roll: a[1], email: a[2] }));
   if (!players.length) {
     $("sm").textContent = "Type or paste at least one line.";
     return;
@@ -1433,13 +1508,7 @@ function weekMsg(k) {
   return (
     `🏑 *Inter IIT Hockey: Weekly schedule${k === "gk" ? " (Goalkeepers)" : ""}*\n\n` +
     SCH[k]
-      .map(
-        (r) =>
-          (r[3] ? `*${r[0]}*: ${r[1]}, ${r[3]}` : `*${r[0]}*: ${r[1]}`) +
-          ((r[4] || []).length
-            ? " " + r[4].map((t) => "@" + t.n).join(" ")
-            : ""),
-      )
+      .map((r) => (r[3] ? `*${r[0]}*: ${r[1]}, ${r[3]}` : `*${r[0]}*: ${r[1]}`))
       .join("\n") +
     "\n\nReport on time. Timings may shift based on turf availability and the coach's call."
   );
@@ -1659,6 +1728,20 @@ function pushDrop(tk) {
     })
     .catch(() => {});
   pushOn = false;
+}
+async function testPush() {
+  if (!pushOn) {
+    alert(
+      'This phone is not subscribed to notifications yet. Turn on "Push: day scheduled / cancelled" in this menu first, then test again.',
+    );
+    return;
+  }
+  try {
+    const r = await api("/api/push/test", { method: "POST", body: {} });
+    alert(r.msg || (r.ok ? "Sent." : "Not sent."));
+  } catch (e) {
+    alert("Could not run the test: " + e.message);
+  }
 }
 function pushCard() {
   let no = false;
@@ -2169,15 +2252,14 @@ function vSched() {
   const rows = SCH[sch],
     i = schDay,
     r = rows[i];
-  let dayTags = (r[4] || []).slice();
   $("view").innerHTML = `<div class="card"><h2>Weekly practice schedule</h2>
   <div class="seg2"><button class="${sch === "team" ? "on" : ""}" data-s="team">Team</button><button class="${sch === "gk" ? "on" : ""}" data-s="gk">Goalkeepers</button></div>
-  <div class="week">${rows.map((x, k) => `<button type="button" class="wd ${k === ti ? "today" : ""} ${k === i ? "sel" : ""} ${x[3] ? "" : "rest"}" data-w="${k}" aria-pressed="${k === i}" aria-label="${x[0]}"><b>${DAB[k]}</b><span>${x[3] ? "🏑" : "😴"}</span>${tagMine(x[4]) ? '<i class="tdot" title="You are tagged"></i>' : ""}</button>`).join("")}</div>
+  <div class="week">${rows.map((x, k) => `<button type="button" class="wd ${k === ti ? "today" : ""} ${k === i ? "sel" : ""} ${x[3] ? "" : "rest"}" data-w="${k}" aria-pressed="${k === i}" aria-label="${x[0]}"><b>${DAB[k]}</b><span>${x[3] ? "🏑" : "😴"}</span></button>`).join("")}</div>
   <div class="dayc ${r[3] ? "" : "rest"} ${i === ti ? "today" : ""}">
     <div class="dhead"><span class="dbadge">${DAB[i]}</span><span class="dm"><b>${esc(r[1])}</b><small>${r[3] ? "⏰ " + esc(r[3]) : "Rest day"}</small></span>${i === ti ? '<span class="pill g">Today</span>' : ""}</div>
-    <div class="db"><p>${esc(r[2])}</p>${(r[4] || []).length ? `<div class="kv"><span>Tagged</span><b>${tagChips(r[4])}</b></div>${tagMine(r[4]) ? '<p class="note" style="margin:8px 0">📌 You are tagged for this session.</p>' : ""}` : ""}
+    <div class="db"><p>${esc(r[2])}</p>
       <div class="kv"><span>Day</span><b>${r[0]}</b></div><div class="kv"><span>Timing</span><b>${r[3] ? esc(r[3]) : "No session"}</b></div><div class="kv"><span>Next date</span><b>${fmt(nextDateOf(i))}</b></div>
-      ${admin ? `<div class="edit"><label class="fl">Session name<input id="de-t" value="${esc(r[1])}" maxlength="60"></label><label class="fl">Details<input id="de-x" value="${esc(r[2])}" maxlength="200"></label><label class="fl">Timing, e.g. 6:30–8:30 PM (empty = rest day)<input id="de-m" value="${esc(r[3])}" maxlength="30"></label><div class="fl">Tag players for this session<div id="de-g" class="tgsel"></div><button type="button" id="de-gb">🏷️ Tag people</button></div></div>` : ""}
+      ${admin ? `<div class="edit"><label class="fl">Session name<input id="de-t" value="${esc(r[1])}" maxlength="60"></label><label class="fl">Details<input id="de-x" value="${esc(r[2])}" maxlength="200"></label><label class="fl">Timing, e.g. 6:30–8:30 PM (empty = rest day)<input id="de-m" value="${esc(r[3])}" maxlength="30"></label></div>` : ""}
       <div class="chips"><button data-sh="1">⤴ Share this day</button>${admin ? `<button class="pri" data-sv="1">Save changes</button>${r[3] ? `<button data-nx="1">Schedule next ${r[0]}</button>` : ""}` : ""}</div></div></div>
   <p class="mute">Tap a day above to see it. Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: ${esc(nameOf2("coach"))}.</p>
   <div class="chips"><button id="wsch">⤴ Share whole week</button><button id="wcal">📅 Add to calendar</button></div></div>`;
@@ -2197,27 +2279,13 @@ function vSched() {
         vSched();
       }),
   );
-  const paintDT = () => {
-    const g = $("de-g");
-    if (g)
-      g.innerHTML = dayTags.length
-        ? tagChips(dayTags)
-        : '<span class="mute">Nobody tagged</span>';
-  };
-  paintDT();
-  if ($("de-gb"))
-    $("de-gb").onclick = () =>
-      pickTags(dayTags, (t) => {
-        dayTags = t;
-        paintDT();
-      });
   document
     .querySelectorAll("[data-sh]")
     .forEach(
       (b) =>
         (b.onclick = () =>
           shareText(
-            `🏑 *Inter IIT Hockey: ${r[0]}*\n${r[1]}\n${r[2]}\n⏰ ${r[3] || "Rest day"}${(r[4] || []).length ? "\n🏷️ " + r[4].map((t) => "@" + t.n).join(" ") : ""}`,
+            `🏑 *Inter IIT Hockey: ${r[0]}*\n${r[1]}\n${r[2]}\n⏰ ${r[3] || "Rest day"}`,
             "Practice",
           )),
     );
@@ -2229,7 +2297,7 @@ function vSched() {
           $("de-t").value.trim(),
           $("de-x").value.trim(),
           $("de-m").value.trim(),
-          dayTags,
+          [],
         ];
         run(async () => {
           await api("/api/schedule", {
@@ -2718,7 +2786,26 @@ function nextPlan() {
     : "";
 }
 let planSel = "",
-  planMon = "";
+  planMon = "",
+  planTags = [];
+const pushMsg = (r) => {
+  const p = r && r.push;
+  if (!p) return "";
+  if (!p.configured)
+    return "\n\n⚠️ Push notifications are NOT set up on the server (keys missing), so nobody was notified. Open the menu > Set up push notifications.";
+  if (!p.total)
+    return "\n\nNobody has turned on notifications yet, so nobody was notified.";
+  return (
+    "\n\n🔔 Notified " +
+    p.sent +
+    " of " +
+    p.total +
+    " phone" +
+    (p.total > 1 ? "s" : "") +
+    "." +
+    (p.failed ? " " + p.failed + " could not be reached." : "")
+  );
+};
 function wkOpen() {
   const t = new Date(today() + "T00:00"),
     out = [];
@@ -2750,7 +2837,7 @@ function vPlan() {
       p = PL[d],
       st = p ? (p.status === "cancelled" ? "cx" : SS[d] ? "dn" : "pl") : "";
     cells.push(
-      `<button type="button" class="cd ${st} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}"><b>${n}</b>${p ? "<i></i>" : !p && d >= td && SCH.team[dayIdx(d)][3] ? '<i class="wk"></i>' : ""}</button>`,
+      `<button type="button" class="cd ${st} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}"><b>${n}</b>${p ? "<i></i>" + (p.status !== "cancelled" && tagMine(p.tags) ? '<u class="tdot" title="You are tagged"></u>' : "") : !p && d >= td && SCH.team[dayIdx(d)][3] ? '<i class="wk"></i>' : ""}</button>`,
     );
   }
   const dayCard = (d) => {
@@ -2762,13 +2849,13 @@ function vPlan() {
     const c = p.status === "cancelled",
       r = SCH.team[dayIdx(d)];
     return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> ${c ? '<span class="pill r">Cancelled</span>' : d >= td ? `<span class="pill g">${dlabel(d)}</span>` : ""} ${SS[d] ? '<span class="pill g">Attendance recorded</span>' : ""}</p>
-    <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p>${p.venue ? `<p style="margin:2px 0 0">📍 ${esc(p.venue)}</p>` : ""}<p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}
+    <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p>${p.venue ? `<p style="margin:2px 0 0">📍 ${esc(p.venue)}</p>` : ""}<p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}${(p.tags || []).length ? `<p style="margin:6px 0 0">🏷️ ${tagChips(p.tags)}</p>` : ""}${tagMine(p.tags) && !c ? `<p class="note" style="margin:8px 0">📌 You are tagged for this playing day.</p>` : ""}
     ${d >= td && !c ? availBlock(d) : ""}
     ${admin ? `<div class="chips"><button data-a="ed" data-d="${d}">✏️ Edit</button><button data-a="take" data-d="${d}">Attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></div>` : ""}`;
   };
   const fd = PL[planSel] ? td : planSel;
   $("view").innerHTML =
-    `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${fd}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(fd)][3])}"></div><div class="ctl"><input id="pv" placeholder="Venue" maxlength="80" value="${esc(lastVenue())}" style="flex:1"></div><div class="ctl"><input id="pn" name="hk-plan-note" autocomplete="off" autocorrect="off" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pa">Add</button></div></div>` : ""}
+    `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${fd}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(fd)][3])}"></div><div class="ctl"><input id="pv" placeholder="Venue" maxlength="80" value="${esc(lastVenue())}" style="flex:1"></div><div class="ctl"><button type="button" id="pltg">🏷️ Tag people</button><span id="pltgs" class="tgsel"></span></div><div class="ctl"><input id="pn" name="hk-plan-note" autocomplete="off" autocorrect="off" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pladd">Add</button></div></div>` : ""}
   <div class="card"><h2>Playing days</h2>
   <div class="calh"><button type="button" data-mn="-1" aria-label="Previous month">‹</button><b>${mfmt(planMon)}</b><button type="button" data-mn="1" aria-label="Next month">›</button><button type="button" data-tdy="1">Today</button></div>
   <div class="cal"><span class="cw">M</span><span class="cw">T</span><span class="cw">W</span><span class="cw">T</span><span class="cw">F</span><span class="cw">S</span><span class="cw">S</span>${cells.join("")}</div>
@@ -2797,23 +2884,35 @@ function vPlan() {
     vPlan();
   };
   if (!admin) return;
+  const paintPT = () => {
+    $("pltgs").innerHTML = planTags.length
+      ? tagChips(planTags)
+      : '<span class="mute">Nobody tagged</span>';
+  };
+  paintPT();
+  $("pltg").onclick = () =>
+    pickTags(planTags, (t) => {
+      planTags = t;
+      paintPT();
+    });
   $("pd").onchange = (e) => {
     if (e.target.value) $("pt").value = SCH.team[dayIdx(e.target.value)][3];
   };
-  $("pa").onclick = () => {
+  $("pladd").onclick = () => {
     const d = $("pd").value;
     if (!d) return;
-    const ab = $("pa");
+    const ab = $("pladd");
     ab.disabled = true;
     ab.textContent = "Adding…";
     run(async () => {
-      await api("/api/plans/" + d, {
+      const r = await api("/api/plans/" + d, {
         method: "PUT",
         body: {
           time: $("pt").value.trim(),
           venue: $("pv").value.trim(),
           note: $("pn").value.trim(),
           status: "planned",
+          tags: planTags,
         },
       });
       try {
@@ -2821,12 +2920,13 @@ function vPlan() {
       } catch (e) {}
       planSel = d;
       planMon = d.slice(0, 7);
+      planTags = [];
       await load(true);
-      alert(fmt(d) + " added as a playing day.");
+      alert(fmt(d) + " added as a playing day." + pushMsg(r));
     }).finally(() => {
-      if ($("pa")) {
-        $("pa").disabled = false;
-        $("pa").textContent = "Add";
+      if ($("pladd")) {
+        $("pladd").disabled = false;
+        $("pladd").textContent = "Add";
       }
     });
   };
@@ -2854,8 +2954,9 @@ function vPlan() {
           )
             return;
           run(async () => {
+            let r;
             for (const x of ds)
-              await api("/api/plans/" + x, {
+              r = await api("/api/plans/" + x, {
                 method: "PUT",
                 body: {
                   time: SCH.team[dayIdx(x)][3],
@@ -2865,6 +2966,7 @@ function vPlan() {
                 },
               });
             await load(true);
+            alert(ds.length + " playing day(s) scheduled." + pushMsg(r));
           });
         } else if (a === "take") {
           takeDate = d;
@@ -2874,14 +2976,16 @@ function vPlan() {
         else if (a === "wa") wa(planMsg(d));
         else if (a === "cx")
           run(async () => {
-            await api("/api/plans/" + d, {
+            const r = await api("/api/plans/" + d, {
               method: "PUT",
               body: {
                 ...PL[d],
                 status: PL[d].status === "cancelled" ? "planned" : "cancelled",
               },
             });
-            await load();
+            await load(true);
+            const m = pushMsg(r);
+            if (m) alert("Done." + m);
           });
         else if (confirm("Delete the plan for " + fmt(d) + "?"))
           run(async () => {
@@ -3037,7 +3141,7 @@ function rmList() {
     <span class="pi"><b>${esc(p.name)}</b><small>${esc([p.roll, p.position].filter(Boolean).join(" · ")) || "&nbsp;"}</small>
     <small>${p.removedAt ? "Removed " + when(p.removedAt) + (p.removedBy ? " by " + esc(p.removedBy) : "") : "Removed"}</small>
     <span class="bar" style="margin:5px 0 2px"><i style="width:${s.pct}%"></i></span><small>${s.t ? `Attended ${s.pr} of ${s.t} days (${s.pct}%)` : "No attendance recorded"}${p.joined ? " · joined " + esc(p.joined.slice(0, 10)) : ""}</small>
-    <span class="rca" data-stop><button class="pri" data-rs="${p.id}">↩ Restore</button><button data-re="${p.id}">✏️ Edit</button>${p.contact ? `<a class="btn" href="tel:${esc(p.contact)}" aria-label="Call">📞</a><a class="btn" href="https://wa.me/${to91(p.contact)}" target="_blank" rel="noopener" aria-label="WhatsApp">💬</a>` : ""}<button class="dng" data-rx="${p.id}" aria-label="Delete forever">🗑</button></span></span></div>`;
+    <span class="rca" data-stop><button class="pri" data-rs="${p.id}">↩ Restore</button><button data-re="${p.id}">✏️ Edit</button><button class="dng" data-rx="${p.id}" aria-label="Delete forever">🗑</button></span></span></div>`;
     })
     .join("")}</div>`;
 }
@@ -3061,7 +3165,7 @@ function vRemoved() {
   rmSel = new Set([...rmSel].filter((id) => RM.some((p) => p.id === id)));
   $("view").innerHTML =
     `<div class="card"><h2>Removed students (${RM.length})</h2>
-  <p class="mute">They cannot log in and are not counted in team attendance. <b>Nothing is deleted</b>: contact, jersey details, joining date and every attendance record are kept until you delete a student forever.</p>
+  <p class="mute">They cannot log in and are not counted in team attendance. <b>Nothing is deleted</b>: e-mail, jersey details, joining date and every attendance record are kept until you delete a student forever.</p>
   <div class="stats"><div><b>${RM.length}</b>Removed</div><div><b>${wa2.length ? avg + "%" : "–"}</b>Avg attendance</div><div><b>${thisM}</b>This month</div></div>
   <div class="tkq"><input id="rmq" type="search" placeholder="Search name, roll no or position" value="${esc(rmQ)}" aria-label="Search removed students"></div>
   <div class="ctl" style="margin:8px 0"><label class="fl" style="flex:1;margin:0">Show<select id="rmf"><option value="all" ${rmF === "all" ? "selected" : ""}>Everyone</option><option value="att" ${rmF === "att" ? "selected" : ""}>Has attendance</option><option value="none" ${rmF === "none" ? "selected" : ""}>No attendance</option></select></label><label class="fl" style="flex:1;margin:0">Sort<select id="rms"><option value="recent" ${rmS === "recent" ? "selected" : ""}>Recently removed</option><option value="name" ${rmS === "name" ? "selected" : ""}>Name A to Z</option><option value="att" ${rmS === "att" ? "selected" : ""}>Attendance, high to low</option></select></label></div>
@@ -3321,7 +3425,6 @@ function vProfile() {
     ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
     <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} playing days</p><div class="dots">${dots}</div></div>` : ""}</div></div>
     <div class="card"><h2>Details</h2>${kv("Roll number", esc(p.roll))}${kv("Position", esc(p.position))}${kv("Joined", p.joined ? fmt(p.joined) : "")}
-      ${p.contact ? `<div class="kv"><span>Contact</span><b><a href="tel:${esc(p.contact)}">${esc(p.contact)}</a> · <a href="https://wa.me/${to91(p.contact)}" target="_blank" rel="noopener">WhatsApp</a></b></div>` : admin || own ? kv("Contact", "<i>not saved</i>") : ""}
       ${kv("E-mail", p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : "")}${kv("Jersey", jersey)}
       ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}</div>` : ""}</div></div>`;
     $("view").innerHTML = h;
@@ -3333,7 +3436,7 @@ function vProfile() {
           confirm(
             "Reset the login code for " +
               p.name +
-              "? They will sign up again with roll number + contact number and choose a new code.",
+              "? They will sign up again with a new e-mail code and choose a new code.",
           )
         )
           run(async () => {
@@ -3477,7 +3580,7 @@ function openEdit(p, own) {
   }
   const f = (id, l, v, o = "") =>
     `<label class="fl">${l}<input id="ed-${id}" value="${esc(v || "")}" ${o}></label>`;
-  d.innerHTML = `<h2>${own ? "Edit my profile" : "Edit " + esc(p.name)}</h2>${f("n", "Name", p.name, 'maxlength="40"')}${own ? "" : f("r", "Roll number", p.roll, 'maxlength="12"')}${f("p", "Position", p.position, 'maxlength="40"')}${f("c", "Contact number", p.contact, 'inputmode="tel" maxlength="15"')}${f("e", "E-mail", p.email, 'maxlength="40"')}${f("jn", "Jersey name", p.jerseyName, 'maxlength="40"')}${f("jo", "Jersey number", p.jerseyNo, 'maxlength="4"')}${f("sz", "Jersey size", p.size, 'maxlength="6"')}${own ? "" : f("j", "Joined date", p.joined, 'type="date"')}
+  d.innerHTML = `<h2>${own ? "Edit my profile" : "Edit " + esc(p.name)}</h2>${f("n", "Name", p.name, 'maxlength="40"')}${own ? "" : f("r", "Roll number", p.roll, 'maxlength="12"')}${f("p", "Position", p.position, 'maxlength="40"')}${f("e", "E-mail", p.email, 'type="email" inputmode="email" maxlength="120"')}${f("jn", "Jersey name", p.jerseyName, 'maxlength="40"')}${f("jo", "Jersey number", p.jerseyNo, 'maxlength="4"')}${f("sz", "Jersey size", p.size, 'maxlength="6"')}${own ? "" : f("j", "Joined date", p.joined, 'type="date"')}
   <div class="ctl"><button class="pri" id="eds">Save</button><button id="edc">Cancel</button></div>`;
   $("edc").onclick = () => d.close();
   $("eds").onclick = () => {
@@ -3486,7 +3589,6 @@ function openEdit(p, own) {
     const body = {
       name: g("n"),
       position: g("p"),
-      contact: g("c"),
       email: g("e"),
       jerseyName: g("jn"),
       jerseyNo: g("jo"),
@@ -3791,11 +3893,11 @@ const HIST = [
   ["2024", "Paris Olympics", "Back-to-back bronze medals, beating Spain 2–1."],
   ["2026", "Asian Games, Aichi-Nagoya", "India defend their Asian Games gold."],
 ];
-async function fetchNews() {
-  if (newsBusy || (NEWS && Date.now() - newsAt < 600000)) return;
+async function fetchNews(fresh) {
+  if (newsBusy || (!fresh && NEWS && Date.now() - newsAt < 300000)) return;
   newsBusy = true;
   try {
-    NEWS = await api("/api/news");
+    NEWS = await api("/api/news" + (fresh ? "?fresh=1" : ""));
     newsAt = Date.now();
   } catch (e) {
     NEWS = { latest: [], upcoming: [], err: true };
@@ -3808,7 +3910,7 @@ const newsRows = (a) =>
   a
     .map(
       (n) =>
-        `<a class="nw" href="${esc(n.u)}" target="_blank" rel="noopener"><b>${esc(n.t)}</b><span class="mute">${esc(n.s)}${n.s && n.at ? " · " : ""}${ago(n.at)}</span></a>`,
+        `<a class="nw" href="${esc(n.u)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(n.t)}. Opens the article on ${esc(n.s || "the news site")}"><span class="nwt"><b>${esc(n.t)}</b><span class="mute">${esc(n.s)}${n.s && n.at ? " · " : ""}${ago(n.at)}</span></span><i class="nwa" aria-hidden="true">↗</i></a>`,
     )
     .join("");
 const newsBox = (a, txt) =>
@@ -3894,7 +3996,7 @@ function vMe() {
         ? "Vice-captain"
         : "Admin";
   $("view").innerHTML = `${pushCard()}${welcomeHero()}
-  ${annCard()}${myInfoCard()}${featTiles()}${teamCard()}
+  ${annCard()}${featTiles()}${teamCard()}
   ${gphCard()}
   <div class="grid">${nextCard()}${upCard()}${newsCard()}${histCard()}</div>`;
   bindHome();
@@ -3909,7 +4011,7 @@ function vMe() {
     $("nwr").onclick = () => {
       newsAt = 0;
       NEWS = null;
-      fetchNews();
+      fetchNews(true);
       render();
     };
 }
@@ -3930,30 +4032,100 @@ async function loadGallery() {
   galBusy = false;
   if (tab === "gallery" && !prof) render();
 }
+const GCATS = [
+  ["fitness", "🏋️", "Fitness"],
+  ["practice", "🏑", "Practice"],
+  ["match", "🥅", "Match"],
+];
+const gcLabel = (k) => {
+  const c = GCATS.find((x) => x[0] === k);
+  return c ? c[1] + " " + c[2] : "";
+};
+let galCat = "all";
 function vGallery() {
   if (!galLoaded && !galBusy && !galErr) loadGallery();
-  const grid = GAL.length
-    ? `<div class="gal">${GAL.map((g) => `<button class="gi" data-g="${g.id}" aria-label="Open photo"><img src="${g.thumb}" alt="" loading="lazy"></button>`).join("")}</div>`
+  const cnt = (k) =>
+    k === "all" ? GAL.length : GAL.filter((g) => g.cat === k).length;
+  const list = galCat === "all" ? GAL : GAL.filter((g) => g.cat === galCat);
+  const tabs = [["all", "🖼️", "All"], ...GCATS]
+    .map(
+      (c) =>
+        `<button type="button" role="tab" aria-selected="${c[0] === galCat}" class="${c[0] === galCat ? "pri" : ""}" data-gc="${c[0]}">${c[1]} ${c[2]} <small>${cnt(c[0])}</small></button>`,
+    )
+    .join("");
+  const grid = list.length
+    ? `<div class="gal">${list.map((g) => `<figure class="gf"><button class="gi" data-g="${g.id}" aria-label="Open photo${g.desc ? ": " + esc(g.desc) : ""}"><img src="${g.thumb}" alt="${esc(g.desc || "")}" loading="lazy"></button>${g.desc ? `<figcaption>${esc(g.desc)}</figcaption>` : ""}</figure>`).join("")}</div>`
     : empty(
         "🖼️",
         galErr ||
-          (galLoaded ? "No photos yet. Add the first one!" : "Loading…"),
+          (galLoaded
+            ? galCat === "all"
+              ? "No photos yet. Add the first one!"
+              : "No " +
+                gcLabel(galCat).split(" ")[1].toLowerCase() +
+                " photos yet."
+            : "Loading…"),
       );
   $("view").innerHTML =
-    `<div class="card"><h2>Gallery</h2><p class="mute">Team photos. Everyone can add photos. Admins can delete any photo; you can delete your own.</p>
+    `<div class="card"><h2>Gallery</h2><p class="mute">Team photos in three sections. Everyone can add photos. Admins can delete any photo; you can edit or delete your own.</p>
+  <div class="chips gtabs" role="tablist" aria-label="Gallery sections">${tabs}</div>
   <div class="ctl"><button class="pri" id="gadd">📷 Add photos</button>${galErr ? '<button id="gtry">Try again</button>' : ""}</div><p id="gup" class="mute" role="status"></p>${grid}</div>`;
-  $("gadd").onclick = () => pickFiles(uploadPhotos, true);
+  $("gadd").onclick = openUpload;
   if ($("gtry"))
     $("gtry").onclick = () => {
       galErr = "";
       galLoaded = false;
       render();
     };
+  document.querySelectorAll("[data-gc]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        galCat = b.dataset.gc;
+        vGallery();
+      }),
+  );
   document
     .querySelectorAll("[data-g]")
     .forEach((b) => (b.onclick = () => openPhoto(b.dataset.g)));
 }
-async function uploadPhotos(files) {
+// section buttons used by both the upload and the edit window
+const catBtns = (cur, id) =>
+  `<div class="chips" id="${id}" role="radiogroup" aria-label="Section">${GCATS.map((c) => `<button type="button" role="radio" aria-checked="${c[0] === cur}" class="${c[0] === cur ? "pri" : ""}" data-pc="${c[0]}">${c[1]} ${c[2]}</button>`).join("")}</div>`;
+function bindCats(id, get, set) {
+  const box = $(id);
+  box.querySelectorAll("[data-pc]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        set(b.dataset.pc);
+        box.querySelectorAll("[data-pc]").forEach((x) => {
+          const on = x.dataset.pc === get();
+          x.classList.toggle("pri", on);
+          x.setAttribute("aria-checked", on);
+        });
+      }),
+  );
+}
+function openUpload() {
+  const d = ensureDlg("upddlg");
+  let cat = galCat === "all" ? "practice" : galCat;
+  d.innerHTML = `<h2>Add photos</h2><p class="mute" style="margin:0 0 6px">Which section?</p>${catBtns(cat, "upc")}
+  <label class="fl">Short description (optional)<input id="upd" maxlength="120" placeholder="e.g. Penalty corner drill" autocomplete="off"></label>
+  <p class="mute" style="margin:0 0 8px">If you pick several photos, they all get this section and description. You can edit each one afterwards.</p>
+  <div class="ctl"><button class="pri" id="upgo">Choose photos</button><button id="upx">Cancel</button></div>`;
+  bindCats(
+    "upc",
+    () => cat,
+    (v) => (cat = v),
+  );
+  $("upx").onclick = () => d.close();
+  $("upgo").onclick = () => {
+    const desc = $("upd").value.trim();
+    d.close();
+    pickFiles((f) => uploadPhotos(f, cat, desc), true);
+  };
+  d.showModal();
+}
+async function uploadPhotos(files, cat, desc) {
   const st = (t) => {
     const e = $("gup");
     if (e) e.textContent = t;
@@ -3980,7 +4152,10 @@ async function uploadPhotos(files) {
       });
       if (!img) continue;
       const thumb = await fileToImg(await dataToBlob(img), 360, 0.72, 55000);
-      await api("/api/gallery", { method: "POST", body: { img, thumb } });
+      await api("/api/gallery", {
+        method: "POST",
+        body: { img, thumb, cat: cat || "practice", desc: desc || "" },
+      });
       ok++;
     } catch (e) {
       if (e.status === 401) {
@@ -3991,7 +4166,12 @@ async function uploadPhotos(files) {
       if (e.status === 429 || e.status === 409) break;
     }
   }
-  st(ok ? `Added ${ok} photo${ok > 1 ? "s" : ""}.` : "");
+  if (ok) galCat = cat || "practice"; // show the section the photos went to
+  st(
+    ok
+      ? `Added ${ok} photo${ok > 1 ? "s" : ""} to ${gcLabel(cat || "practice")}.`
+      : "",
+  );
   await loadGallery();
 }
 async function openPhoto(id) {
@@ -4000,37 +4180,71 @@ async function openPhoto(id) {
   const d = ensureDlg("phdlg");
   let full = "";
   const can = admin || g.mine;
-  d.innerHTML = `<img class="bigimg" id="phi" src="${g.thumb}" alt=""><p class="mute" style="margin:8px 0 0">${esc(g.by)}${g.by && g.at ? " · " : ""}${when(g.at)}</p>
-  <div class="ctl"><a class="btn" id="phdl" download="hockey-photo.jpg" hidden>⬇ Save</a>${admin ? '<button id="phg" disabled>🖼 Use as group photo</button>' : ""}${can ? '<button id="phd" class="dng">🗑 Delete</button>' : ""}<button id="phx">Close</button></div>`;
-  $("phx").onclick = () => d.close();
-  if ($("phg"))
-    $("phg").onclick = () => {
-      if (
-        full &&
-        confirm("Show this photo as the team group photo on the home page?")
-      )
-        run(async () => {
-          await api("/api/group-photo", { method: "PUT", body: { img: full } });
-          GPH = { img: full, at: -1 };
-          d.close();
-          await load(true);
-          alert("Done. It now shows on the Home tab.");
-        });
-    };
-  if ($("phd"))
-    $("phd").onclick = () => {
-      if (confirm("Delete this photo?"))
-        run(async () => {
-          await api("/api/gallery/" + id, { method: "DELETE" });
-          d.close();
-          await loadGallery();
-        });
-    };
+  const info = () =>
+    `<p class="gmeta"><span class="pill">${esc(gcLabel(g.cat))}</span> <span class="mute">${esc(g.by)}${g.by && g.at ? " · " : ""}${when(g.at)}</span></p>${g.desc ? `<p class="gdesc">${esc(g.desc)}</p>` : can ? '<p class="mute gdesc">No description yet.</p>' : ""}`;
+  const draw = () => {
+    d.innerHTML = `<img class="bigimg" id="phi" src="${full || g.thumb}" alt="${esc(g.desc || "")}"><div id="phinfo">${info()}</div>
+    <div class="ctl"><a class="btn" id="phdl" download="hockey-photo.jpg" ${full ? `href="${full}"` : "hidden"}>⬇ Save</a>${can ? '<button id="phe">✏️ Edit</button>' : ""}${admin ? `<button id="phg" ${full ? "" : "disabled"}>🖼 Use as group photo</button>` : ""}${can ? '<button id="phd" class="dng">🗑 Delete</button>' : ""}<button id="phx">Close</button></div>`;
+    $("phx").onclick = () => d.close();
+    if ($("phg"))
+      $("phg").onclick = () => {
+        if (
+          full &&
+          confirm("Show this photo as the team group photo on the home page?")
+        )
+          run(async () => {
+            await api("/api/group-photo", {
+              method: "PUT",
+              body: { img: full },
+            });
+            GPH = { img: full, at: -1 };
+            d.close();
+            await load(true);
+            alert("Done. It now shows on the Home tab.");
+          });
+      };
+    if ($("phd"))
+      $("phd").onclick = () => {
+        if (confirm("Delete this photo?"))
+          run(async () => {
+            await api("/api/gallery/" + id, { method: "DELETE" });
+            d.close();
+            await loadGallery();
+          });
+      };
+    if ($("phe"))
+      $("phe").onclick = () => {
+        // edit the section and the short description
+        let cat = g.cat;
+        $("phinfo").innerHTML =
+          `<p class="mute" style="margin:8px 0 4px">Section</p>${catBtns(cat, "pec")}<label class="fl">Short description<input id="ped" maxlength="120" value="${esc(g.desc)}" placeholder="e.g. Penalty corner drill" autocomplete="off"></label><div class="ctl"><button class="pri" id="pes">Save</button><button id="pex">Cancel</button></div>`;
+        bindCats(
+          "pec",
+          () => cat,
+          (v) => (cat = v),
+        );
+        $("pex").onclick = draw;
+        $("ped").focus();
+        $("pes").onclick = () =>
+          run(async () => {
+            const desc = $("ped").value.trim();
+            await api("/api/gallery/" + id, {
+              method: "PUT",
+              body: { cat, desc },
+            });
+            g.cat = cat;
+            g.desc = desc;
+            draw();
+            if (tab === "gallery") vGallery();
+          });
+      };
+  };
+  draw();
   d.showModal();
   try {
     const r = await api("/api/gallery/" + id);
     full = r.img || "";
-    if (full && d.open) {
+    if (full && d.open && !$("pec")) {
       $("phi").src = full;
       const a = $("phdl");
       a.href = full;
@@ -5082,7 +5296,7 @@ function vTrain() {
     .join("")}</div>
   ${cfgIn ? `<div class="ctl">${cfgIn}</div>` : ""}
   ${T.mode === "mt" ? '<div id="tq" class="tq"></div>' : ""}<div id="tbox" class="tbox"><div id="tlbl" class="tl2">${v.lbl}</div><div id="tdisp" class="tdisp" aria-live="off">${v.txt}</div></div>
-  <div class="ctl"><button id="tgo"></button><button id="trs">Reset</button></div>
+  <div class="ctl"><button id="tgo"></button><button id="tmrs">Reset</button></div>
   ${T.mode === "mt" ? `<div class="sb"><div><span class="mute">My team</span><b id="s0">${T.sc[0]}</b><span><button data-goal="0">＋ Goal</button><button class="x" data-goalm="0" aria-label="Remove a goal">−</button></span></div><span class="sbc">:</span><div><span class="mute">Opponent</span><b id="s1">${T.sc[1]}</b><span><button data-goal="1">＋ Goal</button><button class="x" data-goalm="1" aria-label="Remove a goal">−</button></span></div></div><p class="mute" style="margin:0 0 8px;text-align:center;font-size:.82rem">Like an official match: 4 quarters of 15 minutes, 2 minute breaks, 10 minute half-time. A goal stops the clock; press Start clock for the centre pass. Stop the clock for injuries or time-outs.</p>` : ""}<div class="ctl"><button class="pri" id="tfin" hidden>💾 Finish and save session</button></div>
   <div class="chips">${pre}${T.mode !== "sw" ? '<button id="tsp">＋ Save this setup</button>' : ""}<button id="tman">✍ Add watch summary</button></div>
   ${pre ? '<p class="mute" style="margin:6px 0 0">Tap a saved setup to load it.</p>' : ""}</div>
@@ -5127,7 +5341,7 @@ function vTrain() {
   bindCfg("crs", "rest", 0, 3600);
   bindCfg("crd", "rounds", 1, 99);
   $("tgo").onclick = () => (T.run ? tPause() : tStart());
-  $("trs").onclick = () => tReset();
+  $("tmrs").onclick = () => tReset();
   $("tfin").onclick = () => {
     if (T.run) tPause();
     openSave(true);
@@ -5516,8 +5730,21 @@ function openPlanEdit(d) {
   <p><label class="lbl">Time</label><input id="ed_t" value="${esc(p.time || "")}" placeholder="e.g. 6:30–8:30 PM" maxlength="30"></p>
   <p><label class="lbl">Venue</label><input id="ed_v" value="${esc(p.venue || "")}" placeholder="e.g. Sports Complex" maxlength="80"></p>
   <p><label class="lbl">Note</label><input id="ed_n" value="${esc(p.note || "")}" placeholder="Optional" maxlength="80"></p>
+  <div class="fl">Tagged people<div id="ed_g" class="tgsel"></div><button type="button" id="ed_gb">🏷️ Tag people</button></div>
   <div class="ctl"><button class="pri" id="ed_s">Save</button><button id="ed_x">Cancel</button></div>`;
   $("ed_x").onclick = () => dg.close();
+  let et = (p.tags || []).slice();
+  const paintET = () => {
+    $("ed_g").innerHTML = et.length
+      ? tagChips(et)
+      : '<span class="mute">Nobody tagged</span>';
+  };
+  paintET();
+  $("ed_gb").onclick = () =>
+    pickTags(et, (t) => {
+      et = t;
+      paintET();
+    });
   $("ed_s").onclick = () =>
     run(async () => {
       const nd = $("ed_d").value || d;
@@ -5529,10 +5756,11 @@ function openPlanEdit(d) {
           venue: $("ed_v").value.trim(),
           note: $("ed_n").value.trim(),
           status: p.status || "planned",
+          tags: et,
         },
       });
       dg.close();
-      await load();
+      await load(true);
     });
   dg.showModal();
 }

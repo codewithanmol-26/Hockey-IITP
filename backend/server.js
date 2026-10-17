@@ -144,7 +144,7 @@ app.post(
   }),
 );
 
-// ---- player accounts: roll number + personal code (first signup checked against the saved contact number) ----
+// ---- player accounts: roll number + personal code (first signup checked with an e-mail code) ----
 const normRoll = (v) =>
   String(v || "")
     .trim()
@@ -173,7 +173,79 @@ const limited = (key, max, ms = 60000) => {
 const playerToken = (pl, now) =>
   sign({ role: "player", id: pl.id, exp: now + 30 * 864e5 });
 
-// Roll number -> tells the page what to show (does not reveal anything private)
+// ---- first-time signup: roll number -> a 6 digit code e-mailed through Resend -> choose your own code ----
+// Needs RESEND_API_KEY (and RESEND_FROM, an address on a domain verified in Resend). Optional SIGNUP_EMAIL_DOMAIN (e.g. iitp.ac.in) limits which e-mails may be used.
+const EMAIL_RE = /^[^\s@<>"']{1,64}@[^\s@<>"']{1,200}\.[A-Za-z]{2,24}$/;
+const maskEmail = (e) => {
+  const [u, d] = String(e).split("@");
+  return u.slice(0, 1) + "***" + (u.length > 3 ? u.slice(-1) : "") + "@" + d;
+};
+class PublicError extends Error {
+  constructor(status, msg) {
+    super(msg);
+    this.status = status;
+    this.public = msg;
+  }
+}
+async function sendEmail(to, subject, text, html) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key)
+    throw new PublicError(
+      503,
+      "E-mail is not set up on the server yet. The captain must add RESEND_API_KEY in Vercel and redeploy.",
+    );
+  const from =
+    process.env.RESEND_FROM || "Inter IIT Hockey <onboarding@resend.dev>";
+  let r;
+  try {
+    r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + key,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to: [to], subject, text, html }),
+      signal: AbortSignal.timeout(9000),
+    });
+  } catch (e) {
+    throw new PublicError(
+      503,
+      "Could not reach the e-mail service. Please try again.",
+    );
+  }
+  if (r.ok) return;
+  const j = await r.json().catch(() => ({})),
+    m = String(j.message || "");
+  console.error("resend", r.status, m);
+  if (r.status === 429)
+    throw new PublicError(
+      429,
+      "Too many e-mails right now. Wait a minute and try again.",
+    );
+  if (r.status === 401 || /api key/i.test(m))
+    throw new PublicError(
+      503,
+      "The e-mail key on the server is wrong. The captain must check RESEND_API_KEY.",
+    );
+  if (r.status === 403 || /verify|testing emails|domain/i.test(m))
+    throw new PublicError(
+      503,
+      "E-mail is limited until a domain is verified in Resend. The captain must verify a domain and set RESEND_FROM.",
+    );
+  if (r.status === 422 || r.status === 400)
+    throw new PublicError(
+      400,
+      "That e-mail address was not accepted. Check it and try again.",
+    );
+  throw new PublicError(502, "Could not send the e-mail. Please try again.");
+}
+const otpHash = (id, email, code) =>
+  crypto
+    .createHmac("sha256", TOKEN_SECRET)
+    .update(id + "|" + email.toLowerCase() + "|" + code)
+    .digest("hex");
+
+// Roll number -> tells the page what to show (does not reveal anything private; a saved e-mail is shown masked)
 app.post(
   "/api/player/check",
   h(async (req, res) => {
@@ -188,21 +260,101 @@ app.post(
             "This roll number is not on the team list. Ask the captain to add you.",
         });
     const acc = await db.collection("accounts").doc(pl.id).get();
-    res.json({ hasAccount: acc.exists }); // nothing about the person is revealed before login
+    res.json({
+      hasAccount: acc.exists,
+      emailHint:
+        !acc.exists && EMAIL_RE.test(pl.email || "") ? maskEmail(pl.email) : "",
+      domain: process.env.SIGNUP_EMAIL_DOMAIN || "",
+    });
   }),
 );
-
-// First-time signup: roll number + the contact number the captain saved for you, then choose your own code.
-// (No SMS/OTP provider needed.) 10 wrong contact numbers lock that roll number until the captain presses "Reset code".
-const last10 = (v) =>
-  String(v || "")
-    .replace(/\D/g, "")
-    .slice(-10);
+// Step 1: send the code. If the captain already saved an e-mail for you, the code goes there. Otherwise you type your own e-mail.
+app.post(
+  "/api/player/otp",
+  h(async (req, res) => {
+    if (limited("otpip" + req.ip, 12, 3600e3))
+      return res
+        .status(429)
+        .json({ error: "Too many tries. Please wait a while." });
+    const pl = await findPlayer((req.body || {}).roll);
+    if (!pl)
+      return res
+        .status(404)
+        .json({
+          error:
+            "This roll number is not on the team list. Ask the captain to add you.",
+        });
+    if ((await db.collection("accounts").doc(pl.id).get()).exists)
+      return res
+        .status(409)
+        .json({
+          error:
+            "Already signed up. Log in with your code. Forgot it? Ask the captain to reset it.",
+        });
+    const saved = EMAIL_RE.test(pl.email || "") ? pl.email.trim() : "",
+      typed = str((req.body || {}).email, 120).trim();
+    const email = saved || typed;
+    if (!EMAIL_RE.test(email))
+      return res.status(400).json({ error: "Enter a valid e-mail address." });
+    const dom = (process.env.SIGNUP_EMAIL_DOMAIN || "")
+      .toLowerCase()
+      .replace(/^@/, "");
+    if (!saved && dom && !email.toLowerCase().endsWith("@" + dom))
+      return res
+        .status(400)
+        .json({ error: "Use your @" + dom + " e-mail address." });
+    const ref = db.collection("otps").doc(pl.id),
+      cur = await ref.get(),
+      now = Date.now(),
+      c = cur.exists ? cur.data() : {};
+    if (c.at && now - c.at < 60000)
+      return res
+        .status(429)
+        .json({
+          error:
+            "Wait " +
+            Math.ceil((60000 - (now - c.at)) / 1000) +
+            " seconds before asking for another code.",
+          wait: Math.ceil((60000 - (now - c.at)) / 1000),
+        });
+    const hourStart = c.hs && now - c.hs < 3600e3 ? c.hs : now,
+      sends = c.hs && now - c.hs < 3600e3 ? c.sends || 0 : 0;
+    if (sends >= 5)
+      return res
+        .status(429)
+        .json({
+          error:
+            "Too many codes asked for this roll number. Try again in an hour.",
+        });
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+    await sendEmail(
+      email,
+      "Your Inter IIT Hockey code: " + code,
+      "Your sign-up code is " +
+        code +
+        ". It works for 10 minutes. If you did not ask for it, ignore this e-mail.",
+      '<div style="font-family:Arial,sans-serif;max-width:420px"><h2 style="margin:0 0 8px">Inter IIT Hockey</h2><p>Your sign-up code is</p><p style="font-size:32px;letter-spacing:6px;font-weight:700;margin:8px 0">' +
+        code +
+        '</p><p style="color:#555">It works for 10 minutes. If you did not ask for it, ignore this e-mail.</p></div>',
+    );
+    await ref.set({
+      h: otpHash(pl.id, email, code),
+      email,
+      exp: now + 600e3,
+      n: 0,
+      at: now,
+      hs: hourStart,
+      sends: sends + 1,
+    });
+    res.json({ ok: true, sentTo: maskEmail(email), wait: 60 });
+  }),
+);
+// Step 2: the code from the e-mail + the personal code you choose. 5 wrong tries cancel that e-mail code.
 app.post(
   "/api/player/signup",
   h(async (req, res) => {
-    const { roll, contact, code } = req.body || {};
-    if (limited("su" + req.ip, 8))
+    const { roll, otp, code } = req.body || {};
+    if (limited("su" + req.ip, 12))
       return res.status(429).json({ error: "Too many tries" });
     const pl = await findPlayer(roll);
     if (!pl)
@@ -224,37 +376,40 @@ app.post(
           error:
             "Already signed up. Log in with your code. Forgot it? Ask the captain to reset it.",
         });
-    if (last10(pl.contact).length < 10)
+    const ref = db.collection("otps").doc(pl.id),
+      o = await ref.get();
+    if (!o.exists || o.data().exp < Date.now())
       return res
         .status(400)
         .json({
-          error:
-            "The captain has not saved your contact number yet. Ask them to add it.",
+          error: "That e-mail code has expired. Press Send code again.",
         });
-    const tr = db.collection("signupTries").doc(pl.id),
-      t = await tr.get(),
-      n = t.exists ? t.data().n : 0;
-    if (n >= 10)
+    const d = o.data();
+    if (d.n >= 5)
       return res
         .status(423)
         .json({
-          error:
-            "Locked after too many wrong tries. Ask the captain to reset your signup.",
+          error: "Too many wrong codes. Press Send code to get a new one.",
         });
-    if (last10(contact) !== last10(pl.contact)) {
-      await tr.set({ n: n + 1 });
+    if (
+      !/^\d{6}$/.test(String(otp || "")) ||
+      !eq(otpHash(pl.id, d.email, String(otp)), d.h)
+    ) {
+      await ref.update({ n: d.n + 1 });
       return res
         .status(401)
-        .json({
-          error: "That is not the contact number saved for this roll number",
-        });
+        .json({ error: "Wrong e-mail code. " + (4 - d.n) + " tries left." });
     }
     const salt = crypto.randomBytes(16).toString("hex");
     await db
       .collection("accounts")
       .doc(pl.id)
       .set({ salt, hash: hashCode(c, salt), created: Date.now() });
-    await tr.delete();
+    await db
+      .collection("players")
+      .doc(pl.id)
+      .update({ email: d.email, emailVerified: true });
+    await ref.delete();
     bust();
     res.json({ token: playerToken(pl, Date.now()), id: pl.id });
   }),
@@ -618,31 +773,47 @@ app.post(
     res.json({ ok: true });
   }),
 );
-async function pushAll(payload, only) {
+// Sends one notification to every saved phone. only = Set of player ids to reach (staff are skipped); exclude = Set of player ids to leave out.
+// Returns { configured, total, sent, failed, codes } so the admin can see what really happened.
+async function pushAll(payload, only, exclude) {
   const w = webpush();
-  if (!w) return;
+  if (!w) return { configured: false, total: 0, sent: 0, failed: 0, codes: [] };
   const [snap, gone] = await Promise.all([
     db.collection("pushSubs").get(),
     db.collection("players").where("removed", "==", true).get(),
   ]);
   const removed = new Set(gone.docs.map((d) => d.id)),
-    body = JSON.stringify(payload);
+    body = JSON.stringify(payload),
+    st = { configured: true, total: 0, sent: 0, failed: 0, codes: [] };
   await Promise.all(
     snap.docs.map(async (d) => {
       const x = d.data();
       if (x.role === "player" && removed.has(x.uid)) return;
-      if (only && !(x.role === "player" && only.has(x.uid))) return; // tagged-only message
+      if (only && !(x.role === "player" && only.has(x.uid))) return;
+      if (exclude && x.role === "player" && exclude.has(x.uid)) return;
+      st.total++;
       try {
         await w.sendNotification(x.sub, body, { TTL: 86400, timeout: 3000 });
+        st.sent++;
       } catch (e) {
+        st.failed++;
+        st.codes.push(e.statusCode || String(e.message).slice(0, 40));
         if (e.statusCode === 404 || e.statusCode === 410)
           await d.ref.delete().catch(() => {});
         else console.error("push failed", e.statusCode || e.message);
       }
     }),
   );
+  return st;
 }
-// ev: 'new' | 'cancel' | 'back'. A failed push never breaks saving the playing day.
+const addStats = (a, b) => ({
+  configured: a.configured && b.configured,
+  total: a.total + b.total,
+  sent: a.sent + b.sent,
+  failed: a.failed + b.failed,
+  codes: a.codes.concat(b.codes),
+});
+// ev: 'new' | 'cancel' | 'back'. People tagged on the playing day get their own "you are tagged" notification. A failed push never breaks saving.
 async function pushPlan(ev, date, p) {
   try {
     const when = new Date(date + "T00:00:00Z").toLocaleDateString("en-IN", {
@@ -660,16 +831,91 @@ async function pushPlan(ev, date, p) {
         : ev === "back"
           ? "🏑 Playing day is back on"
           : "🏑 Playing day scheduled";
-    await pushAll({
-      title,
-      body: ev === "cancel" ? bits + " is cancelled." : bits,
-      tag: "hk-plan-" + date,
-      url: "./",
-    });
+    const body = ev === "cancel" ? bits + " is cancelled." : bits,
+      base = { tag: "hk-plan-" + date, url: "./" };
+    const tags = Array.isArray(p.tags) ? p.tags : [],
+      tg = tags.length ? await tagTargets(tags) : new Set();
+    if (tg === null)
+      return await pushAll({
+        title: "📌 You are tagged · " + title,
+        body,
+        ...base,
+      }); // "Everyone" tagged
+    if (!tg.size) return await pushAll({ title, body, ...base });
+    const [r1, r2] = [
+      await pushAll({ title, body, ...base }, undefined, tg),
+      await pushAll(
+        { title: "📌 You are tagged · " + title, body, ...base },
+        tg,
+      ),
+    ];
+    return addStats(r1, r2);
   } catch (e) {
     console.error("pushPlan", e.message);
+    return null;
   }
 }
+// "Send me a test": tells the person exactly why notifications do or do not reach this phone.
+app.post(
+  "/api/push/test",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const w = webpush();
+    if (!w)
+      return res.json({
+        ok: false,
+        why: "novapid",
+        msg: "Push is not set up on the server. The captain must add VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in Vercel > Settings > Environment Variables, then redeploy.",
+      });
+    const uid = u.id || u.role,
+      snap = await db.collection("pushSubs").get();
+    const mine = snap.docs.filter(
+      (d) => d.data().uid === uid && d.data().role === u.role,
+    );
+    if (!mine.length)
+      return res.json({
+        ok: false,
+        why: "nosub",
+        total: snap.size,
+        msg: "This phone is not subscribed yet. Turn notifications on first (menu > Push), then test again.",
+      });
+    const body = JSON.stringify({
+      title: "🏑 Test notification",
+      body: "Notifications are working on this phone.",
+      tag: "hk-test",
+      url: "./",
+    });
+    let sent = 0;
+    const codes = [];
+    await Promise.all(
+      mine.map(async (d) => {
+        try {
+          await w.sendNotification(d.data().sub, body, {
+            TTL: 600,
+            timeout: 5000,
+          });
+          sent++;
+        } catch (e) {
+          codes.push(e.statusCode || String(e.message).slice(0, 40));
+          if (e.statusCode === 404 || e.statusCode === 410)
+            await d.ref.delete().catch(() => {});
+        }
+      }),
+    );
+    res.json({
+      ok: sent > 0,
+      sent,
+      codes,
+      total: snap.size,
+      msg: sent
+        ? "Sent. It should arrive in a few seconds. If it does not, check that notifications are allowed for this app in your phone settings."
+        : "The push service refused it (" +
+          codes.join(", ") +
+          "). Turn notifications off and on again in the menu.",
+    });
+  }),
+);
 
 app.put(
   "/api/plans/:date",
@@ -692,6 +938,7 @@ app.put(
       venue: str(b.venue, 80),
       note: str(b.note),
       status: b.status === "cancelled" ? "cancelled" : "planned",
+      tags: cleanTags(b.tags),
     };
     await db.collection("plans").doc(to).set(plan);
     if (to !== from) {
@@ -711,12 +958,14 @@ app.put(
       else if (prev && prev.status !== "cancelled" && now) ev = "cancel";
       else if (prev && prev.status === "cancelled" && !now) ev = "back";
     }
+    let push = null;
     if (ev && to >= todayIST())
-      await Promise.race([
+      push = await Promise.race([
         pushPlan(ev, to, plan),
-        new Promise((r) => setTimeout(r, 4000)),
+        new Promise((r) => setTimeout(() => r(null), 4500)),
       ]); // a slow push service must never block saving
-    done(res);
+    bust();
+    res.json({ ok: true, push });
   }),
 );
 app.delete(
@@ -798,7 +1047,9 @@ app.post(
       roll,
       position: str(b.position, 40).trim(),
       joined: str(b.joined, 10),
-      contact: phone(b.contact),
+      ...(EMAIL_RE.test(str(b.email, 120).trim())
+        ? { email: str(b.email, 120).trim() }
+        : {}),
     });
     done(res);
   }),
@@ -813,12 +1064,15 @@ app.put(
     const b = req.body || {},
       name = str(b.name, 40).trim();
     if (!name) return res.status(400).json({ error: "Name required" });
-    const contact = phone(b.contact);
-    if (contact && contact.replace(/\D/g, "").length < 10)
-      return res.status(400).json({ error: "Enter a 10 digit contact number" });
-    const upd = { name, position: str(b.position, 40).trim(), contact };
-    for (const k of ["email", "size", "jerseyName", "jerseyNo"])
+    const upd = { name, position: str(b.position, 40).trim() };
+    for (const k of ["size", "jerseyName", "jerseyNo"])
       if (b[k] !== undefined) upd[k] = str(b[k], 40).trim();
+    if (b.email !== undefined) {
+      const e = str(b.email, 120).trim();
+      if (e && !EMAIL_RE.test(e))
+        return res.status(400).json({ error: "Enter a valid e-mail address." });
+      upd.email = e;
+    }
     await db.collection("players").doc(u.id).update(upd);
     done(res);
   }),
@@ -834,11 +1088,16 @@ app.put(
       name: str(b.name, 40).trim(),
       roll: str(b.roll, 12).trim(),
       position: str(b.position, 40).trim(),
-      contact: phone(b.contact),
       joined: /^\d{4}-\d{2}-\d{2}$/.test(b.joined || "") ? b.joined : "",
     };
-    for (const k of ["email", "size", "jerseyName", "jerseyNo"])
+    for (const k of ["size", "jerseyName", "jerseyNo"])
       if (b[k] !== undefined) upd[k] = str(b[k], 40).trim();
+    if (b.email !== undefined) {
+      const e = str(b.email, 120).trim();
+      if (e && !EMAIL_RE.test(e))
+        return res.status(400).json({ error: "Enter a valid e-mail address." });
+      upd.email = e;
+    }
     await db.collection("players").doc(req.params.id).update(upd); // works for removed students too: their details are kept
     done(res);
   }),
@@ -869,8 +1128,9 @@ async function addStudents(list) {
     }
     const extra = {}; // only non-empty private details
     for (const k of PRIVATE) {
-      const v = k === "contact" ? phone(s[k]) : str(s[k], 40).trim();
-      if (v) extra[k] = v;
+      if (k === "contact") continue;
+      const v = str(s[k], k === "email" ? 120 : 40).trim();
+      if (v && (k !== "email" || EMAIL_RE.test(v))) extra[k] = v;
     }
     const old = have.get(rid);
     if (old && old.data && old.data().removed) {
@@ -1496,7 +1756,10 @@ async function nameOf(u) {
     u.name || { captain: "Captain", vice: "Vice-captain" }[u.role] || "Admin"
   );
 }
-const GAL_MAX = 200;
+const GAL_MAX = 200,
+  GAL_CATS = ["fitness", "practice", "match"];
+const galCat = (v) => (GAL_CATS.includes(v) ? v : "practice"),
+  galDesc = (v) => str(v, 120).replace(/\s+/g, " ").trim();
 app.get(
   "/api/gallery",
   h(async (req, res) => {
@@ -1505,7 +1768,7 @@ app.get(
     const snap = await db
         .collection("gallery")
         .orderBy("at", "desc")
-        .limit(60)
+        .limit(90)
         .get(),
       k = ukey(u);
     res.json({
@@ -1515,6 +1778,8 @@ app.get(
         by: d.data().by || "",
         at: d.data().at || 0,
         mine: d.data().key === k,
+        cat: galCat(d.data().cat),
+        desc: d.data().desc || "",
       })),
     });
   }),
@@ -1538,7 +1803,9 @@ app.post(
       return res
         .status(429)
         .json({ error: "Too many uploads. Wait a minute." });
-    const { img, thumb } = req.body || {};
+    const { img, thumb } = req.body || {},
+      cat = galCat((req.body || {}).cat),
+      desc = galDesc((req.body || {}).desc);
     if (!bigImgOk(img, 420000) || !bigImgOk(thumb, 60000))
       return res.status(400).json({ error: "Photo too large or not an image" });
     const n = (await db.collection("gallery").count().get()).data().count;
@@ -1550,10 +1817,38 @@ app.post(
         });
     const ref = db.collection("gallery").doc();
     await Promise.all([
-      ref.set({ thumb, by: await nameOf(u), key: ukey(u), at: Date.now() }),
+      ref.set({
+        thumb,
+        by: await nameOf(u),
+        key: ukey(u),
+        at: Date.now(),
+        cat,
+        desc,
+      }),
       db.collection("galleryFull").doc(ref.id).set({ img }),
     ]);
     res.json({ ok: true, id: ref.id });
+  }),
+);
+// change the section or the short description of a photo (staff: any photo, players: their own)
+app.put(
+  "/api/gallery/:id",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const ref = db.collection("gallery").doc(req.params.id),
+      d = await ref.get();
+    if (!d.exists) return res.status(404).json({ error: "Photo not found" });
+    if (u.role === "player" && d.data().key !== ukey(u))
+      return res
+        .status(403)
+        .json({ error: "You can edit only your own photos" });
+    const b = req.body || {},
+      upd = {};
+    if (b.cat !== undefined) upd.cat = galCat(b.cat);
+    if (b.desc !== undefined) upd.desc = galDesc(b.desc);
+    await ref.update(upd);
+    res.json({ ok: true });
   }),
 );
 app.delete(
@@ -1599,8 +1894,13 @@ app.put(
   }),
 );
 const NEWS_Q = {
-  latest: "India hockey when:14d",
-  upcoming: "India hockey upcoming match schedule when:30d",
+  latest: [
+    "India hockey",
+    "Hockey India",
+    "Indian hockey team FIH",
+    "Harmanpreet Singh hockey",
+  ],
+  upcoming: ["India hockey upcoming match schedule", "India hockey fixtures"],
 };
 const newsCache = {};
 const unesc = (s) =>
@@ -1613,43 +1913,91 @@ const unesc = (s) =>
     .replace(/&amp;/g, "&")
     .replace(/<[^>]+>/g, "")
     .trim();
-async function fetchNews(kind) {
-  const c = newsCache[kind];
-  if (c && Date.now() - c.at < 15 * 60e3) return c.items;
-  const url =
-    "https://news.google.com/rss/search?q=" +
-    encodeURIComponent(NEWS_Q[kind]) +
-    "&hl=en-IN&gl=IN&ceid=IN:en";
-  const r = await fetch(url, {
-    signal: AbortSignal.timeout(7000),
-    headers: { "user-agent": "Mozilla/5.0 (hockey-attendance)" },
-  });
-  if (!r.ok) throw new Error("news " + r.status);
-  const xml = await r.text(),
-    items = [];
+const tagOf = (b, t) => {
+  const x = b.match(
+    new RegExp("<" + t + "[^>]*>([\\s\\S]*?)</" + t + ">", "i"),
+  );
+  return x ? unesc(x[1]) : "";
+};
+// Bing News links look like http://www.bing.com/news/apiclick.aspx?...&url=<the real article>. We open the real article directly.
+function realUrl(link) {
+  try {
+    const u = new URL(link);
+    if (/bing\.com$/i.test(u.hostname)) {
+      const r = u.searchParams.get("url");
+      if (r && /^https?:\/\//i.test(r)) return r;
+    }
+  } catch (e) {}
+  return link;
+}
+function parseNews(xml, kind) {
+  const out = [];
   for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
-    const b = m[1],
-      g = (t) => {
-        const x = b.match(
-          new RegExp("<" + t + "[^>]*>([\\s\\S]*?)</" + t + ">"),
-        );
-        return x ? unesc(x[1]) : "";
-      };
-    let title = g("title");
-    const src = g("source"),
-      link = g("link");
+    const b = m[1];
+    let title = tagOf(b, "title");
+    const src = tagOf(b, "News:Source") || tagOf(b, "source"),
+      link = realUrl(tagOf(b, "link"));
     if (src && title.endsWith(" - " + src))
       title = title.slice(0, -(src.length + 3));
     if (!/^https?:\/\/\S+$/.test(link) || !title) continue;
-    items.push({
+    out.push({
       t: title.slice(0, 200),
-      u: link.slice(0, 600),
+      u: link.slice(0, 800),
       s: src.slice(0, 60),
-      at: Date.parse(g("pubDate")) || 0,
+      at: Date.parse(tagOf(b, "pubDate")) || 0,
     });
   }
-  items.sort((a, b) => b.at - a.at);
-  const out = items.slice(0, 8);
+  return out;
+}
+const feedGet = async (url) => {
+  const r = await fetch(url, {
+    signal: AbortSignal.timeout(6000),
+    headers: { "user-agent": "Mozilla/5.0 (hockey-attendance)" },
+  });
+  if (!r.ok) throw new Error("news " + r.status);
+  return r.text();
+};
+async function fetchNews(kind, fresh) {
+  const c = newsCache[kind];
+  if (!fresh && c && Date.now() - c.at < 8 * 60e3) return c.items;
+  const jobs = [];
+  for (const q of NEWS_Q[kind]) {
+    jobs.push(
+      feedGet(
+        "https://www.bing.com/news/search?q=" +
+          encodeURIComponent(q) +
+          "&format=rss&setmkt=en-IN&qft=sortbydate%3d%221%22",
+      ).then((x) => parseNews(x, kind)),
+    );
+    jobs.push(
+      feedGet(
+        "https://news.google.com/rss/search?q=" +
+          encodeURIComponent(q + " when:7d") +
+          "&hl=en-IN&gl=IN&ceid=IN:en",
+      ).then((x) => parseNews(x, kind)),
+    );
+  }
+  const res = await Promise.allSettled(jobs),
+    seen = new Set(),
+    items = [],
+    now = Date.now();
+  for (const r of res)
+    if (r.status === "fulfilled")
+      for (const it of r.value) {
+        const key = it.t
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim()
+          .slice(0, 60);
+        if (seen.has(key) || (it.at && it.at > now + 36e5)) continue; // no duplicates, no wrong future dates
+        seen.add(key);
+        items.push(it);
+      }
+  if (!items.length) throw new Error("no news");
+  const recent = items.filter((i) => !i.at || now - i.at < 30 * 864e5); // nothing older than a month
+  const out = (
+    kind === "latest" ? recent.sort((a, b) => b.at - a.at) : recent
+  ).slice(0, 10);
   newsCache[kind] = { at: Date.now(), items: out };
   return out;
 }
@@ -1658,11 +2006,12 @@ app.get(
   h(async (req, res) => {
     if (!(await who(req)))
       return res.status(401).json({ error: "Login required" });
-    const out = { latest: [], upcoming: [] };
+    const out = { latest: [], upcoming: [] },
+      fresh = req.query.fresh === "1";
     await Promise.all(
       Object.keys(NEWS_Q).map(async (k) => {
         try {
-          out[k] = await fetchNews(k);
+          out[k] = await fetchNews(k, fresh);
         } catch (e) {
           if (newsCache[k]) out[k] = newsCache[k].items;
           else out.err = true;
@@ -2087,6 +2436,8 @@ app.delete(
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.use((err, req, res, next) => {
   console.error(err);
+  if (err && err.public)
+    return res.status(err.status || 500).json({ error: err.public });
   const m = String((err && err.message) || ""),
     code = err && err.code;
   if (err && err.type === "entity.too.large")
