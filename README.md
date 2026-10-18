@@ -208,3 +208,13 @@ No command line needed: open the app > ⋮ menu > **Set up push notifications**.
 - **Smartwatch connection removed** (Bluetooth heart rate, QR scanner, watch fields). Old saved sessions still show their numbers.
 - **My health log** (Training tab): steps, distance (km), sleep (hours), calories, height (cm), weight (kg), one entry per day, all optional, private to each person. Shows 7 day averages, latest weight/height and BMI, the last 14 days (edit or delete), and a sleep tip when the weekly average is under 7 hours. Stored in Firestore `health`.
 - **Menu > Test the sign-up e-mail** (captain / vice-captain) sends a test e-mail so you can check the Resend and domain setup. See `EMAIL-SETUP.md`.
+
+## v21
+
+- **Icons instead of text.** One set of outline icons (`frontend/icons.js`). The bottom bar, header and menu use icons; short action buttons (Save, Edit, Delete, Share, Copy, Add, Retry, Cancel ...) are icon-only, with the word kept as the tooltip and for screen readers. Longer buttons keep their words with an icon in front. To change which word becomes which icon, edit the `_ONLY` and `_EMO` tables at the top of `icons.js`.
+- **Back arrows, not crosses.** Every dialog and the login page have a back arrow at the top-left; pages opened from the menu have a back arrow in the header. The only cross left closes the menu panel.
+- **Photo cropper:** rotate left / right buttons; the zoom slider and pinch zoom are gone.
+- **Home:** the lower "Next playing day" card is removed (the top card shows it).
+- **Notifications have no switches.** The phone asks for permission once, the first time; after that the phone's own app settings decide. The server sends a notification for each new announcement, when a playing day is scheduled or cancelled, and a reminder (7 pm the evening before for morning sessions, 7 am the same day for evening sessions) through Vercel Cron. Needs `CRON_SECRET`.
+- **Sign-up e-mails must be `@iitp.ac.in`** by default.
+- Fixed: logging out failed with an error since v20 (a removed smartwatch function was still called).

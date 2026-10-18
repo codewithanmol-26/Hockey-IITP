@@ -900,7 +900,6 @@ function logout() {
   wkErr = "";
   BG = [];
   bgLoaded = false;
-  hrOff();
   admin = false;
   pl = false;
   owner = false;
@@ -1024,10 +1023,9 @@ function useData(d, force) {
   err = "";
   showApp();
   render();
-  checkAlerts();
   if (!pushChecked) {
     pushChecked = true;
-    pushState().then(() => render());
+    pushAuto();
   }
 }
 async function load(force) {
@@ -1294,7 +1292,12 @@ function drawMenu() {
         pickFiles((f) => setGroupPhoto(f[0])),
       ) +
       mi("🏑", "Edit Indian hockey fixtures", openMatches) +
-      (owner ? mi("🎖️", "Edit captain & coach names", openNames) : "");
+      (owner
+        ? mi("🎖️", "Edit captain & coach names", openNames) +
+          mi("🔔", "Send me a test notification", testPush) +
+          mi("🛠️", "Set up push notifications", openPushHelp) +
+          mi("✉️", "Test the sign-up e-mail", testEmail)
+        : "");
   h +=
     `<div class="ms">Appearance</div>` +
     mi(
@@ -1329,31 +1332,6 @@ function drawMenu() {
       { sw: clickOn() },
     ) +
     `<div class="mrow"><span class="i">🔈</span><input type="range" id="mvol" min="0" max="100" step="5" value="${Math.round(volume() * 100)}" aria-label="Volume"><span class="mute" id="mvolv">${Math.round(volume() * 100)}%</span></div>`;
-  h +=
-    `<div class="ms">Notifications</div>` +
-    mi(
-      pushOn ? "🔔" : "🔕",
-      "Push: day scheduled / cancelled",
-      async () => {
-        await setPush(!pushOn);
-        drawMenu();
-      },
-      { sw: pushOn },
-    ) +
-    mi(
-      alertOn ? "🔔" : "🔕",
-      "Alert 15 min before practice",
-      async () => {
-        await setAlert(!alertOn);
-        drawMenu();
-      },
-      { sw: alertOn },
-    ) +
-    mi("📨", "Send me a test notification", testPush) +
-    (owner
-      ? mi("🛠️", "Set up push notifications", openPushHelp) +
-        mi("✉️", "Test the sign-up e-mail", testEmail)
-      : "");
   h +=
     `<div class="ms">App</div>` +
     mi("📅", "Add schedule to calendar", icsDownload) +
@@ -1537,10 +1515,6 @@ $("tsv").onclick = () =>
   });
 
 // ---- alerts: a notification 15 minutes before each fixed playing day (works while the app is open or in the background tab) ----
-let alertOn = false;
-try {
-  alertOn = localStorage.getItem("hk_alert") === "1";
-} catch (e) {}
 if ("serviceWorker" in navigator)
   navigator.serviceWorker.register("sw.js").catch(() => {});
 function span(t) {
@@ -1562,81 +1536,8 @@ function span(t) {
   if (b <= a) b = a + 120;
   return { a, b };
 }
-async function notify(title, body, tag) {
-  try {
-    const r = await navigator.serviceWorker.getRegistration();
-    if (r) {
-      await r.showNotification(title, { body, tag });
-      return;
-    }
-  } catch (e) {}
-  try {
-    new Notification(title, { body, tag });
-  } catch (e) {}
-}
-async function setAlert(on) {
-  if (on) {
-    if (!("Notification" in window))
-      return alert(
-        'This browser cannot show alerts. On iPhone: Share > Add to Home Screen, then open the app from the home screen. You can also use "Add schedule to calendar".',
-      );
-    if ((await Notification.requestPermission()) !== "granted")
-      return alert(
-        "Alerts are blocked. Allow notifications for this site in your browser settings, then try again.",
-      );
-  }
-  alertOn = on;
-  try {
-    localStorage.setItem("hk_alert", on ? "1" : "0");
-  } catch (e) {}
-  alert(
-    on
-      ? 'Alerts are ON. You get a reminder 15 minutes before each fixed playing day. Keep the app open or in the background. For a reminder that always works, also use "Add schedule to calendar".'
-      : "Alerts are OFF.",
-  );
-  if (on) checkAlerts();
-}
-function checkAlerts() {
-  if (
-    !alertOn ||
-    !loaded ||
-    !("Notification" in window) ||
-    Notification.permission !== "granted"
-  )
-    return;
-  let fired = {};
-  try {
-    fired = JSON.parse(localStorage.getItem("hk_fired") || "{}");
-  } catch (e) {}
-  const now = Date.now();
-  for (const d of Object.keys(PL)) {
-    const p = PL[d];
-    if (p.status === "cancelled") continue;
-    const sp = span(p.time);
-    if (!sp) continue;
-    const left = new Date(d + "T00:00").getTime() + sp.a * 60000 - now,
-      key = d + "|" + p.time;
-    if (left > 0 && left <= 15 * 60000 && !fired[key]) {
-      fired[key] = 1;
-      notify(
-        "🏑 Hockey in " + Math.max(1, Math.round(left / 60000)) + " min",
-        (SCH.team[dayIdx(d)][1] || "Practice") +
-          (p.time ? " · " + p.time : "") +
-          (p.venue ? " · 📍 " + p.venue : "") +
-          (p.note ? " · " + p.note : ""),
-        "hk-" + d,
-      );
-    }
-  }
-  for (const k in fired) if (k.slice(0, 10) < today()) delete fired[k];
-  try {
-    localStorage.setItem("hk_fired", JSON.stringify(fired));
-  } catch (e) {}
-}
-setInterval(checkAlerts, 30000);
-document.addEventListener("visibilitychange", checkAlerts);
-
-// ---- push: the server sends a notification when a playing day is scheduled or cancelled (works with the app closed) ----
+// ---- push: the server sends a notification for new announcements, scheduled / cancelled playing days and day reminders (works with the app closed) ----
+// There is no switch in the app. The phone asks for permission once; after that it is managed in the phone's own app settings.
 let pushOn = false,
   pushChecked = false;
 const pushOk = () =>
@@ -1650,69 +1551,65 @@ const b64u = (k) => {
     r = atob(b);
   return Uint8Array.from([...r].map((c) => c.charCodeAt(0)));
 };
-async function pushState() {
-  if (!pushOk()) return (pushOn = false);
+async function pushEnsure() {
+  // makes sure this phone is subscribed and tied to whoever is logged in
   try {
-    const r = await navigator.serviceWorker.ready,
-      s = await r.pushManager.getSubscription();
-    pushOn = !!s && Notification.permission === "granted";
-    if (pushOn)
-      api("/api/push/subscribe", {
-        method: "POST",
-        body: { sub: s.toJSON() },
-      }).catch(() => {}); // keep the server copy tied to whoever is logged in
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const k = await api("/api/push/key");
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: b64u(k.key),
+      });
+    }
+    await api("/api/push/subscribe", {
+      method: "POST",
+      body: { sub: sub.toJSON() },
+    });
+    pushOn = true;
   } catch (e) {
     pushOn = false;
   }
   return pushOn;
 }
-async function setPush(on) {
-  if (!pushOk())
-    return alert(
-      "This browser cannot receive push notifications. On iPhone: open the page in Safari, Share > Add to Home Screen, then open the app from the home screen and try again.",
-    );
+function pushAuto() {
+  if (!pushOk()) return;
+  if (Notification.permission === "granted") return pushEnsure();
+  if (Notification.permission !== "default") return; // blocked: only the phone's settings can change that
+  let asked = false;
   try {
-    const reg = await navigator.serviceWorker.ready;
-    if (on) {
-      if ((await Notification.requestPermission()) !== "granted")
-        return alert(
-          "Notifications are blocked. Allow notifications for this site in your browser settings, then try again.",
-        );
-      const k = await api("/api/push/key");
-      const s =
-        (await reg.pushManager.getSubscription()) ||
-        (await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: b64u(k.key),
-        }));
-      await api("/api/push/subscribe", {
-        method: "POST",
-        body: { sub: s.toJSON() },
-      });
-      pushOn = true;
-      alert(
-        "Push notifications are ON. You will be told when a playing day is scheduled or cancelled, even when the app is closed.",
-      );
-    } else {
-      const s = await reg.pushManager.getSubscription();
-      if (s) {
-        await api("/api/push/unsubscribe", {
-          method: "POST",
-          body: { endpoint: s.endpoint },
-        }).catch(() => {});
-        await s.unsubscribe();
-      }
-      pushOn = false;
+    asked = localStorage.getItem("hk_pushask") === "1";
+  } catch (e) {}
+  if (asked) return;
+  const tryAsk = (n) => {
+    if (document.querySelector("dialog[open]")) {
+      if (n < 6) setTimeout(() => tryAsk(n + 1), 4000);
+      return;
     }
-  } catch (e) {
-    if (/VAPID|not set up/i.test(String(e.message))) {
-      if (owner) openPushHelp();
-      else
-        alert(
-          "Push notifications are not switched on for the team yet.\n\nAsk the captain to open the menu and choose “Set up push notifications”. Until then, “Alert 15 min before practice” still works.",
-        );
-    } else alert("Could not change push notifications: " + (e.message || e));
-  }
+    askPush();
+  };
+  setTimeout(() => tryAsk(0), 1500);
+}
+function askPush() {
+  const mark = () => {
+    try {
+      localStorage.setItem("hk_pushask", "1");
+    } catch (e) {}
+  };
+  const d = ensureDlg("pushdlg");
+  d.innerHTML = `<div class="pushask"><span class="bigic">${ico("bell")}</span><h2>Stay in the loop</h2><p>Allow notifications to get announcements and playing day alerts, even when the app is closed.</p>
+  <div class="ctl"><button class="pri ib" id="pkok" aria-label="Allow notifications" title="Allow notifications">${ico("check")}</button></div></div>`;
+  $("pkok").onclick = async () => {
+    mark();
+    d.close();
+    try {
+      if ((await Notification.requestPermission()) === "granted")
+        await pushEnsure();
+    } catch (e) {}
+  };
+  d.addEventListener("close", mark, { once: true });
+  d.showModal();
 }
 function pushDrop(tk) {
   // on log out: stop this phone getting the previous person's notifications
@@ -1758,7 +1655,7 @@ async function testEmail() {
 async function testPush() {
   if (!pushOn) {
     alert(
-      'This phone is not subscribed to notifications yet. Turn on "Push: day scheduled / cancelled" in this menu first, then test again.',
+      "This phone is not subscribed yet. Allow notifications for this app in your phone settings (App info > Notifications), reopen the app, then test again.",
     );
     return;
   }
@@ -1769,30 +1666,6 @@ async function testPush() {
     alert("Could not run the test: " + e.message);
   }
 }
-function pushCard() {
-  let no = false;
-  try {
-    no = localStorage.getItem("hk_pushno") === "1";
-  } catch (e) {}
-  if (!pushOk() || pushOn || no || Notification.permission === "denied")
-    return "";
-  return `<div class="note"><b>🔔 Get notified</b> when a playing day is scheduled or cancelled.<div class="chips"><button class="pri" data-pushon>Turn on</button><button data-pushno>Not now</button></div></div>`;
-}
-document.addEventListener("click", async (e) => {
-  const on = e.target.closest && e.target.closest("[data-pushon]"),
-    no = e.target.closest && e.target.closest("[data-pushno]");
-  if (on) {
-    await setPush(true);
-    render();
-  }
-  if (no) {
-    try {
-      localStorage.setItem("hk_pushno", "1");
-    } catch (x) {}
-    render();
-  }
-});
-
 // ---- calendar file: every fixed playing day with a built-in 15 minute reminder (works in the background on any phone) ----
 function icsDownload() {
   const up = Object.keys(PL)
@@ -1856,7 +1729,7 @@ function render() {
     .filter((t) => PRIMARY.includes(t[0]))
     .map(
       (x) =>
-        `<button class="${x[0] === tab ? "on" : ""}" data-t="${x[0]}" ${x[0] === tab ? 'aria-current="page"' : ""}><span class="i">${x[1]}</span><span class="l">${x[4] || x[2]}</span></button>`,
+        `<button class="${x[0] === tab ? "on" : ""}" data-t="${x[0]}" ${x[0] === tab ? 'aria-current="page"' : ""} aria-label="${esc(x[2])}" title="${esc(x[2])}"><span class="i">${eic(x[1])}</span><span class="vh">${x[4] || x[2]}</span></button>`,
     )
     .join("");
   $("nav")
@@ -2786,23 +2659,6 @@ const dlabel = (d) => {
   );
   return n === 0 ? "Today" : n === 1 ? "Tomorrow" : "In " + n + " days";
 };
-function nextCard() {
-  const d = Object.keys(PL)
-      .sort()
-      .find((x) => x >= today() && PL[x].status !== "cancelled"),
-    c = Object.keys(PL)
-      .sort()
-      .find(
-        (x) => x >= today() && PL[x].status === "cancelled" && (!d || x < d),
-      );
-  if (!d)
-    return `<div class="card"><h2>Next playing day</h2>${empty("🗓️", "No playing day is fixed yet.")}</div>`;
-  const p = PL[d],
-    r = SCH.team[dayIdx(d)];
-  return `<div class="card"><h2>Next playing day <span class="pill g">${dlabel(d)}</span></h2><p style="margin:0"><b style="font-size:1.15rem">${dlong(d)}</b></p>
-  <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p>${p.venue ? `<p style="margin:2px 0 0">📍 ${esc(p.venue)}</p>` : ""}<p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}
-  ${availBlock(d)}${c ? `<p class="mute" style="margin:8px 0 0">${fmt(c)} is cancelled.</p>` : ""}</div>`;
-}
 function nextPlan() {
   const d = Object.keys(PL)
     .sort()
@@ -4021,10 +3877,10 @@ function vMe() {
       : role === "vice"
         ? "Vice-captain"
         : "Admin";
-  $("view").innerHTML = `${pushCard()}${welcomeHero()}
+  $("view").innerHTML = `${welcomeHero()}
   ${annCard()}${featTiles()}${teamCard()}
   ${gphCard()}
-  <div class="grid">${nextCard()}${upCard()}${newsCard()}${histCard()}</div>`;
+  <div class="grid">${upCard()}${newsCard()}${histCard()}</div>`;
   bindHome();
   bindAnn();
   heroCover();
@@ -4076,7 +3932,7 @@ function vGallery() {
   const tabs = [["all", "🖼️", "All"], ...GCATS]
     .map(
       (c) =>
-        `<button type="button" role="tab" aria-selected="${c[0] === galCat}" class="${c[0] === galCat ? "pri" : ""}" data-gc="${c[0]}">${c[1]} ${c[2]} <small>${cnt(c[0])}</small></button>`,
+        `<button type="button" role="tab" aria-selected="${c[0] === galCat}" class="${c[0] === galCat ? "pri" : ""}" data-gc="${c[0]}">${eic(c[1])} ${c[2]} <small>${cnt(c[0])}</small></button>`,
     )
     .join("");
   const grid = list.length
@@ -4116,7 +3972,7 @@ function vGallery() {
 }
 // section buttons used by both the upload and the edit window
 const catBtns = (cur, id) =>
-  `<div class="chips" id="${id}" role="radiogroup" aria-label="Section">${GCATS.map((c) => `<button type="button" role="radio" aria-checked="${c[0] === cur}" class="${c[0] === cur ? "pri" : ""}" data-pc="${c[0]}">${c[1]} ${c[2]}</button>`).join("")}</div>`;
+  `<div class="chips" id="${id}" role="radiogroup" aria-label="Section">${GCATS.map((c) => `<button type="button" role="radio" aria-checked="${c[0] === cur}" class="${c[0] === cur ? "pri" : ""}" data-pc="${c[0]}">${eic(c[1])} ${c[2]}</button>`).join("")}</div>`;
 function bindCats(id, get, set) {
   const box = $(id);
   box.querySelectorAll("[data-pc]").forEach(

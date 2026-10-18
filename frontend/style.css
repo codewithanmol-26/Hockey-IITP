@@ -3231,3 +3231,196 @@ u.tdot {
   display: block;
   width: 100%;
 }
+
+/* ---------- v21: icons instead of text, back arrows instead of crosses ---------- */
+.svgi {
+  width: 1.3em;
+  height: 1.3em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.28em;
+  flex: none;
+}
+.svgi.hi {
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: 0.35em;
+  color: var(--brand);
+}
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+button.ib,
+a.ib {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  color: var(--brand);
+  line-height: 1;
+}
+button.ib:not(.pri),
+a.ib:not(.pri) {
+  background: var(--card);
+  border: 1.5px solid color-mix(in srgb, var(--brand) 45%, var(--line));
+}
+button.ib .svgi,
+a.ib .svgi {
+  width: 22px;
+  height: 22px;
+  vertical-align: 0;
+}
+button.ib:not(.pri):hover,
+a.ib:not(.pri):hover {
+  background: color-mix(in srgb, var(--brand) 10%, var(--card));
+}
+button.pri.ib {
+  color: #fff;
+  border: 0;
+}
+button.pri.ib:hover {
+  filter: brightness(1.06);
+}
+button.bi,
+a.bi {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.bi .svgi.lead {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: 0;
+}
+button.ib.dng,
+button.dng .svgi {
+  color: var(--a);
+}
+button.ib.dng {
+  border-color: color-mix(in srgb, var(--a) 45%, var(--line));
+}
+/* back arrow on every dialog and on the login page, top-left */
+.lgx,
+.dx {
+  left: 10px;
+  right: auto;
+  color: var(--brand);
+  box-shadow: 0 1px 6px #0b2a4a22;
+}
+.lgx .svgi,
+.dx .svgi,
+.hx .svgi,
+.mx .svgi,
+.mbtn .svgi,
+.thb .svgi {
+  width: 20px;
+  height: 20px;
+  vertical-align: 0;
+}
+dialog > .dx + h2,
+dialog > .dx + h2 + p {
+  padding-left: 0;
+}
+dialog > .dx + h2 {
+  padding-left: 44px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  margin-top: 0;
+}
+.lg-card .lgx ~ img.lg-logo {
+  margin-top: 10px;
+}
+/* header: back arrow sits on the left, next to the logo */
+header {
+  justify-content: flex-start;
+  gap: 10px;
+}
+header > .hb {
+  margin-left: auto;
+}
+.hx {
+  flex: none;
+}
+.hb .thb .svgi,
+.hb .mbtn .svgi {
+  color: #fff;
+}
+/* bottom bar: icons only (names are kept for screen readers and as tooltips) */
+nav .i .svgi {
+  width: 26px;
+  height: 26px;
+  vertical-align: 0;
+}
+nav button {
+  gap: 0;
+}
+nav button .vh {
+  position: absolute;
+}
+.net button.ib {
+  min-width: 34px;
+  height: 34px;
+  background: transparent;
+  border-color: #ffffff66;
+  color: #fff;
+}
+#menu .mi .i .svgi {
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -0.2em;
+}
+#menu .mh .mx .svgi {
+  width: 18px;
+  height: 18px;
+}
+.pushask {
+  text-align: center;
+}
+.pushask .bigic {
+  display: inline-grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  color: var(--brand);
+  margin: 6px 0 4px;
+}
+.pushask .bigic .svgi {
+  width: 32px;
+  height: 32px;
+  vertical-align: 0;
+}
+.pushask h2 {
+  justify-content: center;
+  padding-left: 0 !important;
+}
+.crrot {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 8px 0 2px;
+}
+
+button.sm.ib {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 8px;
+}
+
+/* when a back arrow is showing, the logo makes room so the title stays on one line */
+header:has(#xb:not([hidden])) .brand img {
+  display: none;
+}

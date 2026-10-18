@@ -176,7 +176,7 @@ gid("pli").onclick = () => showLogin();
 
 // ---------------------------------------------------------------- menu cross
 const menuHead = (t) =>
-  `<div class="mh"><b>${t}</b><button type="button" class="mx" data-mx aria-label="Close menu">✕</button></div>`;
+  `<div class="mh"><b>${t}</b><button type="button" class="mx" data-mx aria-label="Close menu" title="Close menu">${ico("close")}</button></div>`;
 function wireMenu(m) {
   const x = m.querySelector("[data-mx]");
   if (x)
@@ -198,13 +198,13 @@ function wireMenu(m) {
 new MutationObserver(() => {
   const o = !gid("menu").hidden;
   document.querySelectorAll(".mbtn").forEach((b) => {
-    b.textContent = o ? "✕" : "⋮";
+    b.innerHTML = ico(o ? "close" : "dots");
     b.classList.toggle("open", o);
     b.setAttribute("aria-expanded", String(o));
     b.setAttribute("aria-label", o ? "Close menu" : "Menu");
   });
 }).observe(gid("menu"), { attributes: true, attributeFilter: ["hidden"] });
-// ✕ on the login page goes back to the public page; ✕ in the header goes from any menu page back to Home
+// the back arrow on the login page goes to the public page; the back arrow in the header goes from any menu page back to Home
 gid("lgx").onclick = () => showPublic();
 gid("xb").onclick = () => {
   gid("menu").hidden = true;
@@ -353,7 +353,7 @@ const roleLabel = () =>
 
 // ---------------------------------------------------------------- photo cropper
 // cropFile(file,{title,ars:[[label,ratio]],out,q,cap,skip}) -> Promise<JPEG data URL | null>. ratio 0 = the picture's own shape.
-// Drag to move, pinch / slider / wheel to zoom. "Use original" keeps the whole picture.
+// Drag to move, turn left / right with the two rotate buttons. No zoom. The whole-photo button keeps the full picture.
 async function cropFile(file, o) {
   let bm = null;
   try {
@@ -370,12 +370,22 @@ async function cropFile(file, o) {
     alert("That file is not a picture.");
     return null;
   }
-  const iw = bm.width,
-    ih = bm.height,
-    d = ensureDlg("crdlg"),
+  let iw = bm.width,
+    ih = bm.height;
+  const big = Math.max(iw, ih);
+  if (big > 2600) {
+    const k = 2600 / big,
+      c = document.createElement("canvas");
+    c.width = Math.round(iw * k);
+    c.height = Math.round(ih * k);
+    c.getContext("2d").drawImage(bm, 0, 0, c.width, c.height);
+    bm = c;
+    iw = c.width;
+    ih = c.height;
+  } // the saved photo is never bigger than about 1300 px, so a huge original is shrunk once to keep phones quick
+  const d = ensureDlg("crdlg"),
     ars = o.ars || [["Square", 1]];
   let ai = 0,
-    zoom = 1,
     ox = 0,
     oy = 0,
     bw = 0,
@@ -385,22 +395,22 @@ async function cropFile(file, o) {
     const r = ars[ai][1] || iw / ih;
     return Math.max(0.4, Math.min(4, r));
   };
-  d.innerHTML = `<button type="button" class="dx" id="cr-xx" aria-label="Cancel">✕</button><h2>${esc(o.title || "Crop photo")}</h2>
+  d.innerHTML = `<button type="button" class="dx" id="cr-xx" aria-label="Back">✕</button><h2>${esc(o.title || "Crop photo")}</h2>
   <div class="crv"><canvas id="crc"></canvas></div>
-  ${ars.length > 1 ? `<div class="chips crar" style="justify-content:center">${ars.map((a, i) => `<button type="button" data-ar="${i}" class="${i === 0 ? "pri" : ""}">${esc(a[0])}</button>`).join("")}</div>` : ""}
-  <label class="crz"><span>🔍</span><input type="range" id="crs" min="1" max="4" step="0.01" value="1" aria-label="Zoom"></label>
-  <p class="mute" style="text-align:center;margin:2px 0 10px">Drag to move · pinch or slide to zoom</p>
-  <div class="ctl"><button class="pri" id="cr-ok">✔ Use photo</button>${o.skip ? '<button id="cr-sk">Use original</button>' : ""}<button id="cr-x">Cancel</button></div>`;
+  <div class="crrot"><button type="button" class="ib" id="cr-rl" aria-label="Rotate left" title="Rotate left">${ico("rotate-l")}</button><button type="button" class="ib" id="cr-rr" aria-label="Rotate right" title="Rotate right">${ico("rotate-r")}</button></div>
+  ${ars.length > 1 ? `<div class="chips crar" style="justify-content:center;margin-top:8px">${ars.map((a, i) => `<button type="button" data-ar="${i}" class="${i === 0 ? "pri" : ""}">${esc(a[0])}</button>`).join("")}</div>` : ""}
+  <p class="mute" style="text-align:center;margin:6px 0 10px">Drag to move the picture</p>
+  <div class="ctl"><button class="pri ib" id="cr-ok" aria-label="Use photo" title="Use photo">${ico("check")}</button>${o.skip ? `<button class="ib" id="cr-sk" aria-label="Use the whole photo" title="Use the whole photo">${ico("expand")}</button>` : ""}</div>`;
   const cv = d.querySelector("#crc"),
     cx = cv.getContext("2d");
-  const base = () => Math.max(bw / iw, bh / ih),
-    sc = () => base() * zoom;
+  const sc = () => Math.max(bw / iw, bh / ih);
   const clamp = () => {
     const mx = Math.max(0, (iw * sc() - bw) / 2),
       my = Math.max(0, (ih * sc() - bh) / 2);
     ox = Math.max(-mx, Math.min(mx, ox));
     oy = Math.max(-my, Math.min(my, oy));
   };
+  let dpr = Math.min(2, window.devicePixelRatio || 1);
   const draw = () => {
     clamp();
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -415,7 +425,6 @@ async function cropFile(file, o) {
       ih * s2,
     );
   };
-  let dpr = Math.min(2, window.devicePixelRatio || 1);
   const layout = () => {
     const W = Math.min(360, innerWidth * 0.94 - 44),
       r = ratio();
@@ -429,56 +438,39 @@ async function cropFile(file, o) {
     cv.style.height = bh + "px";
     cv.width = Math.round(bw * dpr);
     cv.height = Math.round(bh * dpr);
-    zoom = 1;
     ox = oy = 0;
-    d.querySelector("#crs").value = 1;
     draw();
   };
-  const pts = new Map();
-  let last = 0;
+  let drag = null;
   cv.onpointerdown = (e) => {
     cv.setPointerCapture(e.pointerId);
-    pts.set(e.pointerId, [e.clientX, e.clientY]);
-    last = 0;
+    drag = [e.clientX, e.clientY];
   };
   cv.onpointermove = (e) => {
-    if (!pts.has(e.pointerId)) return;
-    const p = pts.get(e.pointerId);
-    if (pts.size === 1) {
-      ox += e.clientX - p[0];
-      oy += e.clientY - p[1];
-      pts.set(e.pointerId, [e.clientX, e.clientY]);
-      draw();
-    } else {
-      pts.set(e.pointerId, [e.clientX, e.clientY]);
-      const [a, b] = [...pts.values()],
-        dist = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      if (last) {
-        zoom = Math.max(1, Math.min(4, (zoom * dist) / last));
-        d.querySelector("#crs").value = zoom;
-        draw();
-      }
-      last = dist;
-    }
-  };
-  cv.onpointerup = cv.onpointercancel = (e) => {
-    pts.delete(e.pointerId);
-    last = 0;
-  };
-  cv.addEventListener(
-    "wheel",
-    (e) => {
-      e.preventDefault();
-      zoom = Math.max(1, Math.min(4, zoom * (e.deltaY < 0 ? 1.08 : 0.93)));
-      d.querySelector("#crs").value = zoom;
-      draw();
-    },
-    { passive: false },
-  );
-  d.querySelector("#crs").oninput = (e) => {
-    zoom = +e.target.value;
+    if (!drag) return;
+    ox += e.clientX - drag[0];
+    oy += e.clientY - drag[1];
+    drag = [e.clientX, e.clientY];
     draw();
   };
+  cv.onpointerup = cv.onpointercancel = () => {
+    drag = null;
+  };
+  // turn the picture a quarter turn; the crop frame is reset because the picture's shape changed
+  const turn = (dir) => {
+    const c = document.createElement("canvas");
+    c.width = ih;
+    c.height = iw;
+    const x = c.getContext("2d");
+    x.translate(c.width / 2, c.height / 2);
+    x.rotate((dir * Math.PI) / 2);
+    x.drawImage(bm, -iw / 2, -ih / 2);
+    bm = c;
+    [iw, ih] = [ih, iw];
+    layout();
+  };
+  d.querySelector("#cr-rl").onclick = () => turn(-1);
+  d.querySelector("#cr-rr").onclick = () => turn(1);
   d.querySelectorAll("[data-ar]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -545,7 +537,7 @@ async function cropFile(file, o) {
     d.querySelector("#cr-ok").onclick = () => {
       const v = render(false);
       if (o.cap && v.length >= o.cap) {
-        alert("That photo is too big. Zoom in a little and try again.");
+        alert("That photo is too big. Try a different picture.");
         done = false;
         return;
       }
@@ -555,13 +547,12 @@ async function cropFile(file, o) {
       d.querySelector("#cr-sk").onclick = () => {
         const v = render(true);
         if (o.cap && v.length >= o.cap) {
-          alert("That photo is too big. Use the crop and zoom in a little.");
+          alert("That photo is too big. Use the crop instead.");
           return;
         }
         fin(v);
       };
-    d.querySelector("#cr-x").onclick = d.querySelector("#cr-xx").onclick = () =>
-      fin(null);
+    d.querySelector("#cr-xx").onclick = () => fin(null);
     d.addEventListener("close", () => fin(null), { once: true });
     d.showModal();
     layout();

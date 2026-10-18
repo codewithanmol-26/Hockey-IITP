@@ -175,6 +175,18 @@ const playerToken = (pl, now) =>
 
 // ---- first-time signup: roll number -> a 6 digit code e-mailed through Resend -> choose your own code ----
 // Needs RESEND_API_KEY (and RESEND_FROM, an address on a domain verified in Resend). Optional SIGNUP_EMAIL_DOMAIN (e.g. iitp.ac.in) limits which e-mails may be used.
+// Sign-up e-mails must be institute addresses. Default iitp.ac.in; set SIGNUP_EMAIL_DOMAIN to another domain, or to "any" to allow every address.
+const SIGNUP_DOMAIN = (() => {
+  const v = (
+    process.env.SIGNUP_EMAIL_DOMAIN === undefined
+      ? "iitp.ac.in"
+      : process.env.SIGNUP_EMAIL_DOMAIN
+  )
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "");
+  return v === "any" || v === "none" ? "" : v;
+})();
 const EMAIL_RE = /^[^\s@<>"']{1,64}@[^\s@<>"']{1,200}\.[A-Za-z]{2,24}$/;
 const maskEmail = (e) => {
   const [u, d] = String(e).split("@");
@@ -264,7 +276,7 @@ app.post(
       hasAccount: acc.exists,
       emailHint:
         !acc.exists && EMAIL_RE.test(pl.email || "") ? maskEmail(pl.email) : "",
-      domain: process.env.SIGNUP_EMAIL_DOMAIN || "",
+      domain: SIGNUP_DOMAIN,
     });
   }),
 );
@@ -296,9 +308,7 @@ app.post(
     const email = saved || typed;
     if (!EMAIL_RE.test(email))
       return res.status(400).json({ error: "Enter a valid e-mail address." });
-    const dom = (process.env.SIGNUP_EMAIL_DOMAIN || "")
-      .toLowerCase()
-      .replace(/^@/, "");
+    const dom = SIGNUP_DOMAIN;
     if (!saved && dom && !email.toLowerCase().endsWith("@" + dom))
       return res
         .status(400)
@@ -860,7 +870,11 @@ async function pushPlan(ev, date, p) {
         ? "❌ Playing day cancelled"
         : ev === "back"
           ? "🏑 Playing day is back on"
-          : "🏑 Playing day scheduled";
+          : ev === "today"
+            ? "⏰ Playing day today"
+            : ev === "tomorrow"
+              ? "⏰ Playing day tomorrow"
+              : "🏑 Playing day scheduled";
     const body = ev === "cancel" ? bits + " is cancelled." : bits,
       base = { tag: "hk-plan-" + date, url: "./" };
     const tags = Array.isArray(p.tags) ? p.tags : [],
@@ -885,6 +899,56 @@ async function pushPlan(ev, date, p) {
     return null;
   }
 }
+// Reminders for the next playing day. Vercel Cron calls this twice a day (see vercel.json) and sends "Authorization: Bearer <CRON_SECRET>".
+//  when=tomorrow (7 pm IST): reminds about tomorrow's morning sessions.   when=today (7 am IST): reminds about today's evening sessions.
+function startHour(t) {
+  const k = [
+    ...String(t || "").matchAll(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/gi),
+  ];
+  if (!k.length || +k[0][1] > 23) return null;
+  const mer = (k[0][3] || (k[1] && k[1][3]) || "").toLowerCase();
+  let hr = +k[0][1];
+  if (mer === "pm" && hr < 12) hr += 12;
+  if (mer === "am" && hr === 12) hr = 0;
+  return hr;
+}
+app.get(
+  "/api/cron/remind",
+  h(async (req, res) => {
+    const secret = process.env.CRON_SECRET;
+    if (!secret)
+      return res
+        .status(503)
+        .json({ error: "CRON_SECRET is not set in Vercel" });
+    if (!eq(String(req.headers.authorization || ""), "Bearer " + secret))
+      return res.status(401).json({ error: "Not allowed" });
+    const when = req.query.when === "today" ? "today" : "tomorrow";
+    const t0 = todayIST(),
+      date =
+        when === "today"
+          ? t0
+          : new Date(new Date(t0 + "T00:00:00Z").getTime() + 864e5)
+              .toISOString()
+              .slice(0, 10);
+    const d = await db.collection("plans").doc(date).get();
+    if (!d.exists || d.data().status === "cancelled")
+      return res.json({
+        ok: true,
+        sent: 0,
+        reason: "no playing day on " + date,
+      });
+    const hr = startHour(d.data().time),
+      evening = hr !== null && hr >= 12;
+    if ((when === "today") !== evening)
+      return res.json({
+        ok: true,
+        sent: 0,
+        reason: "this session is reminded in the other run",
+      });
+    const push = await pushPlan(when, date, d.data());
+    res.json({ ok: true, date, push });
+  }),
+);
 // "Send me a test": tells the person exactly why notifications do or do not reach this phone.
 app.post(
   "/api/push/test",
