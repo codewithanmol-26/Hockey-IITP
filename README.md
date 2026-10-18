@@ -36,7 +36,7 @@ If it shows "Backend not configured", a variable above is missing or the JSON wa
 - **Public page (no login):** shows app features, captain, vice-captain, coach, team photos, fixtures and news. Players' names, contact details and attendance are never sent without a login. **Log in** opens the login page (✕ goes back). The captain sets the names under ⋮ > _Edit captain & coach names_.
 - **Open in app / Continue in web** is asked once per browser session. A website cannot force-launch an installed app, so _Open in app_ installs it (or explains how).
 - **Attendance %** = days present ÷ total working days. The total is the same for every player; a missed day counts as absent.
-- **Smartwatch:** Training tab > _Scan QR code on the watch_, then _Connect this watch_ (Bluetooth). Live heart rate needs a watch that shares standard Bluetooth heart rate.
+- **Health log:** Training tab > _My health log_: type in steps, distance, sleep, calories, height and weight by hand (the smartwatch connection was removed in v20).
 - **Login for the app itself:** after login, Home shows personal details and feature shortcuts.
   Players: roll number + their own code. Captain / Vice-captain / Admin: **Captain / Admin** tab.
 - **Install as an app:** _Install app_ on the login page or in the ⋮ menu (Chrome/Edge/Android). On iPhone: Safari > Share > Add to Home Screen. The icons are in `frontend/icons/`.
@@ -216,5 +216,5 @@ No command line needed: open the app > ⋮ menu > **Set up push notifications**.
 - **Photo cropper:** rotate left / right buttons; the zoom slider and pinch zoom are gone.
 - **Home:** the lower "Next playing day" card is removed (the top card shows it).
 - **Notifications have no switches.** The phone asks for permission once, the first time; after that the phone's own app settings decide. The server sends a notification for each new announcement, when a playing day is scheduled or cancelled, and a reminder (7 pm the evening before for morning sessions, 7 am the same day for evening sessions) through Vercel Cron. Needs `CRON_SECRET`.
-- **Sign-up e-mails must be `@iitp.ac.in`** by default.
+- **Sign-up e-mails can be from any domain** by default. To restrict them, set `SIGNUP_EMAIL_DOMAIN` (e.g. `iitp.ac.in`).
 - Fixed: logging out failed with an error since v20 (a removed smartwatch function was still called).

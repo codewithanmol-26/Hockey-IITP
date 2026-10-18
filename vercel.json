@@ -7,5 +7,15 @@
       "source": "/api/(.*)",
       "destination": "/api"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/remind?when=today",
+      "schedule": "30 1 * * *"
+    },
+    {
+      "path": "/api/cron/remind?when=tomorrow",
+      "schedule": "30 13 * * *"
+    }
   ]
 }

@@ -1,3 +1,10 @@
+/* safety net: if icons.js is stale/missing, don't crash the whole app */
+if (typeof eic === "undefined") {
+  window.eic = (e) => e;
+}
+if (typeof ico === "undefined") {
+  window.ico = () => "";
+}
 // Extra UI pieces: avatars, umpire whistle + signal pictures, chart, sharing (any app), reports.
 // Loaded before app.js. Everything here is only called after app.js has started, so it can use its globals (P, SS, esc, fmt ...).
 
