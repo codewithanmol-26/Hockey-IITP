@@ -98,15 +98,15 @@
     <form id="sf">
       <p><input id="sn" placeholder="Name" maxlength="40" required></p>
       <p><input id="sr" placeholder="Roll number" maxlength="12" autocapitalize="characters" required></p>
-      <p><input id="sc" placeholder="Contact number" inputmode="tel" maxlength="15"></p>
+      <p><input id="sc" type="email" placeholder="E-mail (optional)" inputmode="email" maxlength="120"></p>
       <button class="pri">Add student</button>
     </form>
     <hr>
-    <p class="mute">Add many at once: one student per line as <b>Name, Roll no, Contact</b></p>
-    <p><textarea id="sb" rows="4" placeholder="Aditya Raj, 2501ME22, 6299672979"></textarea></p>
+    <p class="mute">Add many at once: one student per line as <b>Name, Roll no, E-mail</b></p>
+    <p><textarea id="sb" rows="4" placeholder="Aditya Raj, 2501ME22, aditya@iitp.ac.in"></textarea></p>
     <button id="sba">Add all</button>
     <hr>
-    <p class="mute">Load the jersey form list (name, roll no, contact, e-mail, size, jersey name and number).</p>
+    <p class="mute">Load the jersey form list (name, roll no, e-mail, size, jersey name and number).</p>
     <button id="sj">Import jersey form list</button>
     <p id="sm" class="mute" role="status"></p>
     <div class="ctl"><button type="button" id="sx">Close</button></div>
@@ -131,16 +131,6 @@
     <p id="oiam" class="note" hidden></p>
     <div class="ctl" style="flex-direction:column"><button class="pri big" id="oiaa">📲 Open in app</button><button
         class="big" id="oiaw">🌐 Continue in web</button></div>
-  </dialog>
-
-  <dialog id="qrdlg">
-    <button type="button" class="dx" id="qrx" aria-label="Close scanner">✕</button>
-    <h2>Scan watch QR code</h2>
-    <p class="mute">Open the QR code on your watch (usually under <i>Settings → About</i> or <i>Pair / Connect</i>) and
-      hold it in front of the camera.</p>
-    <div class="qrv"><video id="qrvid" playsinline muted></video><i class="qrf"></i></div>
-    <p id="qrm" class="mute" role="status">Starting camera…</p>
-    <div class="ctl"><button id="qrpick">🖼 Scan from a photo</button><button id="qrc">Cancel</button></div>
   </dialog>
 
   <dialog id="avdlg"></dialog>

@@ -202,3 +202,9 @@ No command line needed: open the app > ⋮ menu > **Set up push notifications**.
 - **Gallery** has Fitness / Practice / Match sections, a short description on every photo, and an Edit button (admins: any photo, players: their own).
 - **Sign-up with an e-mailed code (Resend)**; phone numbers are no longer asked for anywhere. If the captain saved an e-mail for a player the code goes there, otherwise the player types one. Set `RESEND_API_KEY` and `RESEND_FROM` in Vercel (see `.env.example`). Old phone numbers stay in the database but are not shown or used.
 - **Menu > Send me a test notification** says exactly why push does or does not reach a phone.
+
+## v20
+
+- **Smartwatch connection removed** (Bluetooth heart rate, QR scanner, watch fields). Old saved sessions still show their numbers.
+- **My health log** (Training tab): steps, distance (km), sleep (hours), calories, height (cm), weight (kg), one entry per day, all optional, private to each person. Shows 7 day averages, latest weight/height and BMI, the last 14 days (edit or delete), and a sleep tip when the weekly average is under 7 hours. Stored in Firestore `health`.
+- **Menu > Test the sign-up e-mail** (captain / vice-captain) sends a test e-mail so you can check the Resend and domain setup. See `EMAIL-SETUP.md`.

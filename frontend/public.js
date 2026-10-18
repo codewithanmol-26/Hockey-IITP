@@ -2,7 +2,6 @@
 //   1. the public page (shown without login): app features, captain, coach, photos, news
 //   2. the "Open in app / Continue in web" question
 //   3. the menu cross (✕) and the cross on pages opened from the menu
-//   4. smartwatch: scan the QR code on the watch, then connect by Bluetooth
 //   5. the personal card + feature shortcuts on the Home page after login
 
 const gid = (id) => document.getElementById(id);
@@ -47,9 +46,9 @@ const FEATURES = [
     "Warm-up and stretching routines to do before and after practice.",
   ],
   [
-    "⌚",
-    "Training & watch",
-    "Timer, match clock and heart rate from your smartwatch (QR or Bluetooth).",
+    "⏱",
+    "Training & health",
+    "Timer, match clock, and a log of your steps, distance, sleep, calories, height and weight.",
   ],
   ["🖼️", "Team gallery", "Share and view team photos."],
   [
@@ -261,287 +260,6 @@ gid("oiax").onclick = () => {
 };
 gid("oia").addEventListener("cancel", () => oiaSet("web"));
 
-// ---------------------------------------------------------------- smartwatch: scan the QR code, then connect by Bluetooth
-// Read what a watch QR code holds. Most carry a web link (app download / pairing page), a Bluetooth address, or the device name.
-function parseWatchQr(raw) {
-  const t = String(raw || "").trim(),
-    o = { raw: t.slice(0, 300), name: "", mac: "", url: "" };
-  const NAMEK =
-      /^(n|name|dn|devname|dev_name|device|devicename|device_name|btname|bt_name|bluetoothname|model|ble)$/i,
-    MACK = /^(mac|addr|address|btaddr|btmac|bt_mac|bluetoothaddress)$/i;
-  const tidy = (v) =>
-    String(v || "")
-      .trim()
-      .slice(0, 40);
-  const norm = (v) => {
-    const h = String(v || "").replace(/[^0-9a-fA-F]/g, "");
-    return h.length === 12 ? h.toUpperCase().match(/../g).join(":") : "";
-  };
-  const take = (k, v) => {
-    if (typeof v !== "string" && typeof v !== "number") return;
-    v = String(v);
-    if (NAMEK.test(k) && !o.name) o.name = tidy(v);
-    else if (MACK.test(k) && !o.mac) o.mac = norm(v);
-  };
-  if (/^https?:\/\/\S+$/i.test(t)) {
-    o.url = t.slice(0, 300);
-    try {
-      const u = new URL(t);
-      u.searchParams.forEach((v, k) => take(k, v));
-    } catch (e) {}
-  }
-  try {
-    const j = JSON.parse(t);
-    if (j && typeof j === "object")
-      Object.keys(j).forEach((k) => take(k, j[k]));
-  } catch (e) {}
-  const kv = t.match(
-    /(?:^|[;,&\s])(n|name|dn|device(?:_?name)?|bt_?name)\s*[:=]\s*([^;,&\r\n"]{2,40})/i,
-  );
-  if (kv && !o.name) o.name = tidy(kv[2]);
-  const km = t.match(
-    /(?:^|[;,&\s])(mac|addr|address|bt_?addr)\s*[:=]\s*([0-9A-Fa-f:\-]{12,17})/i,
-  );
-  if (km && !o.mac) o.mac = norm(km[2]);
-  const mm = t.match(/\b([0-9A-Fa-f]{2}(?:[:\-][0-9A-Fa-f]{2}){5})\b/);
-  if (mm && !o.mac) o.mac = norm(mm[1]);
-  if (!o.name && !o.url && !o.mac && t.length <= 32 && /^[\w .\-+]+$/.test(t))
-    o.name = tidy(t); // the code is just the watch name
-  return o;
-}
-const getWatch = () => lsGet("hk_watch", null);
-function watchBox() {
-  const w = getWatch();
-  if (!w) return "";
-  const what =
-    [
-      w.name ? `<b>${esc(w.name)}</b>` : "",
-      w.mac ? `address ${esc(w.mac)}` : "",
-      w.url && !w.name && !w.mac
-        ? `link ${esc(w.url.slice(0, 60))}${w.url.length > 60 ? "…" : ""}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join(" · ") || esc(w.raw.slice(0, 60));
-  return `<div class="note" id="hrqs"><b>📷 Watch QR scanned:</b> ${what}.
-  <div class="chips"><button class="pri" id="hrqc">🔗 Connect this watch</button><button id="hrqa">Show all nearby devices</button>${w.url ? '<a class="btn" id="hrqo" href="' + esc(w.url) + '" target="_blank" rel="noopener noreferrer">Open QR link</a>' : ""}<button id="hrqx">Forget</button></div>
-  <p class="mute" style="margin:6px 0 0;font-size:.82rem">Tap <i>Connect</i>, then pick your watch in the Bluetooth list. Keep the watch close and its heart-rate sharing / broadcast turned on.</p></div>`;
-}
-function bindWatch() {
-  if (gid("hrqr")) gid("hrqr").onclick = qrScan;
-  if (gid("hrqc")) gid("hrqc").onclick = () => hrConnectQr(false);
-  if (gid("hrqa")) gid("hrqa").onclick = () => hrConnectQr(true);
-  if (gid("hrqx"))
-    gid("hrqx").onclick = () => {
-      try {
-        localStorage.removeItem("hk_watch");
-      } catch (e) {}
-      vTrain();
-    };
-}
-async function hrConnectQr(all) {
-  if (!navigator.bluetooth)
-    return alert(
-      "This browser cannot connect to a watch over Bluetooth.\n\nUse Chrome on Android, or Chrome / Edge on a computer. iPhone Safari does not support it. You can still add watch numbers by hand after a session.",
-    );
-  const w = getWatch() || {},
-    opt = ["heart_rate", "battery_service", "device_information"];
-  let req;
-  if (all || !w.name) req = { acceptAllDevices: true, optionalServices: opt };
-  else {
-    const f = [{ namePrefix: w.name }],
-      first = w.name.split(/\s+/)[0];
-    if (first && first !== w.name) f.push({ namePrefix: first });
-    f.push({ services: ["heart_rate"] });
-    req = { filters: f, optionalServices: opt };
-  }
-  try {
-    const dev = await navigator.bluetooth.requestDevice(req);
-    dev.addEventListener("gattserverdisconnected", () => {
-      HR.on = false;
-      HR.bpm = 0;
-      drawHr();
-    });
-    try {
-      await hrOpen(dev);
-      lsSet(
-        "hk_watch",
-        Object.assign({}, w, { name: w.name || dev.name || "" }),
-      );
-      if (tab === "train") vTrain();
-    } catch (e) {
-      try {
-        dev.gatt.disconnect();
-      } catch (x) {}
-      alert(
-        (dev.name || "This watch") +
-          " connected, but it does not share live heart rate with other apps.\n\nMany watches (for example boAt) only talk to their own app. After training, open that app and press “Add watch summary” here to type the numbers.",
-      );
-    }
-  } catch (e) {
-    if (e.name === "AbortError") return;
-    if (e.name === "NotFoundError") {
-      if (!all && w.name)
-        return alert(
-          "No device was picked, or none matched “" +
-            w.name +
-            "”.\n\nTry “Show all nearby devices” and pick your watch.",
-        );
-      return;
-    }
-    alert("Could not connect: " + e.message);
-  }
-}
-// --- camera scanner
-const QR = { stream: null, t: 0, det: null, on: false, jsq: null };
-function loadJsQr() {
-  if (window.jsQR) return Promise.resolve(window.jsQR);
-  if (QR.jsq) return QR.jsq;
-  const urls = [
-    "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js",
-  ];
-  QR.jsq = urls
-    .reduce(
-      (p, u) =>
-        p.catch(
-          () =>
-            new Promise((ok, no) => {
-              const s = document.createElement("script");
-              s.src = u;
-              s.onload = () =>
-                window.jsQR ? ok(window.jsQR) : no(new Error("no jsQR"));
-              s.onerror = () => no(new Error("load"));
-              document.head.appendChild(s);
-            }),
-        ),
-      Promise.reject(),
-    )
-    .catch(() => {
-      QR.jsq = null;
-      return null;
-    });
-  return QR.jsq;
-}
-async function qrDecode(src, w, h) {
-  // src: video, ImageBitmap or canvas. Returns text or ''
-  if (!QR.det && "BarcodeDetector" in window) {
-    try {
-      QR.det = new BarcodeDetector({ formats: ["qr_code"] });
-    } catch (e) {}
-  }
-  if (QR.det) {
-    try {
-      const r = await QR.det.detect(src);
-      return r && r[0] ? r[0].rawValue : "";
-    } catch (e) {}
-  }
-  const jq = await loadJsQr();
-  if (!jq) return "";
-  const c = document.createElement("canvas"),
-    k = Math.min(1, 640 / Math.max(w, h));
-  c.width = Math.round(w * k);
-  c.height = Math.round(h * k);
-  const x = c.getContext("2d", { willReadFrequently: true });
-  x.drawImage(src, 0, 0, c.width, c.height);
-  const im = x.getImageData(0, 0, c.width, c.height),
-    r = jq(im.data, c.width, c.height, { inversionAttempts: "attemptBoth" });
-  return r ? r.data : "";
-}
-function qrStop() {
-  QR.on = false;
-  clearTimeout(QR.t);
-  if (QR.stream) {
-    QR.stream.getTracks().forEach((t) => t.stop());
-    QR.stream = null;
-  }
-  const v = gid("qrvid");
-  if (v) v.srcObject = null;
-}
-function qrFound(txt) {
-  qrStop();
-  const d = gid("qrdlg");
-  if (d.open) d.close();
-  const w = parseWatchQr(txt);
-  lsSet("hk_watch", w);
-  if (tab !== "train") {
-    tab = "train";
-    prof = null;
-  }
-  render();
-  window.scrollTo(0, 0);
-  if (!w.name && !w.mac && !w.url)
-    alert(
-      "The QR code was read, but it holds no watch name or address:\n\n" +
-        w.raw.slice(0, 120) +
-        "\n\nYou can still press “Show all nearby devices” and pick your watch.",
-    );
-}
-async function qrScan() {
-  const d = gid("qrdlg"),
-    v = gid("qrvid"),
-    m = gid("qrm");
-  m.textContent = "Starting camera…";
-  if (!d.open) d.showModal();
-  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-    m.textContent =
-      "Camera is not available in this browser (it needs https). Use “Scan from a photo”.";
-    return;
-  }
-  try {
-    QR.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
-      audio: false,
-    });
-    v.srcObject = QR.stream;
-    await v.play();
-    QR.on = true;
-    m.textContent = "Point the camera at the QR code on the watch.";
-    const loop = async () => {
-      if (!QR.on) return;
-      try {
-        if (v.videoWidth) {
-          const t = await qrDecode(v, v.videoWidth, v.videoHeight);
-          if (t && QR.on) return qrFound(t);
-        }
-      } catch (e) {}
-      QR.t = setTimeout(loop, 250);
-    };
-    loop();
-  } catch (e) {
-    m.textContent =
-      e && e.name === "NotAllowedError"
-        ? "Camera permission was denied. Allow the camera for this site in the browser settings, or use “Scan from a photo”."
-        : "Could not start the camera (" +
-          ((e && e.message) || e) +
-          "). Use “Scan from a photo”.";
-  }
-}
-gid("qrdlg").addEventListener("close", qrStop);
-gid("qrx").onclick = gid("qrc").onclick = () => gid("qrdlg").close();
-gid("qrpick").onclick = () => {
-  const f = document.createElement("input");
-  f.type = "file";
-  f.accept = "image/*";
-  f.onchange = async () => {
-    const fl = f.files[0];
-    if (!fl) return;
-    const m = gid("qrm");
-    m.textContent = "Reading the picture…";
-    try {
-      const bm = await createImageBitmap(fl),
-        t = await qrDecode(bm, bm.width, bm.height);
-      if (t) qrFound(t);
-      else
-        m.textContent =
-          "No QR code found in that picture. Try a sharper, closer photo.";
-    } catch (e) {
-      m.textContent = "Could not read that picture.";
-    }
-  };
-  f.click();
-};
-
 // ---------------------------------------------------------------- Home after login: personal card + feature shortcuts + team
 function myInfoCard() {
   const kvp = (a, b) =>
@@ -565,7 +283,7 @@ function myInfoCard() {
       .join(" · ");
     return `<div class="card"><h2>My details</h2>
     <div class="stats"><div><b>${a.pct}%</b>Attendance</div><div><b>${a.pr}/${a.t}</b>Days present</div><div><b>${mm.t ? mm.pct + "%" : "–"}</b>This month</div></div>
-    ${role !== "player" ? kvp("Role", roleLabel()) : ""}${kvp("Roll number", esc(p.roll))}${kvp("Position", esc(p.position))}${kvp("Jersey", jersey)}${kvp("Contact", p.contact ? esc(p.contact) : "")}${kvp("E-mail", p.email ? esc(p.email) : "")}${kvp("Joined", p.joined ? fmt(p.joined) : "")}
+    ${role !== "player" ? kvp("Role", roleLabel()) : ""}${kvp("Roll number", esc(p.roll))}${kvp("Position", esc(p.position))}${kvp("Jersey", jersey)}${kvp("E-mail", p.email ? esc(p.email) : "")}${kvp("Joined", p.joined ? fmt(p.joined) : "")}
     <div class="chips"><button id="myp">👤 Open my profile</button><button id="mye">✏️ Edit details</button><button data-go="stats">📊 My attendance</button></div></div>`;
   }
   const st = stats("all").filter((x) => x.t),

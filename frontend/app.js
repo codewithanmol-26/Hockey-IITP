@@ -808,7 +808,7 @@ const TABS = [
   ["rules", "📖", "Rules", "", ""],
   ["warmup", "🔥", "Warm-up", "", ""],
   ["gallery", "🖼️", "Gallery", "", ""],
-  ["train", "⌚", "Training & watch", "", ""],
+  ["train", "⌚", "Training & health", "", ""],
   ["bugs", "🐞", "Bug reports", "o", ""],
   ["players", "👥", "Players", "a", ""],
   ["removed", "🗑️", "Removed students", "a", ""],
@@ -894,6 +894,8 @@ function logout() {
   lastJs = "";
   pushChecked = false;
   WK = [];
+  HL = [];
+  hlLoaded = false;
   wkLoaded = false;
   wkErr = "";
   BG = [];
@@ -1348,7 +1350,10 @@ function drawMenu() {
       { sw: alertOn },
     ) +
     mi("📨", "Send me a test notification", testPush) +
-    (owner ? mi("🛠️", "Set up push notifications", openPushHelp) : "");
+    (owner
+      ? mi("🛠️", "Set up push notifications", openPushHelp) +
+        mi("✉️", "Test the sign-up e-mail", testEmail)
+      : "");
   h +=
     `<div class="ms">App</div>` +
     mi("📅", "Add schedule to calendar", icsDownload) +
@@ -1728,6 +1733,27 @@ function pushDrop(tk) {
     })
     .catch(() => {});
   pushOn = false;
+}
+async function testEmail() {
+  const to = (
+    prompt(
+      "Send a test e-mail to which address?\n(Use an address that is not on your own domain, for example a Gmail, to prove it reaches other people.)",
+    ) || ""
+  ).trim();
+  if (!to) return;
+  try {
+    const r = await api("/api/email/test", { method: "POST", body: { to } });
+    alert(
+      "Sent from: " +
+        r.from +
+        "\n\nCheck the inbox (and spam) of " +
+        to +
+        "." +
+        (r.warn ? "\n\n⚠️ " + r.warn : ""),
+    );
+  } catch (e) {
+    alert("The test e-mail failed.\n\n" + e.message);
+  }
 }
 async function testPush() {
   if (!pushOn) {
@@ -4404,7 +4430,7 @@ function chartBlocks(ttl, pts, st, tr, m, vis) {
 }
 
 // =====================================================================================
-// v13: Training tab. Timer (stopwatch / countdown / intervals), smartwatch heart rate (Bluetooth),
+// v13: Training tab. Timer (stopwatch / countdown / intervals), a hand-typed health log (steps, distance, sleep, calories, height, weight),
 // saved sessions + presets, and tips on how to improve. Training data is private to each person.
 // =====================================================================================
 const APP_V = "v17",
@@ -4478,13 +4504,6 @@ const tsave = () =>
     acc: T.acc,
     sc: T.sc,
   });
-const maxHr = () =>
-  Math.max(120, Math.min(230, +lsGet("hk_maxhr", 190) || 190));
-const zoneOf = (b) => {
-  const p = b / maxHr();
-  return p < 0.6 ? 0 : p < 0.7 ? 1 : p < 0.8 ? 2 : p < 0.9 ? 3 : 4;
-};
-const HR = { on: false, bpm: 0, dev: null, name: "" };
 const tel = () => T.acc + (T.run ? Date.now() - T.start : 0);
 function tplan() {
   const c = T.cfg;
@@ -4604,11 +4623,6 @@ function ttick() {
         playClick();
       }
     }
-    const sec = Math.floor(tel() / 1000);
-    if (sec !== T.lastSec) {
-      T.lastSec = sec;
-      if (HR.on && HR.bpm) T.hr.push(HR.bpm);
-    }
     if (v.fin) {
       T.run = false;
       T.acc = tplan().total;
@@ -4674,7 +4688,7 @@ function tReset(quiet) {
   if (
     !quiet &&
     tel() > 5000 &&
-    !confirm("Reset the timer? Unsaved time and heart-rate data will be lost.")
+    !confirm("Reset the timer? Unsaved time will be lost.")
   )
     return;
   T.run = false;
@@ -4717,132 +4731,6 @@ function drawTimerBtns() {
       : "▶ Start";
   b.className = T.run ? "big" : "pri big";
   if ($("tfin")) $("tfin").hidden = tel() < 10000 || T.run;
-}
-// ---------- smartwatch / chest strap: standard Bluetooth heart-rate profile ----------
-function hrParse(e) {
-  const v = e.target.value;
-  return v.getUint8(0) & 1 ? v.getUint16(1, true) : v.getUint8(1);
-}
-async function hrOpen(dev) {
-  const srv = await dev.gatt.connect(),
-    svc = await srv.getPrimaryService("heart_rate"),
-    ch = await svc.getCharacteristic("heart_rate_measurement");
-  await ch.startNotifications();
-  ch.addEventListener("characteristicvaluechanged", (e) => {
-    HR.bpm = hrParse(e);
-    drawHr();
-  });
-  HR.dev = dev;
-  HR.on = true;
-  HR.name = dev.name || "Heart-rate device";
-  drawHr();
-}
-async function hrConnect() {
-  if (!navigator.bluetooth)
-    return alert(
-      "This browser cannot connect to a watch.\n\nUse Chrome on Android (or Chrome / Edge on a computer). iPhone Safari does not support it. You can still add watch numbers by hand after a session.",
-    );
-  try {
-    const dev = await navigator.bluetooth.requestDevice({
-      filters: [{ services: ["heart_rate"] }],
-    });
-    dev.addEventListener("gattserverdisconnected", () => {
-      HR.on = false;
-      HR.bpm = 0;
-      drawHr();
-    });
-    await hrOpen(dev);
-  } catch (e) {
-    if (e.name === "NotFoundError" || e.name === "AbortError") return;
-    alert(
-      "Could not connect: " +
-        e.message +
-        '\n\nOn the watch, turn on "Broadcast heart rate" (or start a heart-rate sensor mode), keep it close, and try again.',
-    );
-  }
-}
-async function hrConnectAny() {
-  if (!navigator.bluetooth)
-    return alert(
-      "This browser cannot connect to a watch.\n\nUse Chrome on Android (or Chrome / Edge on a computer). iPhone Safari does not support it.",
-    );
-  try {
-    const dev = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: ["heart_rate", "battery_service", "device_information"],
-    });
-    dev.addEventListener("gattserverdisconnected", () => {
-      HR.on = false;
-      HR.bpm = 0;
-      drawHr();
-    });
-    try {
-      await hrOpen(dev);
-    } catch (e) {
-      try {
-        dev.gatt.disconnect();
-      } catch (x) {}
-      alert(
-        (dev.name || "This watch") +
-          " connected, but it does not share live heart rate with other apps.\n\nMost boAt watches (Wave Fury and others) talk only to the boAt Crest app. After training, open boAt Crest, then press “Add watch summary” here and type the numbers.",
-      );
-    }
-  } catch (e) {
-    if (e.name === "NotFoundError" || e.name === "AbortError") return;
-    alert("Could not connect: " + e.message);
-  }
-}
-async function hrAgain() {
-  try {
-    if (HR.dev) await hrOpen(HR.dev);
-  } catch (e) {
-    alert("Could not reconnect: " + e.message);
-  }
-}
-function hrOff() {
-  try {
-    if (HR.dev && HR.dev.gatt.connected) HR.dev.gatt.disconnect();
-  } catch (e) {}
-  HR.on = false;
-  HR.bpm = 0;
-  drawHr();
-}
-function drawHr() {
-  const b = $("hrb");
-  if (!b) return;
-  const z = HR.bpm ? zoneOf(HR.bpm) : -1,
-    pc = HR.bpm ? Math.round((HR.bpm * 100) / maxHr()) : 0;
-  b.textContent = HR.on && HR.bpm ? HR.bpm : "--";
-  b.style.color = z >= 0 ? ZC[z] : "";
-  $("hrz").textContent = !HR.on
-    ? HR.dev
-      ? "Disconnected"
-      : "Not connected"
-    : !HR.bpm
-      ? "Waiting for a reading…"
-      : ZN[z] + " · " + pc + "% of max";
-  $("hrz").className = "pill" + (HR.on ? " g" : "");
-  $("hrw").textContent =
-    HR.on && HR.bpm
-      ? pc > 100
-        ? "Above your max. Ease off."
-        : z === 4
-          ? "Maximum effort. Recover soon."
-          : z === 3
-            ? "Hard. Good for intervals."
-            : z <= 1
-              ? "Easy. Fine for warm-up and recovery."
-              : "Steady work."
-      : "";
-  const cb = $("hrc");
-  if (cb) {
-    cb.textContent = HR.on
-      ? "Disconnect"
-      : HR.dev
-        ? "Reconnect"
-        : "Connect watch";
-    cb.onclick = HR.on ? hrOff : HR.dev ? hrAgain : hrConnect;
-  }
 }
 // ---------- saved sessions + presets ----------
 async function loadWk() {
@@ -4893,20 +4781,13 @@ const zbar = (z) => {
 };
 function openSave(fromTimer) {
   const d = ensureDlg("wkdlg"),
-    h = fromTimer ? T.hr : [],
-    avg = h.length ? Math.round(h.reduce((a, x) => a + x, 0) / h.length) : "",
-    mx = h.length ? Math.max(...h) : "",
-    mn = h.length ? Math.min(...h) : "";
-  const zones = [0, 0, 0, 0, 0];
-  h.forEach((b) => zones[zoneOf(b)]++);
-  const dm = fromTimer ? Math.max(1, Math.round(tel() / 60000)) : "";
-  d.innerHTML = `<h2>${fromTimer ? "Save this session" : "Add watch summary"}</h2>${fromTimer ? "" : '<p class="mute">Open your watch app (for example boAt Crest), find the workout and copy the numbers.</p>'}
+    dm = fromTimer ? Math.max(1, Math.round(tel() / 60000)) : "";
+  d.innerHTML = `<h2>${fromTimer ? "Save this session" : "Add a session"}</h2>
   <label class="fl">Type<select id="wt">${WKT.map((t) => `<option ${fromTimer && T.mode === "mt" && t === "Match" ? "selected" : ""}>${t}</option>`).join("")}</select></label>
-  <div class="ctl"><label class="fl" style="flex:1;margin:0">Date<input id="wd" type="date" value="${today()}"></label><label class="fl" style="flex:1;margin:0">Minutes<input id="wm" type="number" min="1" max="720" value="${dm}"></label></div>
+  <div class="ctl"><label class="fl" style="flex:1;margin:0">Date<input id="wd" type="date" value="${today()}"></label><label class="fl" style="flex:1;margin:0">Minutes<input id="wm" type="number" inputmode="numeric" min="1" max="720" value="${dm}"></label></div>
   <label class="fl" style="margin-top:12px">How hard was it? (1 easy to 10 maximum)<select id="wr"><option value="">Skip</option>${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<option>${n}</option>`).join("")}</select></label>
-  <p class="mute" style="margin:0 0 6px">From your watch (optional)</p>
-  <div class="ctl"><input id="wa" type="number" placeholder="Avg HR" value="${avg}"><input id="wx" type="number" placeholder="Max HR" value="${mx}"></div>
-  <div class="ctl" style="margin-top:8px"><input id="wk" type="number" placeholder="Calories"><input id="wkm" type="number" step="0.1" placeholder="Distance km"></div><div class="ctl" style="margin-top:8px"><input id="wsp" type="number" placeholder="Steps"><input id="wdv" maxlength="30" placeholder="Watch (e.g. boAt Wave Fury)" value="${esc(lsGet("hk_dev", ""))}"></div>
+  <p class="mute" style="margin:0 0 6px">Optional</p>
+  <div class="ctl"><input id="wk" type="number" inputmode="numeric" placeholder="Calories (kcal)"><input id="wkm" type="number" inputmode="decimal" step="0.1" placeholder="Distance (km)"></div>
   <p style="margin-top:10px"><input id="wn" maxlength="200" placeholder="Note (e.g. felt tired, tight hamstring)" value="${fromTimer && T.mode === "mt" && (T.sc[0] || T.sc[1]) ? "Score " + T.sc[0] + "–" + T.sc[1] : ""}"></p>
   <div class="ctl"><button class="pri" id="wsv">Save</button><button id="wcx">Cancel</button></div>`;
   $("wcx").onclick = () => d.close();
@@ -4918,19 +4799,12 @@ function openSave(fromTimer) {
       date: $("wd").value || today(),
       type: $("wt").value,
       dur,
-      avg: +$("wa").value || 0,
-      max: +$("wx").value || 0,
-      min: +mn || 0,
-      zones: h.length ? zones : [],
       rpe: +$("wr").value || 0,
       kcal: +$("wk").value || 0,
       km: +$("wkm").value || 0,
-      steps: +$("wsp").value || 0,
-      dev: $("wdv").value.trim(),
       note: $("wn").value.trim(),
-      src: h.length ? "watch" : "manual",
+      src: "manual",
     };
-    if (body.dev) lsSet("hk_dev", body.dev);
     run(async () => {
       await api("/api/workouts", { method: "POST", body });
       d.close();
@@ -5122,7 +4996,7 @@ function recs() {
     out.push([
       "⌚",
       "Save your first session",
-      "Time a practice with the timer, connect your watch if you can, and save it. More tips appear here after a few sessions.",
+      "Time a practice with the timer and save it. More tips appear here after a few sessions.",
     ]);
   else {
     const days7 = new Set(l7.map((w) => w.date)).size;
@@ -5206,12 +5080,7 @@ function recs() {
           "Little time in Zone 2. Add one easy 20 to 30 minute steady jog where you can still talk. It helps you recover between sprints in a match.",
           { mode: "cd", cfg: { min: 25 }, lbl: "Load 25 min countdown" },
         ]);
-    } else if (l28.length >= 3)
-      out.push([
-        "⌚",
-        "Track heart rate",
-        "Connect a watch or chest strap while timing a session so tips can use your heart-rate zones.",
-      ]);
+    }
     // heart-rate trend in practices: lower average at similar effort = fitter
     const pr = ss.filter((w) => w.type === "Practice" && w.avg > 0);
     if (pr.length >= 6) {
@@ -5246,6 +5115,18 @@ function recs() {
         "Your last 3 sessions felt 8 or more out of 10. Take an easy day or a shorter session before the next hard one.",
       ]);
   }
+  const hs = HL.filter((x) => x.sleep > 0 && x.date > addDays(today(), -7));
+  if (hs.length >= 3) {
+    const a = hs.reduce((t, x) => t + x.sleep, 0) / hs.length;
+    if (a < 7)
+      out.push([
+        "😴",
+        "Sleep more",
+        "Your sleep averaged " +
+          a.toFixed(1) +
+          " hours over the last week. Aim for 7 to 9 hours: that is when you recover and get fitter.",
+      ]);
+  }
   out.push([
     "🏑",
     "Hockey basics",
@@ -5255,8 +5136,7 @@ function recs() {
 }
 function vTrain() {
   if (!wkLoaded && !wkBusy && !wkErr) loadWk();
-  const sup = !!navigator.bluetooth,
-    v = tview(),
+  const v = tview(),
     ss = sessions(),
     m0 = mondayOf(today()),
     tw = ss.filter((w) => w.date >= m0);
@@ -5279,7 +5159,7 @@ function vTrain() {
     .slice(0, 30)
     .map(
       (w) =>
-        `<div class="wr"><div class="wi"><b>${fmt(w.date)} · ${esc(w.type)}</b><span class="mute">${Math.round(w.dur / 60)} min${w.avg ? " · avg " + w.avg + " / max " + w.max + " bpm" : ""}${w.rpe ? " · effort " + w.rpe + "/10" : ""}${w.kcal ? " · " + w.kcal + " kcal" : ""}${w.km ? " · " + w.km + " km" : ""}${w.steps ? " · " + w.steps + " steps" : ""}${w.dev ? " · ⌚ " + esc(w.dev) : ""}</span>${zbar(w.zones)}${w.note ? `<span class="mute">📝 ${esc(w.note)}</span>` : ""}</div><button class="x" data-wd="${w.id}" aria-label="Delete session">🗑</button></div>`,
+        `<div class="wr"><div class="wi"><b>${fmt(w.date)} · ${esc(w.type)}</b><span class="mute">${Math.round(w.dur / 60)} min${w.avg ? " · avg " + w.avg + " / max " + w.max + " bpm" : ""}${w.rpe ? " · effort " + w.rpe + "/10" : ""}${w.kcal ? " · " + w.kcal + " kcal" : ""}${w.km ? " · " + w.km + " km" : ""}${w.steps ? " · " + w.steps + " steps" : ""}</span>${zbar(w.zones)}${w.note ? `<span class="mute">📝 ${esc(w.note)}</span>` : ""}</div><button class="x" data-wd="${w.id}" aria-label="Delete session">🗑</button></div>`,
     )
     .join("");
   $("view").innerHTML = `<div class="card"><h2>⏱ Timer</h2>
@@ -5298,17 +5178,12 @@ function vTrain() {
   ${T.mode === "mt" ? '<div id="tq" class="tq"></div>' : ""}<div id="tbox" class="tbox"><div id="tlbl" class="tl2">${v.lbl}</div><div id="tdisp" class="tdisp" aria-live="off">${v.txt}</div></div>
   <div class="ctl"><button id="tgo"></button><button id="tmrs">Reset</button></div>
   ${T.mode === "mt" ? `<div class="sb"><div><span class="mute">My team</span><b id="s0">${T.sc[0]}</b><span><button data-goal="0">＋ Goal</button><button class="x" data-goalm="0" aria-label="Remove a goal">−</button></span></div><span class="sbc">:</span><div><span class="mute">Opponent</span><b id="s1">${T.sc[1]}</b><span><button data-goal="1">＋ Goal</button><button class="x" data-goalm="1" aria-label="Remove a goal">−</button></span></div></div><p class="mute" style="margin:0 0 8px;text-align:center;font-size:.82rem">Like an official match: 4 quarters of 15 minutes, 2 minute breaks, 10 minute half-time. A goal stops the clock; press Start clock for the centre pass. Stop the clock for injuries or time-outs.</p>` : ""}<div class="ctl"><button class="pri" id="tfin" hidden>💾 Finish and save session</button></div>
-  <div class="chips">${pre}${T.mode !== "sw" ? '<button id="tsp">＋ Save this setup</button>' : ""}<button id="tman">✍ Add watch summary</button></div>
+  <div class="chips">${pre}${T.mode !== "sw" ? '<button id="tsp">＋ Save this setup</button>' : ""}<button id="tman">✍ Add a session by hand</button></div>
   ${pre ? '<p class="mute" style="margin:6px 0 0">Tap a saved setup to load it.</p>' : ""}</div>
-  <div class="card"><h2>⌚ Smartwatch heart rate</h2>
-  <div class="hrbig"><b id="hrb">--</b><span>bpm</span></div><div class="ctl" style="justify-content:center"><span id="hrz" class="pill">Not connected</span></div><p id="hrw" class="mute" style="text-align:center;margin:6px 0 10px"></p>
-  <div class="ctl"><button class="pri" id="hrc"></button><button id="hrany">Try boAt / other watch</button></div><div class="ctl" style="margin-top:8px"><button id="hrqr">📷 Scan QR code on the watch</button></div>${watchBox()}<div class="ctl" style="margin-top:8px"><label class="fl" style="flex:1;margin:0">Your max HR<input id="hmx" type="number" min="120" max="230" value="${maxHr()}"></label></div>
-  <p class="mute" style="margin:8px 0 0">Heart rate is saved with the session while the timer runs. Not sure of your max? <button class="lnk" id="hage">Estimate from age</button></p>
-  <details class="hlp"><summary>Which watches work?</summary><p class="mute">${sup ? "" : "<b>This browser cannot connect to a watch.</b> "}<b>Two ways to connect:</b> press <i>Connect watch</i> (Bluetooth), or press <i>Scan QR code on the watch</i> and then <i>Connect this watch</i> so only your watch shows in the list. Connection uses standard Bluetooth heart rate, in Chrome on Android or on a computer (not iPhone Safari). Chest straps (Polar, Wahoo, Coospo and similar) work directly. Garmin watches work with <i>Broadcast heart rate</i> turned on. <b>boAt watches (Wave Fury and similar)</b> sync only through the boAt Crest app, so live connection is not expected to work: press <i>Try boAt / other watch</i> to check, and if it fails use <i>Add watch summary</i> after training and copy the numbers from boAt Crest. Apple Watch, Galaxy Watch and Fitbit behave the same way.</p></details></div>
+  ${healthCard()}
   <div class="card"><h2>💡 How to improve${pl && WHO ? " · " + esc(WHO.split(" ")[0]) : ""}</h2><label class="fl" style="margin-bottom:6px">My focus<select id="goal">${GOALS.map((g) => `<option value="${g[0]}" ${lsGet("hk_goal", "") === g[0] ? "selected" : ""}>${g[1]}</option>`).join("")}</select></label><p class="mute" style="margin:0 0 6px;font-size:.85rem">Tips use your position, focus, attendance, availability and saved sessions.</p>${RC.map((r, i) => `<div class="rc"><span class="ic">${r[0]}</span><span><b>${esc(r[1])}</b><br><span class="mute">${esc(r[2])}</span>${r[3] ? `<br><button class="tipb" data-act="${i}">⏱ ${esc(r[3].lbl)}</button>` : ""}</span></div>`).join("")}<p class="mute" style="margin:10px 0 0;font-size:.8rem">General fitness tips from your saved data, not medical advice. Stop and rest if you feel dizzy, have chest pain or feel unwell.</p></div>
   <div class="card"><h2>Saved sessions</h2>${ss.length ? `<div class="stats"><div><b>${tw.length}</b>This week</div><div><b>${Math.round(tw.reduce((a, w) => a + w.dur, 0) / 60)}</b>Minutes this week</div><div><b>${ss.length}</b>Total saved</div></div>` : ""}${rows || empty("📋", wkErr || (wkLoaded ? "No saved sessions yet." : "Loading…"))}${wkErr ? '<div class="ctl"><button id="wtry">Try again</button></div>' : ""}<p class="mute" style="margin:8px 0 0;font-size:.8rem">Only you can see your training data.</p></div>`;
   drawTimerBtns();
-  drawHr();
   ttick();
   document.querySelectorAll("[data-m]").forEach(
     (b) =>
@@ -5374,19 +5249,7 @@ function vTrain() {
         window.scrollTo(0, 0);
       }),
   );
-  $("hrany").onclick = hrConnectAny;
-  bindWatch();
-  $("hmx").onchange = (e) => {
-    lsSet("hk_maxhr", Math.max(120, Math.min(230, +e.target.value || 190)));
-    vTrain();
-  };
-  $("hage").onclick = () => {
-    const a = +prompt("Your age in years:");
-    if (a >= 10 && a <= 90) {
-      lsSet("hk_maxhr", 220 - Math.round(a));
-      vTrain();
-    }
-  };
+  bindHealth();
   document.querySelectorAll("[data-pr]").forEach(
     (b) =>
       (b.onclick = () => {

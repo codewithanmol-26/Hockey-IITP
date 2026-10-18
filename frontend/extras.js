@@ -316,3 +316,168 @@ if (document.getElementById("netr"))
     setNet("📡 Trying again…");
     load(true);
   };
+
+// ---------------------------------------------------------------- 5. health log (typed in by hand, private to each person)
+let HL = [],
+  hlLoaded = false,
+  hlBusy = false,
+  hlErr = "",
+  hlDate = "",
+  hlMsg = "";
+const HLF = [
+  ["steps", "Steps", "steps", "1", 100000],
+  ["km", "Distance", "km", "0.1", 200],
+  ["sleep", "Sleep", "hours", "0.1", 24],
+  ["kcal", "Calories", "kcal", "1", 10000],
+  ["height", "Height", "cm", "0.1", 250],
+  ["weight", "Weight", "kg", "0.1", 300],
+];
+async function loadHl() {
+  hlBusy = true;
+  hlErr = "";
+  try {
+    const r = await api("/api/health-log");
+    HL = r.items || [];
+    hlLoaded = true;
+  } catch (e) {
+    hlErr =
+      "Could not load your health log: " +
+      (e.status ? e.message : "check your connection");
+  }
+  hlBusy = false;
+  if (tab === "train" && !prof) render();
+}
+const hlNum = (v, dp) =>
+  dp ? (Math.round(v * 10) / 10).toString() : Math.round(v).toLocaleString();
+function healthCard() {
+  if (!hlLoaded && !hlBusy && !hlErr) loadHl();
+  const d = hlDate || today(),
+    cur = HL.find((x) => x.date === d) || {},
+    from = addDays(today(), -6);
+  const wk = HL.filter((x) => x.date >= from && x.date <= today());
+  const avg = (k) => {
+    const v = wk.filter((x) => x[k] > 0).map((x) => x[k]);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0;
+  };
+  const last = (k) => {
+    const x = HL.find((y) => y[k] > 0);
+    return x ? x[k] : 0;
+  };
+  const hgt = last("height"),
+    wgt = last("weight"),
+    bmi = hgt && wgt ? wgt / ((hgt / 100) * (hgt / 100)) : 0;
+  const tile = (v, lab) => `<div><b>${v || "–"}</b>${lab}</div>`;
+  const tiles = `<div class="stats">${tile(avg("steps") ? hlNum(avg("steps")) : 0, "Steps / day")}${tile(avg("km") ? hlNum(avg("km"), 1) : 0, "km / day")}${tile(avg("sleep") ? hlNum(avg("sleep"), 1) + " h" : 0, "Sleep / night")}${tile(avg("kcal") ? hlNum(avg("kcal")) : 0, "kcal / day")}</div>
+    <div class="stats" style="margin-top:8px">${tile(wgt ? hlNum(wgt, 1) + " kg" : 0, "Weight")}${tile(hgt ? hlNum(hgt, 1) + " cm" : 0, "Height")}${tile(bmi ? hlNum(bmi, 1) : 0, "BMI")}</div>
+    <p class="mute" style="margin:6px 0 0;font-size:.82rem">Averages are for the last 7 days, using only the days you filled in. BMI is only a rough guide for athletes.</p>`;
+  const inputs = HLF.map(
+    (f) =>
+      `<label class="fl" style="flex:1 1 44%;margin:0">${f[1]} <small class="mute">(${f[2]})</small><input id="hl_${f[0]}" type="number" inputmode="${f[3] === "1" ? "numeric" : "decimal"}" step="${f[3]}" min="0" max="${f[4]}" value="${cur[f[0]] || ""}" placeholder="–"></label>`,
+  ).join("");
+  const part = (x) =>
+    [
+      x.steps ? hlNum(x.steps) + " steps" : "",
+      x.km ? x.km + " km" : "",
+      x.sleep ? x.sleep + " h sleep" : "",
+      x.kcal ? hlNum(x.kcal) + " kcal" : "",
+      x.weight ? x.weight + " kg" : "",
+      x.height ? x.height + " cm" : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  const rows = HL.slice(0, 14)
+    .map(
+      (x) =>
+        `<div class="wr"><div class="wi"><b>${fmt(x.date)}</b><span class="mute">${esc(part(x))}</span></div><button data-hle="${x.date}" aria-label="Edit ${fmt(x.date)}">✏️</button><button class="x" data-hld="${x.date}" aria-label="Delete ${fmt(x.date)}">🗑</button></div>`,
+    )
+    .join("");
+  return `<div class="card" id="hlcard"><h2>❤️ My health log</h2><p class="mute" style="margin:0 0 8px">Type in your numbers from your watch or phone. Only you can see them. Fill only what you know.</p>
+  ${hlLoaded ? tiles : ""}
+  <h3 style="margin:14px 0 6px;font-size:1rem">${d === today() ? "Today" : fmt(d)}</h3>
+  <label class="fl" style="margin-bottom:8px">Date<input id="hl_date" type="date" value="${d}" max="${today()}"></label>
+  <div class="ctl" style="align-items:flex-end">${inputs}</div>
+  <p id="hl_msg" class="${hlMsg.startsWith("Saved") || hlMsg.startsWith("Deleted") ? "mute" : "err"}" role="status" style="margin:8px 0 0">${esc(hlMsg)}</p>
+  <div class="ctl"><button class="pri" id="hl_save">Save</button>${cur.date ? '<button id="hl_del">Delete this day</button>' : ""}</div>
+  ${rows ? `<h3 style="margin:14px 0 4px;font-size:1rem">Recent days</h3>${rows}` : hlErr ? `<p class="err">${esc(hlErr)}</p><button id="hl_try">Try again</button>` : empty("❤️", hlLoaded ? "Nothing saved yet. Add today's numbers above." : "Loading…")}</div>`;
+}
+function bindHealth() {
+  hlMsg = "";
+  const sv = document.getElementById("hl_save");
+  if (!sv) return;
+  const msg = (t, ok) => {
+    const m = document.getElementById("hl_msg");
+    if (m) {
+      m.textContent = t;
+      m.className = ok ? "mute" : "err";
+    }
+  };
+  document.getElementById("hl_date").onchange = (e) => {
+    hlDate = e.target.value || today();
+    vTrain();
+  };
+  sv.onclick = () => {
+    const d = document.getElementById("hl_date").value || today(),
+      body = {};
+    for (const f of HLF) {
+      const v = document.getElementById("hl_" + f[0]).value.trim();
+      if (v === "") continue;
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0 || n > f[4])
+        return msg(f[1] + " must be a number from 0 to " + f[4] + ".");
+      if (n > 0) body[f[0]] = n;
+    }
+    if (!Object.keys(body).length) return msg("Enter at least one value.");
+    sv.disabled = true;
+    sv.textContent = "Saving…";
+    run(async () => {
+      await api("/api/health-log/" + d, { method: "PUT", body });
+      hlDate = d;
+      hlMsg = "Saved for " + fmt(d) + ".";
+      await loadHl();
+    }).finally(() => {
+      const b = document.getElementById("hl_save");
+      if (b) {
+        b.disabled = false;
+        b.textContent = "Save";
+      }
+    });
+  };
+  const dl = document.getElementById("hl_del");
+  if (dl)
+    dl.onclick = () => {
+      const d = document.getElementById("hl_date").value;
+      if (confirm("Delete the numbers for " + fmt(d) + "?"))
+        run(async () => {
+          await api("/api/health-log/" + d, { method: "DELETE" });
+          hlMsg = "Deleted " + fmt(d) + ".";
+          await loadHl();
+        });
+    };
+  document.querySelectorAll("[data-hle]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        hlDate = b.dataset.hle;
+        vTrain();
+        const c = document.getElementById("hlcard");
+        if (c) c.scrollIntoView({ behavior: "smooth", block: "start" });
+      }),
+  );
+  document.querySelectorAll("[data-hld]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        if (confirm("Delete the numbers for " + fmt(b.dataset.hld) + "?"))
+          run(async () => {
+            await api("/api/health-log/" + b.dataset.hld, { method: "DELETE" });
+            hlMsg = "Deleted " + fmt(b.dataset.hld) + ".";
+            await loadHl();
+          });
+      }),
+  );
+  const tr = document.getElementById("hl_try");
+  if (tr)
+    tr.onclick = () => {
+      hlErr = "";
+      hlLoaded = false;
+      render();
+    };
+}

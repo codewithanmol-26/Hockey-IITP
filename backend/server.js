@@ -349,6 +349,36 @@ app.post(
     res.json({ ok: true, sentTo: maskEmail(email), wait: 60 });
   }),
 );
+// Captain / vice-captain: send a test e-mail to check the Resend + domain setup before the team signs up.
+app.post(
+  "/api/email/test",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const to = str((req.body || {}).to, 120).trim();
+    if (!EMAIL_RE.test(to))
+      return res.status(400).json({ error: "Enter a valid e-mail address." });
+    if (limited("emt" + req.user.role, 6, 3600e3))
+      return res
+        .status(429)
+        .json({ error: "Too many test e-mails. Try again in an hour." });
+    const from =
+      process.env.RESEND_FROM || "Inter IIT Hockey <onboarding@resend.dev>";
+    await sendEmail(
+      to,
+      "Inter IIT Hockey: test e-mail",
+      "This is a test. E-mail sending works, so sign-up codes will reach your players.",
+      '<div style="font-family:Arial,sans-serif"><h2>Inter IIT Hockey</h2><p>This is a test. E-mail sending works, so sign-up codes will reach your players.</p></div>',
+    );
+    res.json({
+      ok: true,
+      from,
+      warn: process.env.RESEND_FROM
+        ? ""
+        : "RESEND_FROM is not set, so the shared test sender was used. Resend delivers that only to your own Resend account e-mail.",
+    });
+  }),
+);
 // Step 2: the code from the e-mail + the personal code you choose. 5 wrong tries cancel that e-mail code.
 app.post(
   "/api/player/signup",
@@ -2326,6 +2356,84 @@ app.post(
     doc.at = Date.now();
     const ref = await db.collection("workouts").add(doc);
     res.json({ ok: true, id: ref.id });
+  }),
+);
+// ---- health log: steps, distance, sleep, calories, height, weight, typed in by hand. One entry per person per day, private. ----
+const HL_FIELDS = {
+  steps: [0, 100000, 0, "Steps"],
+  km: [0, 200, 1, "Distance"],
+  sleep: [0, 24, 1, "Sleep"],
+  kcal: [0, 10000, 0, "Calories"],
+  height: [50, 250, 1, "Height"],
+  weight: [20, 300, 1, "Weight"],
+};
+const hlId = (u, date) => ukey(u) + "_" + date;
+app.get(
+  "/api/health-log",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const snap = await db
+      .collection("health")
+      .where("key", "==", ukey(u))
+      .get();
+    res.json({
+      items: snap.docs
+        .map((d) => {
+          const x = d.data();
+          delete x.key;
+          return x;
+        })
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 400),
+    });
+  }),
+);
+app.put(
+  "/api/health-log/:date",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    const date = req.params.date;
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      date < "2020-01-01" ||
+      date >
+        new Date(Date.now() + 5.5 * 3600e3 + 864e5).toISOString().slice(0, 10)
+    )
+      return res
+        .status(400)
+        .json({ error: "Pick a valid date (not in the future)." });
+    if (limited("hl" + ukey(u), 60))
+      return res.status(429).json({ error: "Too many saves. Wait a minute." });
+    const b = req.body || {},
+      doc = { key: ukey(u), date, at: Date.now() };
+    for (const [k, [lo, hi, dp, label]] of Object.entries(HL_FIELDS)) {
+      if (b[k] === undefined || b[k] === null || b[k] === "") continue;
+      const v = Number(b[k]);
+      if (!Number.isFinite(v) || v < lo || v > hi)
+        return res
+          .status(400)
+          .json({
+            error: label + " must be between " + lo + " and " + hi + ".",
+          });
+      if (v > 0) doc[k] = dp ? Math.round(v * 10) / 10 : Math.round(v);
+    }
+    if (!Object.keys(HL_FIELDS).some((k) => doc[k] > 0))
+      return res.status(400).json({ error: "Enter at least one value." });
+    await db.collection("health").doc(hlId(u, date)).set(doc); // replaces that day's entry
+    res.json({ ok: true });
+  }),
+);
+app.delete(
+  "/api/health-log/:date",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.date))
+      return res.status(400).json({ error: "Bad date" });
+    await db.collection("health").doc(hlId(u, req.params.date)).delete();
+    res.json({ ok: true });
   }),
 );
 app.delete(
