@@ -3503,29 +3503,36 @@ nav .i .svgi {
   color: #fff;
 }
 .fsrow {
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 2px !important;
+  padding-bottom: 6px !important;
 }
-.fsb {
-  min-width: 46px;
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 2px solid var(--ic-line);
+.fsrow .fst {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--mute);
+}
+.fsb,
+.fsv {
+  min-width: 34px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1.5px solid var(--ic-line);
   background: var(--ic-bg);
   color: var(--ic);
-  font-weight: 800;
+  font-weight: 700;
+  font-size: 0.8rem;
 }
 .fsb.big {
-  font-size: 1.15em;
+  font-size: 0.95rem;
+}
+.fsv {
+  min-width: 46px;
+  font-weight: 600;
 }
 .fsb:disabled {
   opacity: 0.4;
-}
-.fsv {
-  min-width: 3.2em;
-  text-align: center;
-  font-weight: 700;
 }
 .six {
   display: flex;
@@ -3587,4 +3594,14 @@ nav .i .svgi {
 .help .ok {
   color: var(--p);
   font-weight: 700;
+}
+
+.tabout {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--ic-bg);
+  border: 1.5px solid var(--ic-line);
+  text-align: center;
+  font-size: 0.92rem;
 }

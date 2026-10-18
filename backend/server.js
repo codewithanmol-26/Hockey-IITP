@@ -577,6 +577,7 @@ async function readAllRaw(fresh) {
       captain: one("captain"),
       vice: one("vice"),
       coach: { name: nv.coach || "" },
+      about: nv.about || "",
     };
   } // captain / vice-captain can also be players: their name + photo come from the player record
   out.accounts = ac.docs.map((d) => d.id); // which players have signed up (ids only)
@@ -2152,6 +2153,7 @@ app.put(
       o = {};
     for (const k of ["captain", "vice", "coach"])
       if (b[k] !== undefined) o[k] = str(b[k], 40).trim();
+    if (b.about !== undefined) o.about = str(b.about, 400).trim(); // short description / achievements shown under the team
     if (b.links && typeof b.links === "object") {
       const links = {};
       for (const k of ["captain", "vice"])

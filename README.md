@@ -229,3 +229,13 @@ No command line needed: open the app > ⋮ menu > **Set up push notifications**.
 - The e-mailed sign-up code uses six boxes.
 - The public page has only two login buttons (top bar and the hero card) and shows only the team photo (not the gallery); fixtures and news stay.
 - FAQs and help at the bottom of every page: anyone can message the admins; admins read them in menu > Help messages.
+
+## v23 changes
+
+- Public page: "Our team" removed; FAQs and help added; one team photo only; login only in the top bar and the main card.
+- FAQs and help: different questions for the public and for players; shown only on a player's Home tab (not for captain, vice-captain or admins).
+- New soft "pop" click sound; smaller Text size control.
+
+## v24 changes
+
+- Public page: "Our team" (captain, vice-captain, coach) is back, right under the top card, with a short description / achievements line. The captain edits it under Menu > Captain, vice-captain and coach > "About the team".

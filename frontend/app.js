@@ -75,22 +75,36 @@ function audio() {
 }
 // a soft tick on every button tap. The whistle is NOT used anywhere except the Rules page.
 function playClick() {
+  // a soft, glassy "pop": two quiet sine notes with a smooth fade
   if (!clickOn() || !volume()) return;
   try {
     const c = audio(),
       t = c.currentTime,
-      o = c.createOscillator(),
-      g = c.createGain();
-    o.type = "sine";
-    o.frequency.setValueAtTime(1500, t);
-    o.frequency.exponentialRampToValueAtTime(650, t + 0.05);
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.4 * volume(), t + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-    o.connect(g);
-    g.connect(c.destination);
-    o.start(t);
-    o.stop(t + 0.08);
+      v = volume(),
+      out = c.createGain();
+    out.gain.setValueAtTime(0, t);
+    out.gain.linearRampToValueAtTime(0.22 * v, t + 0.008);
+    out.gain.exponentialRampToValueAtTime(0.0008, t + 0.16);
+    const lp = c.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 3200;
+    out.connect(lp);
+    lp.connect(c.destination);
+    [
+      [880, 1],
+      [1318.5, 0.45],
+    ].forEach(([f, a]) => {
+      const o = c.createOscillator(),
+        g = c.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.exponentialRampToValueAtTime(f * 1.02, t + 0.05);
+      g.gain.value = a;
+      o.connect(g);
+      g.connect(out);
+      o.start(t);
+      o.stop(t + 0.18);
+    });
   } catch (e) {}
 }
 function playWhistle(kind) {

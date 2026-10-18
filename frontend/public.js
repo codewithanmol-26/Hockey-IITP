@@ -64,7 +64,7 @@ function teamBlock(team) {
         n = x.name || DEFNAME[k];
       return `<div class="tm">${avatar(n, x.photo, 64)}<b>${esc(n)}</b><span class="mute">${role}</span></div>`;
     };
-  return `<div class="tms">${row("captain", "Captain")}${row("vice", "Vice-captain")}${row("coach", "Coach")}</div>`;
+  return `<div class="tms">${row("captain", "Captain")}${row("vice", "Vice-captain")}${row("coach", "Coach")}</div>${t.about ? `<p class="tabout">${esc(t.about).replace(/\n/g, "<br>")}</p>` : ""}`;
 }
 async function fetchPublic() {
   if (pubBusy) return;
@@ -109,28 +109,26 @@ function drawPublic() {
     })
     .join("");
   const photos =
-    p && (p.groupPhoto || (p.gallery || []).length)
-      ? `${p.groupPhoto ? `<img class="gph" id="pgph" src="${p.groupPhoto}" alt="Team group photo">` : ""}${(p.gallery || []).length ? `<div class="pstrip">${p.gallery.map((t, i) => `<img src="${t}" alt="" data-pg="${i}" loading="lazy">`).join("")}</div>` : ""}`
-      : empty("📸", p ? "Team photos will appear here." : "Loading photos…");
+    p && p.groupPhoto
+      ? `<img class="gph" id="pgph" src="${p.groupPhoto}" alt="Team group photo">`
+      : empty("📸", p ? "The team photo will appear here." : "Loading photo…");
   gid("pview").innerHTML =
     `<div class="card hero phero"><img src="icons/icon-192.png" alt="" width="72" height="72" class="plogo"><div class="ph2"><h2>Inter IIT Hockey</h2><span class="mute">Attendance · Schedule · Rules · Photos · News</span></div>
     <div class="ctl phb"><button class="pri big" data-plog>Log in to your account</button>${inst ? '<button class="big pghost" id="pinst">📲 Get the app</button>' : ""}</div></div>
   ${pubErr ? `<div class="note">${esc(pubErr)} <button id="ptry">Try again</button></div>` : ""}
-  <div class="card"><h2>What you can do in the app</h2><div class="fts">${FEATURES.map((f) => `<button type="button" class="ft" data-plog><span class="ic">${f[0]}</span><b>${f[1]}</b><span class="mute">${f[2]}</span></button>`).join("")}</div><p class="mute" style="margin:10px 0 0">🔒 Personal details and attendance are shown only after you log in.</p></div>
   <div class="card"><h2>Our team</h2>${teamBlock(TEAM)}${p && p.playersCount ? `<p class="mute" style="text-align:center;margin:10px 0 0">${p.playersCount} players on the squad</p>` : ""}</div>
-  <div class="card"><h2>Photos</h2>${photos}</div>
+  <div class="card"><h2>What you can do in the app</h2><div class="fts">${FEATURES.map((f) => `<div class="ft"><span class="ic">${f[0]}</span><b>${f[1]}</b><span class="mute">${f[2]}</span></div>`).join("")}</div><p class="mute" style="margin:10px 0 0">🔒 Personal details and attendance are shown only after you log in.</p></div>
+  <div class="card"><h2>Team photo</h2>${photos}</div>
   <div class="grid"><div class="card"><h2>Upcoming Indian hockey</h2>${fx || empty("🗓️", "No upcoming matches in the list.")}</div>
   <div class="card"><h2>Latest hockey news</h2>${news(p && p.latest)}</div></div>
-  <div class="card pcta"><h2>Part of the team?</h2><p class="mute">Log in with your roll number to see your own attendance, schedule and training.</p><div class="ctl" style="justify-content:center"><button class="pri big" data-plog style="max-width:320px">Log in</button></div></div>`;
+  ${helpCard("public")}`;
   document
     .querySelectorAll("#pview [data-plog]")
     .forEach((b) => (b.onclick = showLogin));
+  bindHelp();
   if (gid("pinst")) gid("pinst").onclick = openInApp;
   if (gid("ptry")) gid("ptry").onclick = () => fetchPublic();
   if (gid("pgph")) gid("pgph").onclick = () => openImg(p.groupPhoto);
-  document
-    .querySelectorAll("#pview [data-pg]")
-    .forEach((i) => (i.onclick = () => openImg(i.src)));
 }
 function showPublic() {
   gid("app").hidden = true;
@@ -151,7 +149,7 @@ function pubMenu() {
     menuActs.push(fn);
     return `<button class="mi" data-k="${menuActs.length - 1}"><span class="i">${ic}</span><span class="t">${label}</span></button>`;
   };
-  let h = menuHead("Menu") + mi("🔑", "Log in", showLogin);
+  let h = menuHead("Menu");
   if (!standalone()) h += mi("📲", "Open in app / install", openInApp);
   h += mi("📲", "Share this app", shareApp);
   const g = (PUB && PUB.group) || window.WA_GROUP || "";
@@ -159,8 +157,10 @@ function pubMenu() {
     h += mi("💬", "Join WhatsApp group", () =>
       window.open(g, "_blank", "noopener"),
     );
+  h += fsRow();
   m.innerHTML = h;
   wireMenu(m);
+  wireFs(m);
 }
 gid("pmb").onclick = (e) => {
   e.stopPropagation();
@@ -319,7 +319,8 @@ function openNames() {
   const lk = NAMES.links || {},
     sel = (k, l) =>
       `<label class="fl">${l} is also this player<select id="lk-${k}"><option value="">Not linked</option>${P.map((x) => `<option value="${esc(x.id)}" ${lk[k] === x.id ? "selected" : ""}>${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}</select></label>`;
-  d.innerHTML = `<h2>Captain, vice-captain and coach</h2><p class="mute">Names appear on the public page and on Home. Leave empty to use the player's name or the default.</p>${f("captain", "Captain")}${f("vice", "Vice-captain")}${f("coach", "Coach")}
+  d.innerHTML = `<h2>Team, captain, vice-captain and coach</h2><p class="mute">Names and the team description appear on the public page and on Home. Leave empty to use the player's name or the default.</p>${f("captain", "Captain")}${f("vice", "Vice-captain")}${f("coach", "Coach")}
+  <label class="fl">About the team: short description or achievements<textarea id="nm-about" rows="3" maxlength="400" placeholder="e.g. Inter IIT 2025 quarter-finalists. Practice every weekday.">${esc(NAMES.about || "")}</textarea></label>
   <h3 class="chh">Captain and vice-captain are players too</h3><p class="mute">Link each to their player record so they get the same profile (roll number, position, jersey, attendance) as any player.</p>${sel("captain", "Captain")}${sel("vice", "Vice-captain")}
   <div class="ctl"><button class="pri" id="nm-s">Save</button><button id="nm-c">Cancel</button></div>`;
   gid("nm-c").onclick = () => d.close();
@@ -331,6 +332,7 @@ function openNames() {
           captain: gid("nm-captain").value,
           vice: gid("nm-vice").value,
           coach: gid("nm-coach").value,
+          about: gid("nm-about").value,
           links: {
             captain: gid("lk-captain").value,
             vice: gid("lk-vice").value,
@@ -672,7 +674,7 @@ function welcomeHero() {
       : roleLabel();
   const nx = Object.keys(PL)
       .sort()
-      .find((x) => x >= today() && PL[x].status !== "cancelled"),
+      .find((x) => planLive(x)),
     pn = nx && PL[nx],
     r = nx && SCH.team[dayIdx(nx)];
   const nextTxt = nx
