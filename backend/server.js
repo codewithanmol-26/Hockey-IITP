@@ -175,11 +175,11 @@ const playerToken = (pl, now) =>
 
 // ---- first-time signup: roll number -> a 6 digit code e-mailed through Resend -> choose your own code ----
 // Needs RESEND_API_KEY (and RESEND_FROM, an address on a domain verified in Resend). Optional SIGNUP_EMAIL_DOMAIN (e.g. iitp.ac.in) limits which e-mails may be used.
-// Sign-up e-mails must be institute addresses. Default iitp.ac.in; set SIGNUP_EMAIL_DOMAIN to another domain, or to "any" to allow every address.
+// Sign-up e-mails can be from any domain (Gmail, institute, etc.) by default. Set SIGNUP_EMAIL_DOMAIN (e.g. iitp.ac.in) to limit sign-ups to one domain.
 const SIGNUP_DOMAIN = (() => {
   const v = (
     process.env.SIGNUP_EMAIL_DOMAIN === undefined
-      ? "iitp.ac.in"
+      ? "any"
       : process.env.SIGNUP_EMAIL_DOMAIN
   )
     .trim()
