@@ -1,53 +1,8 @@
 // v22 additions, loaded BEFORE app.js (everything here runs only after app.js has started, so it can use its globals: $, esc, api, token, PL, span, today ...)
-//   1. text size (A- / A+), because pinch-zoom is switched off
 //   2. six-box code entry
 //   3. a playing day disappears from "next / upcoming" once its end time has passed
 //   4. FAQs and help: a message to the admins (works without logging in), and the admins' inbox
 
-// ---------------------------------------------------------------- 1. text size
-const FS_STEPS = [85, 92, 100, 110, 120, 132];
-function fsGet() {
-  try {
-    const v = +localStorage.getItem("hk_fs");
-    return FS_STEPS.includes(v) ? v : 100;
-  } catch (e) {
-    return 100;
-  }
-}
-function fsSet(v) {
-  try {
-    localStorage.setItem("hk_fs", String(v));
-  } catch (e) {}
-  document.documentElement.style.fontSize = v + "%";
-}
-function fsRow() {
-  const v = fsGet(),
-    i = FS_STEPS.indexOf(v);
-  return `<div class="mrow fsrow"><span class="fst">Text size</span><button type="button" class="fsb" data-fs="-1" aria-label="Smaller text" ${i <= 0 ? "disabled" : ""}>A−</button><button type="button" class="fsv" data-fs="0" aria-label="Reset text size to normal" title="Tap to reset">${v}%</button><button type="button" class="fsb big" data-fs="1" aria-label="Bigger text" ${i >= FS_STEPS.length - 1 ? "disabled" : ""}>A+</button></div>`;
-}
-function wireFs(m) {
-  m.querySelectorAll("[data-fs]").forEach(
-    (b) =>
-      (b.onclick = (e) => {
-        e.stopPropagation();
-        const d = +b.dataset.fs,
-          i = FS_STEPS.indexOf(fsGet());
-        fsSet(
-          d === 0
-            ? 100
-            : FS_STEPS[Math.max(0, Math.min(FS_STEPS.length - 1, i + d))],
-        );
-        const row = m.querySelector(".fsrow");
-        if (row) {
-          const t = document.createElement("div");
-          t.innerHTML = fsRow();
-          row.replaceWith(t.querySelector(".fsrow"));
-          wireFs(m);
-        }
-      }),
-  );
-}
-fsSet(fsGet());
 // pinch-zoom stays off on iPhone too (the viewport tag is not always enough)
 ["gesturestart", "gesturechange", "gestureend"].forEach((t) =>
   document.addEventListener(t, (e) => e.preventDefault()),
@@ -158,10 +113,6 @@ const FAQS_PUBLIC = [
     "Android / Chrome: browser menu ⋮ → Install app. iPhone: Share button → Add to Home Screen.",
   ],
   [
-    "How do I make the text bigger or smaller?",
-    "Open the menu (⋮) and use A− / A+ next to Text size.",
-  ],
-  [
     "I have a question for the admins.",
     "Use the form below. Add your phone or e-mail so they can reply.",
   ],
@@ -187,10 +138,7 @@ const FAQS_PLAYER = [
     "Why did a playing day disappear?",
     "A playing day is hidden from the upcoming list once its end time has passed. Past days stay in the calendar.",
   ],
-  [
-    "How do I change the text size or add my photo?",
-    "Text size: menu (⋮) → A− / A+. Photo: tap your picture at the top right.",
-  ],
+  ["How do I add my photo?", "Photo: tap your picture at the top right."],
 ];
 let helpDraft = { topic: "Other", name: "", contact: "", text: "" },
   helpMsg = "",

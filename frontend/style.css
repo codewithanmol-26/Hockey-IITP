@@ -3502,38 +3502,6 @@ nav .i .svgi {
 .hb .mbtn .svgi {
   color: #fff;
 }
-.fsrow {
-  gap: 6px;
-  padding-top: 2px !important;
-  padding-bottom: 6px !important;
-}
-.fsrow .fst {
-  flex: 1;
-  font-size: 0.82rem;
-  color: var(--mute);
-}
-.fsb,
-.fsv {
-  min-width: 34px;
-  min-height: 30px;
-  padding: 0 8px;
-  border-radius: 8px;
-  border: 1.5px solid var(--ic-line);
-  background: var(--ic-bg);
-  color: var(--ic);
-  font-weight: 700;
-  font-size: 0.8rem;
-}
-.fsb.big {
-  font-size: 0.95rem;
-}
-.fsv {
-  min-width: 46px;
-  font-weight: 600;
-}
-.fsb:disabled {
-  opacity: 0.4;
-}
 .six {
   display: flex;
   gap: 8px;

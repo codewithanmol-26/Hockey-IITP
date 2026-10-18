@@ -116,9 +116,9 @@ function drawPublic() {
     `<div class="card hero phero"><img src="icons/icon-192.png" alt="" width="72" height="72" class="plogo"><div class="ph2"><h2>Inter IIT Hockey</h2><span class="mute">Attendance · Schedule · Rules · Photos · News</span></div>
     <div class="ctl phb"><button class="pri big" data-plog>Log in to your account</button>${inst ? '<button class="big pghost" id="pinst">📲 Get the app</button>' : ""}</div></div>
   ${pubErr ? `<div class="note">${esc(pubErr)} <button id="ptry">Try again</button></div>` : ""}
-  <div class="card"><h2>Our team</h2>${teamBlock(TEAM)}${p && p.playersCount ? `<p class="mute" style="text-align:center;margin:10px 0 0">${p.playersCount} players on the squad</p>` : ""}</div>
   <div class="card"><h2>What you can do in the app</h2><div class="fts">${FEATURES.map((f) => `<div class="ft"><span class="ic">${f[0]}</span><b>${f[1]}</b><span class="mute">${f[2]}</span></div>`).join("")}</div><p class="mute" style="margin:10px 0 0">🔒 Personal details and attendance are shown only after you log in.</p></div>
   <div class="card"><h2>Team photo</h2>${photos}</div>
+  <div class="card"><h2>Our team</h2>${teamBlock(TEAM)}${p && p.playersCount ? `<p class="mute" style="text-align:center;margin:10px 0 0">${p.playersCount} players on the squad</p>` : ""}</div>
   <div class="grid"><div class="card"><h2>Upcoming Indian hockey</h2>${fx || empty("🗓️", "No upcoming matches in the list.")}</div>
   <div class="card"><h2>Latest hockey news</h2>${news(p && p.latest)}</div></div>
   ${helpCard("public")}`;
@@ -157,10 +157,8 @@ function pubMenu() {
     h += mi("💬", "Join WhatsApp group", () =>
       window.open(g, "_blank", "noopener"),
     );
-  h += fsRow();
   m.innerHTML = h;
   wireMenu(m);
-  wireFs(m);
 }
 gid("pmb").onclick = (e) => {
   e.stopPropagation();
@@ -206,6 +204,7 @@ new MutationObserver(() => {
 }).observe(gid("menu"), { attributes: true, attributeFilter: ["hidden"] });
 // the back arrow on the login page goes to the public page; the back arrow in the header goes from any menu page back to Home
 gid("lgx").onclick = () => showPublic();
+if (standalone()) gid("lgx").hidden = true; // installed app: no public page, so no back arrow
 gid("xb").onclick = () => {
   gid("menu").hidden = true;
   go("me");

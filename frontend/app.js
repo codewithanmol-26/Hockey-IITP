@@ -61,22 +61,15 @@ const setVol = (v) => {
     localStorage.setItem("hk_vol", String(Math.max(0, Math.min(1, v))));
   } catch (e) {}
 };
-const clickOn = () => {
-  try {
-    return localStorage.getItem("hk_click") !== "0";
-  } catch (e) {
-    return true;
-  }
-};
 function audio() {
   ACX = ACX || new (window.AudioContext || window.webkitAudioContext)();
   if (ACX.state === "suspended") ACX.resume();
   return ACX;
 }
-// a soft tick on every button tap. The whistle is NOT used anywhere except the Rules page.
+// no sound on button taps. playClick is only the timer countdown beep and the volume preview. The whistle is NOT used anywhere except the Rules page.
 function playClick() {
   // a soft, glassy "pop": two quiet sine notes with a smooth fade
-  if (!clickOn() || !volume()) return;
+  if (!volume()) return;
   try {
     const c = audio(),
       t = c.currentTime,
@@ -154,16 +147,6 @@ function playWhistle(kind) {
     });
   } catch (e) {}
 }
-document.addEventListener(
-  "click",
-  (e) => {
-    const t =
-      e.target.closest &&
-      e.target.closest("button,[role=button],summary,.shb,.pt,.row.link");
-    if (t && !t.disabled && !t.hasAttribute("data-wh")) playClick();
-  },
-  true,
-);
 function bindVol(id, out, preview) {
   const e = document.getElementById(id);
   if (!e) return;
@@ -938,11 +921,10 @@ function logout() {
   AVL = {};
   ANN = [];
   annAll = false;
-  showPublic();
+  standalone() ? showLogin() : showPublic();
 }
 function boot() {
-  askOpenInApp();
-  if (!token) return showPublic();
+  if (!token) return standalone() ? showLogin() : showPublic();
   const c = cacheLoad();
   if (c) {
     useData(c, true);
@@ -1345,20 +1327,8 @@ function drawMenu() {
     `<div class="ms">Share</div>` +
     mi("📊", "Share attendance report", () => openReport()) +
     mi("📲", "Share this app", shareApp);
-  h += fsRow();
   h +=
     `<div class="ms">Sound</div>` +
-    mi(
-      "🖱️",
-      "Click sound",
-      () => {
-        try {
-          localStorage.setItem("hk_click", clickOn() ? "0" : "1");
-        } catch (e) {}
-        drawMenu();
-      },
-      { sw: clickOn() },
-    ) +
     `<div class="mrow"><span class="i">🔈</span><input type="range" id="mvol" min="0" max="100" step="5" value="${Math.round(volume() * 100)}" aria-label="Volume"><span class="mute" id="mvolv">${Math.round(volume() * 100)}%</span></div>`;
   h +=
     `<div class="ms">App</div>` +
@@ -1387,7 +1357,6 @@ function drawMenu() {
   m.innerHTML = h;
   bindVol("mvol", "mvolv", playClick);
   wireMenu(m);
-  wireFs(m);
 }
 $("mb").onclick = (e) => {
   e.stopPropagation();
@@ -1829,10 +1798,7 @@ function vTake() {
     tkUn = false;
   }
   const el = P.filter((p) => !p.joined || p.joined <= takeDate),
-    pln = SCH.team[dayIdx(takeDate)],
-    pend = Object.keys(PL)
-      .sort()
-      .filter((d) => !SS[d] && PL[d].status !== "cancelled" && d <= today());
+    pln = SCH.team[dayIdx(takeDate)];
   const av = AVL[takeDate] || {},
     prev = dates()
       .filter((d) => d < takeDate)
@@ -1859,7 +1825,6 @@ function vTake() {
   $("view").innerHTML = `<div class="card"><h2>Take attendance</h2>
   <div class="tkh"><button id="dprev" aria-label="Previous day">‹</button><input type="date" id="td" value="${takeDate}" aria-label="Date"><button id="dnext" aria-label="Next day">›</button><button id="dtoday">Today</button></div>
   <div class="tkinfo"><span class="pill ${cx ? "r" : "g"}">${cx ? "Cancelled" : esc(pln[0])}</span><span class="mute">${cx ? "This playing day is cancelled" : pln[3] ? esc(pln[1]) + " · " + esc(pln[3]) : "Rest day on the schedule"}${SS[takeDate] ? " · already saved, saving again updates it" : ""}</span></div>
-  ${pend.length ? `<p class="mute" style="margin:10px 0 4px">Waiting for attendance:</p><div class="chips" style="margin:0 0 6px">${pend.map((d) => `<button data-pd="${d}" class="${d === takeDate ? "pri" : ""}">${fmt(d)}</button>`).join("")}</div>` : ""}
   <div class="tkq"><input id="tkq" type="search" placeholder="Search name or roll no" value="${esc(tkQ)}" aria-label="Search players"><button id="tkun" aria-pressed="${tkUn}" class="${tkUn ? "pri" : ""}">Unmarked only</button></div>
   <div class="chips" style="margin:6px 0 8px"><button id="allp">✔ All present</button><button id="alla">✘ All absent</button>${blocked.length ? `<button id="blk">Mark “can’t come / injured” absent (${blocked.length})</button>` : ""}<button id="clr">Clear</button></div>
   <div id="tkl">${
@@ -1924,13 +1889,6 @@ function vTake() {
         draft[id] = draft[id] === v ? undefined : v;
         if (draft[id] === undefined) delete draft[id];
         upd();
-      }),
-  );
-  document.querySelectorAll("[data-pd]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        takeDate = b.dataset.pd;
-        vTake();
       }),
   );
   $("tkq").oninput = (e) => {
