@@ -265,12 +265,10 @@ app.post(
       return res.status(429).json({ error: "Too many tries" });
     const pl = await findPlayer((req.body || {}).roll);
     if (!pl)
-      return res
-        .status(404)
-        .json({
-          error:
-            "This roll number is not on the team list. Ask the captain to add you.",
-        });
+      return res.status(404).json({
+        error:
+          "This roll number is not on the team list. Ask the captain to add you.",
+      });
     const acc = await db.collection("accounts").doc(pl.id).get();
     res.json({
       hasAccount: acc.exists,
@@ -290,19 +288,15 @@ app.post(
         .json({ error: "Too many tries. Please wait a while." });
     const pl = await findPlayer((req.body || {}).roll);
     if (!pl)
-      return res
-        .status(404)
-        .json({
-          error:
-            "This roll number is not on the team list. Ask the captain to add you.",
-        });
+      return res.status(404).json({
+        error:
+          "This roll number is not on the team list. Ask the captain to add you.",
+      });
     if ((await db.collection("accounts").doc(pl.id).get()).exists)
-      return res
-        .status(409)
-        .json({
-          error:
-            "Already signed up. Log in with your code. Forgot it? Ask the captain to reset it.",
-        });
+      return res.status(409).json({
+        error:
+          "Already signed up. Log in with your code. Forgot it? Ask the captain to reset it.",
+      });
     const saved = EMAIL_RE.test(pl.email || "") ? pl.email.trim() : "",
       typed = str((req.body || {}).email, 120).trim();
     const email = saved || typed;
@@ -318,28 +312,24 @@ app.post(
       now = Date.now(),
       c = cur.exists ? cur.data() : {};
     if (c.at && now - c.at < 60000)
-      return res
-        .status(429)
-        .json({
-          error:
-            "Wait " +
-            Math.ceil((60000 - (now - c.at)) / 1000) +
-            " seconds before asking for another code.",
-          wait: Math.ceil((60000 - (now - c.at)) / 1000),
-        });
+      return res.status(429).json({
+        error:
+          "Wait " +
+          Math.ceil((60000 - (now - c.at)) / 1000) +
+          " seconds before asking for another code.",
+        wait: Math.ceil((60000 - (now - c.at)) / 1000),
+      });
     const hourStart = c.hs && now - c.hs < 3600e3 ? c.hs : now,
       sends = c.hs && now - c.hs < 3600e3 ? c.sends || 0 : 0;
     if (sends >= 5)
-      return res
-        .status(429)
-        .json({
-          error:
-            "Too many codes asked for this roll number. Try again in an hour.",
-        });
+      return res.status(429).json({
+        error:
+          "Too many codes asked for this roll number. Try again in an hour.",
+      });
     const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
     await sendEmail(
       email,
-      "Your Inter IIT Hockey code: " + code,
+      "Your Email verification code for IITP Hockey",
       "Your sign-up code is " +
         code +
         ". It works for 10 minutes. If you did not ask for it, ignore this e-mail.",
@@ -398,39 +388,31 @@ app.post(
       return res.status(429).json({ error: "Too many tries" });
     const pl = await findPlayer(roll);
     if (!pl)
-      return res
-        .status(404)
-        .json({
-          error:
-            "This roll number is not on the team list. Ask the captain to add you.",
-        });
+      return res.status(404).json({
+        error:
+          "This roll number is not on the team list. Ask the captain to add you.",
+      });
     const c = String(code || "");
     if (c.length < 4 || c.length > 30)
       return res
         .status(400)
         .json({ error: "Your code must be 4 to 30 characters" });
     if ((await db.collection("accounts").doc(pl.id).get()).exists)
-      return res
-        .status(409)
-        .json({
-          error:
-            "Already signed up. Log in with your code. Forgot it? Ask the captain to reset it.",
-        });
+      return res.status(409).json({
+        error:
+          "Already signed up. Log in with your code. Forgot it? Ask the captain to reset it.",
+      });
     const ref = db.collection("otps").doc(pl.id),
       o = await ref.get();
     if (!o.exists || o.data().exp < Date.now())
-      return res
-        .status(400)
-        .json({
-          error: "That e-mail code has expired. Press Send code again.",
-        });
+      return res.status(400).json({
+        error: "That e-mail code has expired. Press Send code again.",
+      });
     const d = o.data();
     if (d.n >= 5)
-      return res
-        .status(423)
-        .json({
-          error: "Too many wrong codes. Press Send code to get a new one.",
-        });
+      return res.status(423).json({
+        error: "Too many wrong codes. Press Send code to get a new one.",
+      });
     if (
       !/^\d{6}$/.test(String(otp || "")) ||
       !eq(otpHash(pl.id, d.email, String(otp)), d.h)
@@ -766,12 +748,10 @@ app.get(
     if (!(await who(req)))
       return res.status(401).json({ error: "Login required" });
     if (!webpush())
-      return res
-        .status(503)
-        .json({
-          error:
-            "Push notifications are not set up on the server yet (VAPID keys missing).",
-        });
+      return res.status(503).json({
+        error:
+          "Push notifications are not set up on the server yet (VAPID keys missing).",
+      });
     res.json({ key: process.env.VAPID_PUBLIC_KEY });
   }),
 );
@@ -833,7 +813,11 @@ async function pushAll(payload, only, exclude) {
       if (exclude && x.role === "player" && exclude.has(x.uid)) return;
       st.total++;
       try {
-        await w.sendNotification(x.sub, body, { TTL: 86400, timeout: 3000 });
+        await w.sendNotification(x.sub, body, {
+          TTL: 86400,
+          urgency: "high",
+          timeout: 3000,
+        });
         st.sent++;
       } catch (e) {
         st.failed++;
@@ -1128,13 +1112,11 @@ app.post(
       : db.collection("players").doc();
     const ex = rid && (await ref.get());
     if (ex && ex.exists)
-      return res
-        .status(409)
-        .json({
-          error: ex.data().removed
-            ? "That student is in Removed students. Restore them there."
-            : "That roll number already exists",
-        });
+      return res.status(409).json({
+        error: ex.data().removed
+          ? "That student is in Removed students. Restore them there."
+          : "That roll number already exists",
+      });
     await ref.set({
       n: Number(b.n) || 999,
       name: str(b.name, 40).trim(),
@@ -1552,15 +1534,13 @@ app.put(
   auth,
   h(async (req, res) => {
     const fix = (a) =>
-      (Array.isArray(a) ? a : [])
-        .slice(0, 7)
-        .map((r) => ({
-          d: str((r || [])[0], 20),
-          t: str((r || [])[1], 60),
-          x: str((r || [])[2], 200),
-          m: str((r || [])[3], 30),
-          g: cleanTags((r || [])[4]),
-        }));
+      (Array.isArray(a) ? a : []).slice(0, 7).map((r) => ({
+        d: str((r || [])[0], 20),
+        t: str((r || [])[1], 60),
+        x: str((r || [])[2], 200),
+        m: str((r || [])[3], 30),
+        g: cleanTags((r || [])[4]),
+      }));
     const team = fix((req.body || {}).team),
       gk = fix((req.body || {}).gk);
     if (team.length !== 7 || gk.length !== 7)
@@ -1626,7 +1606,11 @@ const annBody = (b) => ({
   text: str(b.text, 1500).trim(),
   tags: cleanTags(b.tags),
   pinned: !!b.pinned,
-});
+  until:
+    Number(b.until) > Date.now() - 864e5 * 365
+      ? Math.floor(Number(b.until))
+      : 0,
+}); // until = deadline (ms); 0 = no deadline
 app.post(
   "/api/announcements",
   auth,
@@ -1643,16 +1627,21 @@ app.post(
     const ids = a.tags.length
       ? await tagTargets(a.tags).catch(() => new Set())
       : null; // no tags = for everybody
-    pushAll(
-      {
-        title: "📢 " + (a.title || "New announcement"),
-        body: a.text.slice(0, 140),
-        tag: "hk-ann-" + a.at,
-        url: "./",
-      },
-      ids === null ? undefined : ids,
-    ).catch(() => {});
-    done(res);
+    // wait for the push (max 4.5 s): on Vercel the work stops once the reply is sent, so a push left running in the background may never go out
+    const push = await Promise.race([
+      pushAll(
+        {
+          title: "📢 " + (a.title || "New announcement"),
+          body: a.text.slice(0, 140),
+          tag: "hk-ann-" + a.at,
+          url: "./",
+        },
+        ids === null ? undefined : ids,
+      ).catch(() => null),
+      new Promise((r) => setTimeout(() => r(null), 4500)),
+    ]);
+    bust();
+    res.json({ ok: true, push });
   }),
 );
 app.put(
@@ -1700,12 +1689,9 @@ app.post(
           String(d.data().name).trim().toLowerCase() === name.toLowerCase(),
       )
     )
-      return res
-        .status(409)
-        .json({
-          error:
-            "An admin with that name already exists. Use a different name.",
-        });
+      return res.status(409).json({
+        error: "An admin with that name already exists. Use a different name.",
+      });
     const kind =
         b.kind === "player"
           ? "player"
@@ -1723,17 +1709,15 @@ app.post(
         .status(400)
         .json({ error: "Choose which player this admin is" });
     const salt = crypto.randomBytes(16).toString("hex");
-    await db
-      .collection("admins")
-      .add({
-        name,
-        disabled: false,
-        kind,
-        playerId,
-        created: Date.now(),
-        salt,
-        hash: crypto.scryptSync(code, salt, 32).toString("hex"),
-      });
+    await db.collection("admins").add({
+      name,
+      disabled: false,
+      kind,
+      playerId,
+      created: Date.now(),
+      salt,
+      hash: crypto.scryptSync(code, salt, 32).toString("hex"),
+    });
     done(res);
   }),
 );
@@ -1904,11 +1888,9 @@ app.post(
       return res.status(400).json({ error: "Photo too large or not an image" });
     const n = (await db.collection("gallery").count().get()).data().count;
     if (n >= GAL_MAX)
-      return res
-        .status(409)
-        .json({
-          error: "The gallery is full. Ask an admin to delete old photos.",
-        });
+      return res.status(409).json({
+        error: "The gallery is full. Ask an admin to delete old photos.",
+      });
     const ref = db.collection("gallery").doc();
     await Promise.all([
       ref.set({
@@ -2276,23 +2258,19 @@ app.post(
   h(async (req, res) => {
     const w = webpush();
     if (!w)
-      return res
-        .status(503)
-        .json({
-          error:
-            "Push notifications are not set up on the server yet (VAPID keys missing).",
-        });
+      return res.status(503).json({
+        error:
+          "Push notifications are not set up on the server yet (VAPID keys missing).",
+      });
     const snap = await db
       .collection("pushSubs")
       .where("uid", "==", req.user.id || req.user.role)
       .get();
     if (snap.empty)
-      return res
-        .status(409)
-        .json({
-          error:
-            "This device is not subscribed yet. Turn on “Push” in the menu first.",
-        });
+      return res.status(409).json({
+        error:
+          "This device is not subscribed yet. Turn on “Push” in the menu first.",
+      });
     let sent = 0;
     await Promise.all(
       snap.docs.map(async (d) => {
@@ -2476,11 +2454,9 @@ app.put(
       if (b[k] === undefined || b[k] === null || b[k] === "") continue;
       const v = Number(b[k]);
       if (!Number.isFinite(v) || v < lo || v > hi)
-        return res
-          .status(400)
-          .json({
-            error: label + " must be between " + lo + " and " + hi + ".",
-          });
+        return res.status(400).json({
+          error: label + " must be between " + lo + " and " + hi + ".",
+        });
       if (v > 0) doc[k] = dp ? Math.round(v * 10) / 10 : Math.round(v);
     }
     if (!Object.keys(HL_FIELDS).some((k) => doc[k] > 0))
@@ -2533,23 +2509,19 @@ app.post(
         .status(400)
         .json({ error: "Screenshot too large or not an image" });
     if ((await db.collection("bugs").count().get()).data().count >= 300)
-      return res
-        .status(409)
-        .json({
-          error: "Too many open reports. Ask the captain to clear old ones.",
-        });
-    await db
-      .collection("bugs")
-      .add({
-        text,
-        page: str(b.page, 40),
-        info: str(b.info, 600),
-        shot: b.shot || "",
-        by: await nameOf(u),
-        role: u.role,
-        at: Date.now(),
-        status: "open",
+      return res.status(409).json({
+        error: "Too many open reports. Ask the captain to clear old ones.",
       });
+    await db.collection("bugs").add({
+      text,
+      page: str(b.page, 40),
+      info: str(b.info, 600),
+      shot: b.shot || "",
+      by: await nameOf(u),
+      role: u.role,
+      at: Date.now(),
+      status: "open",
+    });
     res.json({ ok: true });
   }),
 );
@@ -2605,6 +2577,79 @@ app.delete(
   }),
 );
 
+// ---- help & FAQ messages: anyone (even without logging in) can write to the admins; staff read, mark done or delete ----
+app.post(
+  "/api/help",
+  h(async (req, res) => {
+    const u = await who(req).catch(() => null);
+    if (limited("help" + (u ? ukey(u) : req.ip), 6, 3600e3))
+      return res
+        .status(429)
+        .json({ error: "Too many messages. Please try again in a while." });
+    const b = req.body || {},
+      text = str(b.text, 1000).trim();
+    if (text.length < 5)
+      return res
+        .status(400)
+        .json({ error: "Please write your message (at least a few words)." });
+    if ((await db.collection("helpMsgs").count().get()).data().count >= 300)
+      return res
+        .status(409)
+        .json({ error: "The inbox is full. Please try again later." });
+    const topic = [
+      "Login or sign-up",
+      "Attendance",
+      "Playing days",
+      "Notifications",
+      "Photos",
+      "Other",
+    ].includes(b.topic)
+      ? b.topic
+      : "Other";
+    await db.collection("helpMsgs").add({
+      text,
+      topic,
+      name: u ? await nameOf(u) : str(b.name, 40).trim(),
+      contact: str(b.contact, 80).trim(),
+      role: u ? u.role : "visitor",
+      at: Date.now(),
+      status: "open",
+    });
+    res.json({ ok: true });
+  }),
+);
+app.get(
+  "/api/help",
+  auth,
+  h(async (req, res) => {
+    const snap = await db
+      .collection("helpMsgs")
+      .orderBy("at", "desc")
+      .limit(150)
+      .get();
+    res.json({ items: snap.docs.map((d) => ({ id: d.id, ...d.data() })) });
+  }),
+);
+app.put(
+  "/api/help/:id",
+  auth,
+  h(async (req, res) => {
+    const st = (req.body || {}).status;
+    if (!["open", "done"].includes(st))
+      return res.status(400).json({ error: "Bad status" });
+    await db.collection("helpMsgs").doc(req.params.id).update({ status: st });
+    res.json({ ok: true });
+  }),
+);
+app.delete(
+  "/api/help/:id",
+  auth,
+  h(async (req, res) => {
+    await db.collection("helpMsgs").doc(req.params.id).delete();
+    res.json({ ok: true });
+  }),
+);
+
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.use((err, req, res, next) => {
   console.error(err);
@@ -2619,12 +2664,10 @@ app.use((err, req, res, next) => {
   if (err && err.type === "entity.parse.failed")
     return res.status(400).json({ error: "Bad request. Please try again." });
   if (code === 8 || /RESOURCE_EXHAUSTED|quota/i.test(m))
-    return res
-      .status(503)
-      .json({
-        error:
-          "The database daily limit is used up. It resets every day, please try again later.",
-      });
+    return res.status(503).json({
+      error:
+        "The database daily limit is used up. It resets every day, please try again later.",
+    });
   if (
     code === 4 ||
     code === 14 ||

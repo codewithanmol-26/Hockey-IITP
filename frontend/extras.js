@@ -27,7 +27,7 @@ function paintTheme() {
   ["thm", "pthm"].forEach((id) => {
     const b = document.getElementById(id);
     if (!b) return;
-    b.textContent = dk ? "🌙" : "☀️";
+    b.innerHTML = ico(dk ? "moon" : "sun");
     b.setAttribute(
       "aria-label",
       dk
@@ -181,10 +181,28 @@ const annWhen = (at) => {
     x.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
   );
 };
+// deadline: after "until" the announcement disappears for players (admins still see it, marked Expired, so they can repost or delete it)
+const annActive = (a) => !a.until || a.until > Date.now();
+const annLocal = (ms) => {
+  const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000);
+  return d.toISOString().slice(0, 16);
+};
+const annUntil = (a) =>
+  a.until
+    ? new Date(a.until).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+      }) +
+      ", " +
+      new Date(a.until).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "";
 function annItem(a) {
   const mine = tagMine(a.tags);
   return `<article class="an ${mine ? "mine" : ""} ${a.pinned ? "pin" : ""}">
-    <div class="anh">${a.pinned ? '<span class="pill">📌 Pinned</span>' : ""}${mine ? '<span class="pill g">You are tagged</span>' : ""}</div>
+    <div class="anh">${a.pinned ? '<span class="pill">📌 Pinned</span>' : ""}${a.until ? (annActive(a) ? `<span class="pill">⏳ Until ${esc(annUntil(a))}</span>` : '<span class="pill r">Expired</span>') : ""}${mine ? '<span class="pill g">You are tagged</span>' : ""}</div>
     ${a.title ? `<h3>${esc(a.title)}</h3>` : ""}<p class="ant">${esc(a.text)}</p>
     ${tagChips(a.tags)}
     <div class="anm mute">${esc(a.by || "Admin")} · ${annWhen(a.at)}${a.edited ? " · edited" : ""}</div>
@@ -192,7 +210,7 @@ function annItem(a) {
   </article>`;
 }
 function annCard() {
-  const list = ANN.slice().sort(
+  const list = ANN.filter((a) => admin || annActive(a)).sort(
     (a, b) =>
       (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) ||
       (tagMine(b.tags) ? 1 : 0) - (tagMine(a.tags) ? 1 : 0) ||
@@ -244,6 +262,7 @@ function openAnn(a) {
   <label class="fl">Title (optional)<input id="ant" maxlength="80" value="${esc(a ? a.title : "")}" placeholder="e.g. Practice moved"></label>
   <label class="fl">Message<textarea id="anb" rows="5" maxlength="1500" placeholder="Write the announcement" style="width:100%">${esc(a ? a.text : "")}</textarea></label>
   <div class="fl">Tag<div id="antg" class="tgsel"></div><button type="button" id="antb">🏷️ Tag people</button></div>
+  <label class="fl">Show until (optional)<input type="datetime-local" id="anu" value="${a && a.until ? annLocal(a.until) : ""}"><span class="mute">After this date and time the announcement disappears for everyone except admins. Leave empty to keep it.</span></label>
   <label class="chk"><input type="checkbox" id="anp" ${a && a.pinned ? "checked" : ""}> 📌 Pin to the top</label>
   <p id="anerr" class="err" role="alert"></p>
   <div class="ctl"><button class="pri" id="ansv">${a ? "Save" : "Post"}</button><button id="ancx">Cancel</button></div>`;
@@ -265,11 +284,19 @@ function openAnn(a) {
       d.querySelector("#anerr").textContent = "Write the message first.";
       return;
     }
+    const uv = d.querySelector("#anu").value,
+      um = uv ? new Date(uv).getTime() : 0;
+    if (uv && um <= Date.now()) {
+      d.querySelector("#anerr").textContent =
+        "The deadline must be in the future.";
+      return;
+    }
     const body = {
       title: d.querySelector("#ant").value.trim(),
       text,
       tags,
       pinned: d.querySelector("#anp").checked,
+      until: um,
     };
     d.close();
     run(async () => {

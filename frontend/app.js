@@ -820,6 +820,7 @@ const TABS = [
   ["players", "👥", "Players", "a", ""],
   ["removed", "🗑️", "Removed students", "a", ""],
   ["admins", "🛡️", "Admins", "o", ""],
+  ["helpbox", "💬", "Help messages", "a", ""],
 ];
 const PRIMARY = ["me", "take", "plan", "stats", "schedule"];
 const tabsFor = () =>
@@ -1160,7 +1161,7 @@ function pOtp(sentTo, wait) {
   pStep = "otp";
   $("pa").innerHTML =
     `<p class="note">We sent a 6 digit code to <b>${esc(sentTo)}</b>. It works for 10 minutes. Look in spam or junk if you cannot see it.</p>
-  <label class="fl">Code from the e-mail<input id="po" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="6 digits" required></label>
+  <div class="fl">Code from the e-mail${sixBox("po")}</div>
   <label class="fl">Choose your unique code<input id="pc" type="password" placeholder="4 or more characters" maxlength="30" autocomplete="new-password" required></label>
   <button class="pri big" id="plg">Create account &amp; log in</button><button type="button" id="presend" disabled>Send the code again</button>`;
   $("presend").onclick = async () => {
@@ -1179,7 +1180,8 @@ function pOtp(sentTo, wait) {
     }
   };
   pCount(wait || 60);
-  $("po").focus();
+  bindSix("po");
+  $("po").querySelector("input").focus();
 }
 $("pf").onsubmit = async (e) => {
   e.preventDefault();
@@ -1206,6 +1208,10 @@ $("pf").onsubmit = async (e) => {
       pOtp(r.sentTo, r.wait);
       return;
     }
+    if (pStep === "otp" && $("po").val().length < 6) {
+      $("pe").textContent = "Enter all 6 digits of the e-mailed code.";
+      return;
+    }
     const r =
       pStep === "login"
         ? await api("/api/player/login", {
@@ -1214,7 +1220,7 @@ $("pf").onsubmit = async (e) => {
           })
         : await api("/api/player/signup", {
             method: "POST",
-            body: { roll, otp: $("po").value.trim(), code: $("pc").value },
+            body: { roll, otp: $("po").val(), code: $("pc").value },
           });
     clearInterval(pTimer);
     saveToken(r.token);
@@ -1325,6 +1331,7 @@ function drawMenu() {
     `<div class="ms">Share</div>` +
     mi("📊", "Share attendance report", () => openReport()) +
     mi("📲", "Share this app", shareApp);
+  h += fsRow();
   h +=
     `<div class="ms">Sound</div>` +
     mi(
@@ -1366,6 +1373,7 @@ function drawMenu() {
   m.innerHTML = h;
   bindVol("mvol", "mvolv", playClick);
   wireMenu(m);
+  wireFs(m);
 }
 $("mb").onclick = (e) => {
   e.stopPropagation();
@@ -1677,9 +1685,7 @@ async function testPush() {
 function icsDownload() {
   const up = Object.keys(PL)
     .sort()
-    .filter(
-      (d) => d >= today() && PL[d].status !== "cancelled" && span(PL[d].time),
-    );
+    .filter((d) => planLive(d) && span(PL[d].time));
   if (!up.length)
     return alert(
       "No upcoming playing day with a time is fixed yet. Try again once the captain schedules one.",
@@ -1783,7 +1789,9 @@ function render() {
       players: vPlayers,
       removed: vRemoved,
       admins: vAdmins,
+      helpbox: vHelpbox,
     })[tab]();
+    helpFooter();
   } catch (e) {
     console.error(e);
     $("view").innerHTML =
@@ -2669,7 +2677,7 @@ const dlabel = (d) => {
 function nextPlan() {
   const d = Object.keys(PL)
     .sort()
-    .find((x) => x >= today() && PL[x].status !== "cancelled");
+    .find((x) => planLive(x));
   return d
     ? `<p class="note">Next playing day: <b>${fmt(d)}</b>${PL[d].time ? ", " + esc(PL[d].time) : ""}${PL[d].venue ? " · 📍 " + esc(PL[d].venue) : ""}${PL[d].note ? " · " + esc(PL[d].note) : ""}</p>`
     : "";
@@ -2713,8 +2721,7 @@ function wkOpen() {
 function vPlan() {
   const td = today(),
     ks = Object.keys(PL).sort();
-  if (!planSel)
-    planSel = ks.find((d) => d >= td && PL[d].status !== "cancelled") || td;
+  if (!planSel) planSel = ks.find((d) => planLive(d)) || td;
   if (!planMon) planMon = planSel.slice(0, 7);
   const [y, mo] = planMon.split("-").map(Number),
     lead = (new Date(y, mo - 1, 1).getDay() + 6) % 7,
@@ -2737,9 +2744,9 @@ function vPlan() {
     }
     const c = p.status === "cancelled",
       r = SCH.team[dayIdx(d)];
-    return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> ${c ? '<span class="pill r">Cancelled</span>' : d >= td ? `<span class="pill g">${dlabel(d)}</span>` : ""} ${SS[d] ? '<span class="pill g">Attendance recorded</span>' : ""}</p>
+    return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> ${c ? '<span class="pill r">Cancelled</span>' : planLive(d) ? `<span class="pill g">${dlabel(d)}</span>` : d === td && !SS[d] ? '<span class="pill">Ended</span>' : ""} ${SS[d] ? '<span class="pill g">Attendance recorded</span>' : ""}</p>
     <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p>${p.venue ? `<p style="margin:2px 0 0">📍 ${esc(p.venue)}</p>` : ""}<p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}${(p.tags || []).length ? `<p style="margin:6px 0 0">🏷️ ${tagChips(p.tags)}</p>` : ""}${tagMine(p.tags) && !c ? `<p class="note" style="margin:8px 0">📌 You are tagged for this playing day.</p>` : ""}
-    ${d >= td && !c ? availBlock(d) : ""}
+    ${planLive(d) && !c ? availBlock(d) : ""}
     ${admin ? `<div class="chips"><button data-a="ed" data-d="${d}">✏️ Edit</button><button data-a="take" data-d="${d}">Attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></div>` : ""}`;
   };
   const fd = PL[planSel] ? td : planSel;

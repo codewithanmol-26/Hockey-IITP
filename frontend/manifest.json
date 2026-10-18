@@ -1,7 +1,7 @@
 {
-  "name": "Inter IIT Hockey Attendance",
+  "name": "IITP Hockey Attendance",
   "short_name": "Hockey",
-  "description": "Attendance, schedule and rules for the Inter IIT hockey team",
+  "description": "Attendance, schedule and rules for the hockey team",
   "start_url": "./",
   "scope": "./",
   "handle_links": "preferred",

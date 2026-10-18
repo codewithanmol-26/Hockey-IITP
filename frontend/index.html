@@ -3,10 +3,11 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hockey Attendance</title>
   <meta name="theme-color" content="#0b2a4a">
-  <meta name="description" content="Inter IIT hockey team attendance, schedule and rules">
+  <meta name="description" content="IITP hockey team attendance, schedule and rules">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -14,7 +15,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Hockey">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
+  <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t; var z = +localStorage.getItem("hk_fs"); if (z >= 85 && z <= 132) document.documentElement.style.fontSize = z + "%" } catch (e) { }</script>
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -25,20 +26,20 @@
     <header>
       <div class="brand"><img src="icons/icon-192.png" alt="" width="34" height="34">
         <div>
-          <h1>Inter IIT Hockey</h1><span class="who">Team app</span>
+          <h1>IITP Hockey</h1><span class="who">Team app</span>
         </div>
       </div>
-      <div class="hb"><button id="pthm" class="thb" type="button"
-          aria-label="Switch day or night mode">🌙</button><button id="pli" class="pri plog">Log in</button><button
-          id="pmb" class="mbtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">⋮</button></div>
+      <div class="hb"><button id="pthm" class="thb" type="button" aria-label="Switch day or night mode"></button><button
+          id="pli" class="pri plog">Log in</button><button id="pmb" class="mbtn" data-ic="dots" aria-label="Menu"
+          aria-haspopup="true" aria-expanded="false"></button></div>
     </header>
     <main id="pview"></main>
   </div>
 
-  <!-- 1. Login page: reached from the public page with "Log in". The ✕ goes back to the public page. -->
+  <!-- 1. Login page: reached from the public page with "Log in". The back arrow goes to the public page. -->
   <section id="login" hidden>
     <div class="lg-card">
-      <button type="button" id="lgx" class="lgx" aria-label="Close and go back">✕</button>
+      <button type="button" id="lgx" class="lgx" data-ic="back" aria-label="Back" title="Back"></button>
       <img class="lg-logo" src="icons/icon-192.png" alt="" width="84" height="84">
       <h1>Inter IIT Hockey</h1>
       <p class="lg-sub">Attendance · Schedule · Rules</p>
@@ -74,16 +75,15 @@
   <!-- 2. The app (home page and everything else), shown only after login -->
   <div id="app" hidden>
     <header>
+      <button id="xb" class="hx" data-ic="back" aria-label="Back to Home" title="Back" hidden></button>
       <div class="brand"><img src="icons/icon-192.png" alt="" width="34" height="34">
         <div>
           <h1>Inter IIT Hockey</h1><span id="who" class="who"></span>
         </div>
       </div>
-      <div class="hb"><button id="thm" class="thb" type="button"
-          aria-label="Switch day or night mode">🌙</button><button id="xb" class="hx"
-          aria-label="Close this page and go back to Home" hidden>✕</button><button id="hp" class="hi"
-          aria-label="My profile"></button><button id="mb" class="mbtn" aria-label="Menu" aria-haspopup="true"
-          aria-expanded="false">⋮</button></div>
+      <div class="hb"><button id="thm" class="thb" type="button" aria-label="Switch day or night mode"></button><button
+          id="hp" class="hi" aria-label="My profile"></button><button id="mb" class="mbtn" data-ic="dots"
+          aria-label="Menu" aria-haspopup="true" aria-expanded="false"></button></div>
     </header>
     <nav id="nav" aria-label="Main"></nav>
     <main id="view"></main>
@@ -163,8 +163,10 @@
     })();
   </script>
   <script src="config.js"></script>
+  <script src="icons.js"></script>
   <script src="public.js"></script>
   <script src="extras.js"></script>
+  <script src="help.js"></script>
   <script src="app.js"></script>
 </body>
 

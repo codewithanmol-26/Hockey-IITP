@@ -218,3 +218,14 @@ No command line needed: open the app > ⋮ menu > **Set up push notifications**.
 - **Notifications have no switches.** The phone asks for permission once, the first time; after that the phone's own app settings decide. The server sends a notification for each new announcement, when a playing day is scheduled or cancelled, and a reminder (7 pm the evening before for morning sessions, 7 am the same day for evening sessions) through Vercel Cron. Needs `CRON_SECRET`.
 - **Sign-up e-mails can be from any domain** by default. To restrict them, set `SIGNUP_EMAIL_DOMAIN` (e.g. `iitp.ac.in`).
 - Fixed: logging out failed with an error since v20 (a removed smartwatch function was still called).
+
+## v22 changes
+
+- Icons: blue outline icons in rounded square tiles.
+- No pinch-zoom. Menu (⋮) has Text size A− / A+ (saved on the phone).
+- Instant push: announcements wait for the push to be sent before replying, and pushes use high urgency.
+- Announcements can have a deadline ("Show until"); after it they disappear for players (admins see them marked Expired).
+- A playing day disappears from "next playing day" once its end time (from the Time field, e.g. 6:30–8:30 PM) has passed. No time written = stays all day.
+- The e-mailed sign-up code uses six boxes.
+- The public page has only two login buttons (top bar and the hero card) and shows only the team photo (not the gallery); fixtures and news stay.
+- FAQs and help at the bottom of every page: anyone can message the admins; admins read them in menu > Help messages.

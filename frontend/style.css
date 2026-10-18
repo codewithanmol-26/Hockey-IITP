@@ -3424,3 +3424,167 @@ button.sm.ib {
 header:has(#xb:not([hidden])) .brand img {
   display: none;
 }
+
+/* ---------- v22: blue outline icons in rounded square tiles, no zoom, text size, six-box code, help ---------- */
+:root {
+  --ic: #1f6fb5;
+  --ic-bg: #eef6fd;
+  --ic-line: #7db4e0;
+}
+:root[data-theme="dark"] {
+  --ic: #6cb6f0;
+  --ic-bg: #10263d;
+  --ic-line: #2f6a9c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ic: #6cb6f0;
+    --ic-bg: #10263d;
+    --ic-line: #2f6a9c;
+  }
+}
+html {
+  touch-action: manipulation;
+}
+input,
+select,
+textarea {
+  font-size: max(16px, 1rem);
+} /* phones zoom into small fields; 16px stops that */
+.svgi {
+  stroke-width: 2;
+}
+button.ib:not(.pri):not(.dng),
+a.ib:not(.pri) {
+  background: var(--ic-bg);
+  border: 2px solid var(--ic-line);
+  border-radius: 10px;
+  color: var(--ic);
+}
+button.ib:not(.pri):hover {
+  background: color-mix(in srgb, var(--ic) 14%, var(--card));
+}
+nav .i {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--ic-bg);
+  border: 2px solid var(--ic-line);
+  color: var(--ic);
+  transition: transform 0.15s;
+}
+nav button.on .i {
+  background: var(--ic);
+  border-color: var(--ic);
+  color: #fff;
+}
+nav button.on .i .svgi {
+  color: #fff;
+}
+nav .i .svgi {
+  width: 22px;
+  height: 22px;
+}
+#menu .mi .i {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--ic-bg);
+  border: 2px solid var(--ic-line);
+  color: var(--ic);
+  flex: none;
+}
+.hb .thb .svgi,
+.hb .mbtn .svgi {
+  color: #fff;
+}
+.fsrow {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fsb {
+  min-width: 46px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 2px solid var(--ic-line);
+  background: var(--ic-bg);
+  color: var(--ic);
+  font-weight: 800;
+}
+.fsb.big {
+  font-size: 1.15em;
+}
+.fsb:disabled {
+  opacity: 0.4;
+}
+.fsv {
+  min-width: 3.2em;
+  text-align: center;
+  font-weight: 700;
+}
+.six {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 8px 0;
+}
+.six input {
+  width: 46px;
+  height: 54px;
+  padding: 0;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  border: 2px solid var(--ic-line);
+  border-radius: 10px;
+  background: var(--ic-bg);
+  caret-color: var(--ic);
+}
+.six input:focus {
+  outline: 0;
+  border-color: var(--ic);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ic) 25%, transparent);
+}
+.ft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+.faq details {
+  border: 1.5px solid var(--ic-line);
+  background: var(--ic-bg);
+  border-radius: 10px;
+  margin: 0 0 8px;
+  padding: 0 12px;
+}
+.faq summary {
+  cursor: pointer;
+  padding: 11px 0;
+  font-weight: 700;
+  color: var(--ic);
+  list-style: none;
+}
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+.faq summary::after {
+  content: "+";
+  float: right;
+  font-weight: 800;
+}
+.faq details[open] summary::after {
+  content: "−";
+}
+.faq details p {
+  margin: 0 0 12px;
+}
+.help .ok {
+  color: var(--p);
+  font-weight: 700;
+}
