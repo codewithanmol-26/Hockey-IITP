@@ -206,8 +206,7 @@ async function sendEmail(to, subject, text, html) {
       503,
       "E-mail is not set up on the server yet. The captain must add RESEND_API_KEY in Vercel and redeploy.",
     );
-  const from =
-    process.env.RESEND_FROM || "Inter IIT Hockey <onboarding@resend.dev>";
+  const from = process.env.RESEND_FROM || "IITP Hockey <onboarding@resend.dev>";
   let r;
   try {
     r = await fetch("https://api.resend.com/emails", {
@@ -333,7 +332,7 @@ app.post(
       "Your sign-up code is " +
         code +
         ". It works for 10 minutes. If you did not ask for it, ignore this e-mail.",
-      '<div style="font-family:Arial,sans-serif;max-width:420px"><h2 style="margin:0 0 8px">Inter IIT Hockey</h2><p>Your sign-up code is</p><p style="font-size:32px;letter-spacing:6px;font-weight:700;margin:8px 0">' +
+      '<div style="font-family:Arial,sans-serif;max-width:420px"><h2 style="margin:0 0 8px">IITP Hockey</h2><p>Your sign-up code is</p><p style="font-size:32px;letter-spacing:6px;font-weight:700;margin:8px 0">' +
         code +
         '</p><p style="color:#555">It works for 10 minutes. If you did not ask for it, ignore this e-mail.</p></div>',
     );
@@ -363,12 +362,12 @@ app.post(
         .status(429)
         .json({ error: "Too many test e-mails. Try again in an hour." });
     const from =
-      process.env.RESEND_FROM || "Inter IIT Hockey <onboarding@resend.dev>";
+      process.env.RESEND_FROM || "IITP Hockey <onboarding@resend.dev>";
     await sendEmail(
       to,
-      "Inter IIT Hockey: test e-mail",
+      "IITP Hockey: test e-mail",
       "This is a test. E-mail sending works, so sign-up codes will reach your players.",
-      '<div style="font-family:Arial,sans-serif"><h2>Inter IIT Hockey</h2><p>This is a test. E-mail sending works, so sign-up codes will reach your players.</p></div>',
+      '<div style="font-family:Arial,sans-serif"><h2>IITP Hockey</h2><p>This is a test. E-mail sending works, so sign-up codes will reach your players.</p></div>',
     );
     res.json({
       ok: true,

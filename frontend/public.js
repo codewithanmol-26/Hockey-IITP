@@ -14,7 +14,7 @@ let NAMES = {},
 const DEFNAME = {
   captain: "Captain",
   vice: "Vice-captain",
-  coach: "Instructor",
+  coach: "Kiran Chaudhary",
 };
 const nameOf2 = (k) => ((TEAM && TEAM[k]) || {}).name || DEFNAME[k];
 
@@ -113,7 +113,7 @@ function drawPublic() {
       ? `<img class="gph" id="pgph" src="${p.groupPhoto}" alt="Team group photo">`
       : empty("📸", p ? "The team photo will appear here." : "Loading photo…");
   gid("pview").innerHTML =
-    `<div class="card hero phero"><img src="icons/icon-192.png" alt="" width="72" height="72" class="plogo"><div class="ph2"><h2>Inter IIT Hockey</h2><span class="mute">Attendance · Schedule · Rules · Photos · News</span></div>
+    `<div class="card hero phero"><img src="icons/icon-192.png" alt="" width="72" height="72" class="plogo"><div class="ph2"><h2>IITP Hockey</h2><span class="mute">Attendance · Schedule · Rules · Photos · News</span></div>
     <div class="ctl phb"><button class="pri big" data-plog>Log in to your account</button>${inst ? '<button class="big pghost" id="pinst">📲 Get the app</button>' : ""}</div></div>
   ${pubErr ? `<div class="note">${esc(pubErr)} <button id="ptry">Try again</button></div>` : ""}
   <div class="card"><h2>What you can do in the app</h2><div class="fts">${FEATURES.map((f) => `<div class="ft"><span class="ic">${f[0]}</span><b>${f[1]}</b><span class="mute">${f[2]}</span></div>`).join("")}</div><p class="mute" style="margin:10px 0 0">🔒 Personal details and attendance are shown only after you log in.</p></div>
@@ -135,7 +135,7 @@ function showPublic() {
   gid("login").hidden = true;
   gid("pub").hidden = false;
   gid("menu").hidden = true;
-  document.title = "Inter IIT Hockey · Team app";
+  document.title = "IITP Hockey · Team app";
   drawPublic();
   if (!PUB && !pubBusy) fetchPublic();
   else if (Date.now() - pubAt > 60000) fetchPublic();

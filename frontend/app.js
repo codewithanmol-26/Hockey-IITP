@@ -344,7 +344,7 @@ function shareLinks(text, title, phone) {
       "✉️",
       "Email",
       "mailto:?subject=" +
-        encodeURIComponent(title || "Inter IIT Hockey") +
+        encodeURIComponent(title || "IITP Hockey") +
         "&body=" +
         t,
     ],
@@ -401,10 +401,7 @@ function shareBody(d, text, title, phone, head) {
   $("shx").oninput = draw;
   $("shn").onclick = async () => {
     try {
-      await navigator.share({
-        title: title || "Inter IIT Hockey",
-        text: cur(),
-      });
+      await navigator.share({ title: title || "IITP Hockey", text: cur() });
     } catch (e) {}
   };
   $("shc").onclick = async () => {
@@ -417,7 +414,7 @@ function shareBody(d, text, title, phone, head) {
 async function shareText(text, title, phone) {
   if (navigator.share) {
     try {
-      await navigator.share({ title: title || "Inter IIT Hockey", text });
+      await navigator.share({ title: title || "IITP Hockey", text });
       return;
     } catch (e) {
       if (e && e.name === "AbortError") return;
@@ -429,13 +426,13 @@ async function shareText(text, title, phone) {
 }
 function appShareText() {
   return (
-    "🏑 *Inter IIT Hockey: Attendance app*\nSchedule, attendance and rules for the team.\nOpen: " +
+    "🏑 *IITP Hockey: Attendance app*\nSchedule, attendance and rules for the team.\nOpen: " +
     location.origin +
     location.pathname.replace(/index\.html$/, "") +
     '\nLog in with your roll number. Tip: tap "Install app" or "Add to Home Screen" to use it like an app.'
   );
 }
-const shareApp = () => shareText(appShareText(), "Inter IIT Hockey app");
+const shareApp = () => shareText(appShareText(), "IITP Hockey app");
 
 // ---------- attendance reports: whole team, a month, a date or one person -> any app ----------
 const pbar = (p) =>
@@ -458,7 +455,7 @@ function reportText(sc, v) {
       .filter((d) => SS[d][v] !== undefined)
       .slice(0, 12)
       .map((d) => `${SS[d][v] ? "✅" : "❌"} ${dlong(d)}`);
-    return `🏑 *Inter IIT Hockey: Attendance of ${pl.name}*\n${pl.roll ? "Roll no: " + pl.roll + "\n" : ""}📅 Till ${td}\n\n*Overall: ${a.pr}/${a.t} days (${a.pct}%)*\n${pbar(a.pct)}\n\n*Month by month*\n${ms.join("\n") || "-"}\n\n*Recent days*\n${rec.join("\n") || "-"}`;
+    return `🏑 *IITP Hockey: Attendance of ${pl.name}*\n${pl.roll ? "Roll no: " + pl.roll + "\n" : ""}📅 Till ${td}\n\n*Overall: ${a.pr}/${a.t} days (${a.pct}%)*\n${pbar(a.pct)}\n\n*Month by month*\n${ms.join("\n") || "-"}\n\n*Recent days*\n${rec.join("\n") || "-"}`;
   }
   const m = sc === "month" ? v : "all",
     st = stats(m)
@@ -480,7 +477,7 @@ function reportText(sc, v) {
           .join("\n");
   const medal = ["🥇", "🥈", "🥉"];
   return (
-    `🏑 *Inter IIT Hockey: Attendance report*\n📅 ${m === "all" ? "Overall, till " + td : mfmt(m)}\n🗓 Playing days: ${rdays(m)}\n📈 Team turnout: ${tr}%\n\n` +
+    `🏑 *IITP Hockey: Attendance report*\n📅 ${m === "all" ? "Overall, till " + td : mfmt(m)}\n🗓 Playing days: ${rdays(m)}\n📈 Team turnout: ${tr}%\n\n` +
     st
       .map(
         (x, i) =>
@@ -1449,7 +1446,7 @@ const dlong = (d) =>
     year: "numeric",
   });
 const DEFTPL =
-  "🏑 *Inter IIT Hockey: Practice*\n📅 {day}, {date}\n⏰ {time}\n📍 {venue}\n🎯 {session}\n📝 {note}\nReport on time!";
+  "🏑 *IITP Hockey: Practice*\n📅 {day}, {date}\n⏰ {time}\n📍 {venue}\n🎯 {session}\n📝 {note}\nReport on time!";
 function planMsg(d) {
   const p = PL[d] || {},
     r = SCH.team[dayIdx(d)],
@@ -1483,11 +1480,11 @@ function attMsg(d) {
     ab = ps.filter((p) => !r[p.id]),
     ls = (a) =>
       a.length ? a.map((p, i) => i + 1 + ". " + p.name).join("\n") : "-";
-  return `🏑 *Inter IIT Hockey: Attendance*\n📅 ${dlong(d)}\n\n✅ *Present (${pr.length})*\n${ls(pr)}\n\n❌ *Absent (${ab.length})*\n${ls(ab)}\n\nTurnout: ${ps.length ? Math.round((pr.length * 100) / ps.length) : 0}%`;
+  return `🏑 *IITP Hockey: Attendance*\n📅 ${dlong(d)}\n\n✅ *Present (${pr.length})*\n${ls(pr)}\n\n❌ *Absent (${ab.length})*\n${ls(ab)}\n\nTurnout: ${ps.length ? Math.round((pr.length * 100) / ps.length) : 0}%`;
 }
 function weekMsg(k) {
   return (
-    `🏑 *Inter IIT Hockey: Weekly schedule${k === "gk" ? " (Goalkeepers)" : ""}*\n\n` +
+    `🏑 *IITP Hockey: Weekly schedule${k === "gk" ? " (Goalkeepers)" : ""}*\n\n` +
     SCH[k]
       .map((r) => (r[3] ? `*${r[0]}*: ${r[1]}, ${r[3]}` : `*${r[0]}*: ${r[1]}`))
       .join("\n") +
@@ -2171,7 +2168,7 @@ function vSched() {
       (b) =>
         (b.onclick = () =>
           shareText(
-            `🏑 *Inter IIT Hockey: ${r[0]}*\n${r[1]}\n${r[2]}\n⏰ ${r[3] || "Rest day"}`,
+            `🏑 *IITP Hockey: ${r[0]}*\n${r[1]}\n${r[2]}\n⏰ ${r[3] || "Rest day"}`,
             "Practice",
           )),
     );
@@ -5406,7 +5403,7 @@ function drawAvail(d) {
         .join("\n");
     const part = (k, t) => (g(k) ? `\n${t}\n${g(k)}\n` : "");
     shareText(
-      `🏑 *Inter IIT Hockey: Availability*\n📅 ${dlong(d)}${PL[d] && PL[d].venue ? "\n📍 " + PL[d].venue : ""}\n` +
+      `🏑 *IITP Hockey: Availability*\n📅 ${dlong(d)}${PL[d] && PL[d].venue ? "\n📍 " + PL[d].venue : ""}\n` +
         part("active", "✅ *Active*") +
         part("injured", "🤕 *Injured*") +
         part("out", "❌ *Can't come*") +

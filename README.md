@@ -1,4 +1,4 @@
-# Inter IIT Hockey Attendance
+# IITP Hockey Attendance
 
     frontend/   the web pages (index.html, style.css, app.js, config.js)
     backend/    the server code (server.js) + seed.json (team list from the register)

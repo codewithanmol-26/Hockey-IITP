@@ -1,5 +1,5 @@
 // Makes the page installable and able to show alerts. Only the app files are cached; /api (the data) is never cached.
-const V = "hk-v32",
+const V = "hk-v33",
   SHELL = [
     "./",
     "index.html",
@@ -77,7 +77,7 @@ self.addEventListener("push", (e) => {
     d = { body: e.data ? e.data.text() : "" };
   }
   e.waitUntil(
-    self.registration.showNotification(d.title || "🏑 Inter IIT Hockey", {
+    self.registration.showNotification(d.title || "🏑 IITP Hockey", {
       body: d.body || "",
       tag: d.tag || "hk-plan",
       renotify: true,

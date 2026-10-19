@@ -25,7 +25,7 @@ Vercel > your project > **Settings** > **Environment Variables** (tick Productio
 | Name             | Value                                                           |
 | ---------------- | --------------------------------------------------------------- |
 | `RESEND_API_KEY` | the key from step 3                                             |
-| `RESEND_FROM`    | `Inter IIT Hockey <hockey@mail.yourdomain.com>`                 |
+| `RESEND_FROM`    | `IITP Hockey <hockey@mail.yourdomain.com>`                      |
 | `CRON_SECRET`    | any long random text (for the playing day reminders, see below) |
 
 Then **Deployments** > the latest one > **Redeploy**.
@@ -42,7 +42,7 @@ Sign-up e-mails can be from any domain (Gmail, institute, etc.). This is the def
 
 Open the app as captain > menu (⋮) > **Test the sign-up e-mail**. Enter a Gmail (or any address that is not on your domain) and check inbox and spam.
 
-- "Sent from: Inter IIT Hockey <hockey@mail.yourdomain.com>" and the mail arrives: done.
+- "Sent from: IITP Hockey <hockey@mail.yourdomain.com>" and the mail arrives: done.
 - "E-mail is limited until a domain is verified": the domain is not Verified in Resend yet, or `RESEND_FROM` is not on that domain.
 - "The e-mail key on the server is wrong": re-copy `RESEND_API_KEY` and redeploy.
 

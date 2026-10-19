@@ -98,7 +98,7 @@ setInterval(() => {
 const FAQS_PUBLIC = [
   [
     "What is this app?",
-    "The Inter IIT Hockey team app: attendance, playing days and timings, rules and signals, warm-ups, training log and team photos.",
+    "The IITP Hockey team app: attendance, playing days and timings, rules and signals, warm-ups, training log and team photos.",
   ],
   [
     "How do I get access?",
