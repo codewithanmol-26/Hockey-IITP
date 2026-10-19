@@ -14,7 +14,7 @@ let NAMES = {},
 const DEFNAME = {
   captain: "Captain",
   vice: "Vice-captain",
-  coach: "Kiran Chaudhary",
+  coach: "Instructor",
 };
 const nameOf2 = (k) => ((TEAM && TEAM[k]) || {}).name || DEFNAME[k];
 
@@ -204,7 +204,8 @@ new MutationObserver(() => {
 }).observe(gid("menu"), { attributes: true, attributeFilter: ["hidden"] });
 // the back arrow on the login page goes to the public page; the back arrow in the header goes from any menu page back to Home
 gid("lgx").onclick = () => showPublic();
-if (standalone()) gid("lgx").hidden = true; // installed app: no public page, so no back arrow
+if (matchMedia("(display-mode: standalone)").matches || navigator.standalone)
+  gid("lgx").hidden = true; // installed app: no public page, so no back arrow
 gid("xb").onclick = () => {
   gid("menu").hidden = true;
   go("me");
