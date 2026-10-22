@@ -186,8 +186,9 @@ async function chat({ message, user, history = [] }) {
   }
 
   if (isAskingAttendance) {
-    if (user && user.role === "player" && user.id) {
-      context.playerAttendance = await getPlayerAttendanceSummary(user.id);
+    const targetRoll = (user && user.role === "player") ? user.id : (user && user.playerId);
+    if (targetRoll) {
+      context.playerAttendance = await getPlayerAttendanceSummary(targetRoll);
     } else {
       context.authNotice = "USER IS NOT LOGGED IN AS A PLAYER. Explain: 'Please log in with your student roll number to view your personal attendance.' Never show or guess attendance.";
     }
@@ -209,7 +210,7 @@ ${JSON.stringify(context, null, 2)}
 USER MESSAGE:
 ${query}`;
 
-  // Prioritize gemini-3.8-flash as primary model for latest capabilities and reliability
+  // Prioritize gemini-3.8-flash as primary model with gemini-3.5-flash fallback if quota is exceeded
   const candidateModels = ["gemini-3.8-flash", "gemini-3.5-flash"];
   let replyText = null;
   let lastError = null;

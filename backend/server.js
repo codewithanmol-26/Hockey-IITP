@@ -2477,6 +2477,11 @@ app.post(
   "/api/chat",
   h(async (req, res) => {
     const user = await who(req);
+    if (user && (user.role === "captain" || user.role === "vice")) {
+      const customNamesDoc = await db.collection("config").doc("staffNames").get().catch(() => null);
+      const lk = (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {}).links || {};
+      user.playerId = lk[user.role] || (user.role === "captain" ? "2501CE01" : "2501MC44");
+    }
     const { message, history } = req.body || {};
     if (!message || typeof message !== "string" || !message.trim()) {
       return res.status(400).json({ error: "Message is required" });

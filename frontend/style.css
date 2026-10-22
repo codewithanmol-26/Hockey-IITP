@@ -3782,7 +3782,7 @@ nav .i .svgi {
   position: fixed;
   bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
   right: 18px;
-  z-index: 50;
+  z-index: 999;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3795,6 +3795,8 @@ nav .i .svgi {
   font-size: 0.9rem;
   box-shadow: 0 4px 18px rgba(11, 42, 74, 0.35);
   cursor: pointer;
+  user-select: none;
+  touch-action: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 #chat-fab:hover {
@@ -3827,21 +3829,26 @@ nav .i .svgi {
   }
 }
 .chat-dialog {
-  width: 94vw;
-  max-width: 480px;
-  height: 82vh;
-  max-height: 640px;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(480px, 94vw);
+  height: min(640px, 82vh);
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--card);
   color: var(--ink);
-  display: flex;
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.38);
+  z-index: 1000;
+}
+.chat-dialog:not([open]) {
+  display: none !important;
 }
 .chat-dialog[open] {
+  display: flex !important;
   animation: chatPopup 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .chat-dialog::backdrop {

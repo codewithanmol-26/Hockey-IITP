@@ -5,11 +5,10 @@
  */
 
 (function () {
-  // 1. Inject Floating Action Button (FAB) and Dialog into DOM
   function initChatUI() {
     if (document.getElementById("chat-fab")) return;
 
-    // Floating Button
+    // 1. Floating Action Button
     const fab = document.createElement("button");
     fab.id = "chat-fab";
     fab.type = "button";
@@ -18,7 +17,7 @@
     fab.innerHTML = `<span class="fab-icon">🏑</span><span class="fab-label">AI Chat</span>`;
     document.body.appendChild(fab);
 
-    // Chat Dialog
+    // 2. Chat Dialog Modal
     const dlg = document.createElement("dialog");
     dlg.id = "chatdlg";
     dlg.className = "chat-dialog";
@@ -63,38 +62,49 @@
     `;
     document.body.appendChild(dlg);
 
-    // Movable / Draggable functionality for FAB
+    // 3. Attach Draggable + Click handler
     makeDraggable(fab);
 
-    document.getElementById("chat-close").onclick = closeChat;
+    // 4. Close handlers
+    const closeBtn = document.getElementById("chat-close");
+    if (closeBtn) closeBtn.onclick = closeChat;
     dlg.addEventListener("cancel", closeChat);
 
-    // Chip click listeners
-    const chips = dlg.querySelectorAll(".chip");
-    chips.forEach(c => {
+    // Click outside dialog to close
+    dlg.addEventListener("click", (e) => {
+      if (e.target === dlg) {
+        closeChat();
+      }
+    });
+
+    // 5. Suggestion Chips
+    dlg.querySelectorAll(".chip").forEach((c) => {
       c.onclick = () => {
         const q = c.getAttribute("data-q");
         if (q) sendMessage(q);
       };
     });
 
-    // Form submit listener
-    document.getElementById("chat-form").onsubmit = (e) => {
-      e.preventDefault();
-      const input = document.getElementById("chat-input");
-      const val = input.value.trim();
-      if (val) {
-        sendMessage(val);
-        input.value = "";
-      }
-    };
+    // 6. Form Submission
+    const form = document.getElementById("chat-form");
+    if (form) {
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const input = document.getElementById("chat-input");
+        const val = input ? input.value.trim() : "";
+        if (val) {
+          sendMessage(val);
+          if (input) input.value = "";
+        }
+      };
+    }
   }
 
   function makeDraggable(fab) {
-    let isDragging = false;
+    let isPointerDown = false;
+    let hasDragged = false;
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
-    let hasMoved = false;
 
     // Restore saved position if valid
     try {
@@ -111,111 +121,98 @@
       }
     } catch (e) {}
 
-    function onStart(clientX, clientY) {
-      isDragging = true;
-      hasMoved = false;
-      startX = clientX;
-      startY = clientY;
+    fab.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      isPointerDown = true;
+      hasDragged = false;
+      startX = e.clientX;
+      startY = e.clientY;
       const rect = fab.getBoundingClientRect();
       initialLeft = rect.left;
       initialTop = rect.top;
-      fab.classList.add("dragging");
-    }
+      try {
+        fab.setPointerCapture(e.pointerId);
+      } catch (_) {}
+    });
 
-    function onMove(clientX, clientY) {
-      if (!isDragging) return;
-      const dx = clientX - startX;
-      const dy = clientY - startY;
-      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-        hasMoved = true;
+    fab.addEventListener("pointermove", (e) => {
+      if (!isPointerDown) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const dist = Math.hypot(dx, dy);
+
+      // Drag threshold: must move at least 8px to count as a drag
+      if (!hasDragged && dist > 8) {
+        hasDragged = true;
+        fab.classList.add("dragging");
       }
-      const maxX = window.innerWidth - fab.offsetWidth - 10;
-      const maxY = window.innerHeight - fab.offsetHeight - 10;
-      const newX = Math.min(maxX, Math.max(10, initialLeft + dx));
-      const newY = Math.min(maxY, Math.max(10, initialTop + dy));
 
-      fab.style.left = `${newX}px`;
-      fab.style.top = `${newY}px`;
-      fab.style.bottom = "auto";
-      fab.style.right = "auto";
-    }
+      if (hasDragged) {
+        const maxX = window.innerWidth - fab.offsetWidth - 10;
+        const maxY = window.innerHeight - fab.offsetHeight - 10;
+        const newX = Math.min(maxX, Math.max(10, initialLeft + dx));
+        const newY = Math.min(maxY, Math.max(10, initialTop + dy));
 
-    function onEnd() {
-      if (!isDragging) return;
-      isDragging = false;
+        fab.style.left = `${newX}px`;
+        fab.style.top = `${newY}px`;
+        fab.style.bottom = "auto";
+        fab.style.right = "auto";
+      }
+    });
+
+    const onPointerEnd = (e) => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
       fab.classList.remove("dragging");
-      if (hasMoved) {
+      try {
+        fab.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+
+      if (hasDragged) {
         try {
           const rect = fab.getBoundingClientRect();
           localStorage.setItem("hk_fab_pos", JSON.stringify({ x: rect.left, y: rect.top }));
-        } catch (e) {}
+        } catch (_) {}
+      } else {
+        openChat();
       }
-    }
-
-    // Mouse drag support
-    fab.addEventListener("mousedown", (e) => {
-      onStart(e.clientX, e.clientY);
-      const moveHandler = (ev) => onMove(ev.clientX, ev.clientY);
-      const upHandler = () => {
-        onEnd();
-        window.removeEventListener("mousemove", moveHandler);
-        window.removeEventListener("mouseup", upHandler);
-      };
-      window.addEventListener("mousemove", moveHandler);
-      window.addEventListener("mouseup", upHandler);
-    });
-
-    // Touch drag support (mobile)
-    fab.addEventListener("touchstart", (e) => {
-      const t = e.touches[0];
-      onStart(t.clientX, t.clientY);
-    }, { passive: true });
-
-    fab.addEventListener("touchmove", (e) => {
-      if (!isDragging) return;
-      const t = e.touches[0];
-      onMove(t.clientX, t.clientY);
-    }, { passive: true });
-
-    fab.addEventListener("touchend", () => {
-      onEnd();
-    });
-
-    // Click handler: opens popup only if not dragged
-    fab.onclick = (e) => {
-      if (hasMoved) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-      openChat();
     };
+
+    fab.addEventListener("pointerup", onPointerEnd);
+    fab.addEventListener("pointercancel", () => {
+      isPointerDown = false;
+      fab.classList.remove("dragging");
+    });
+
+    // Direct click fallback
+    fab.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!hasDragged) openChat();
+    });
   }
 
   function openChat() {
     const dlg = document.getElementById("chatdlg");
-    if (dlg) {
-      if (typeof dlg.showModal === "function") {
-        dlg.showModal();
-      } else {
-        dlg.setAttribute("open", "");
-      }
-      setTimeout(() => {
-        const inp = document.getElementById("chat-input");
-        if (inp) inp.focus();
-      }, 100);
-      scrollToBottom();
+    if (!dlg) return;
+    if (typeof dlg.showModal === "function") {
+      if (!dlg.open) dlg.showModal();
+    } else {
+      dlg.setAttribute("open", "");
     }
+    setTimeout(() => {
+      const inp = document.getElementById("chat-input");
+      if (inp) inp.focus();
+    }, 120);
+    scrollToBottom();
   }
 
   function closeChat() {
     const dlg = document.getElementById("chatdlg");
-    if (dlg) {
-      if (typeof dlg.close === "function") {
-        dlg.close();
-      } else {
-        dlg.removeAttribute("open");
-      }
+    if (!dlg) return;
+    if (typeof dlg.close === "function") {
+      if (dlg.open) dlg.close();
+    } else {
+      dlg.removeAttribute("open");
     }
   }
 
@@ -296,7 +293,7 @@
       const data = await res.json();
       const botDiv = document.createElement("div");
       botDiv.className = "chat-msg bot";
-      botDiv.innerHTML = `<div class="msg-bubble">${renderMarkdown(data.reply)}</div>`;
+      botDiv.innerHTML = `<div class="msg-bubble">${renderMarkdown(data.reply || data.error || "No response received.")}</div>`;
       msgs.appendChild(botDiv);
     } catch (err) {
       if (typingDiv) typingDiv.remove();
@@ -321,6 +318,6 @@
     initChatUI();
   }
 
-  // Expose global helper if needed
+  // Expose global helper
   window.openHockeyChat = openChat;
 })();
