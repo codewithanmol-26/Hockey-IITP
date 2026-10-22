@@ -1312,13 +1312,26 @@ app.put(
       return res.status(400).json({ error: "Photo too large or not an image" });
     if (p.role === "player")
       await db.collection("players").doc(p.id).update({ photo: ph });
-    else if (p.role === "admin")
+    else if (p.role === "admin") {
       await db.collection("admins").doc(p.id).update({ photo: ph });
-    else
+      const aDoc = await db.collection("admins").doc(p.id).get().catch(() => null);
+      const pid = aDoc && aDoc.exists ? aDoc.data().playerId : null;
+      if (pid) {
+        await db.collection("players").doc(pid).update({ photo: ph }).catch(() => {});
+      }
+    }
+    else {
       await db
         .collection("config")
         .doc("staff")
         .set({ [p.role]: ph }, { merge: true });
+      const customNamesDoc = await db.collection("config").doc("staffNames").get().catch(() => null);
+      const lk = (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {}).links || {};
+      const myPid = lk[p.role] || (p.role === "captain" ? "2501CE01" : "2501MC44");
+      if (myPid) {
+        await db.collection("players").doc(myPid).update({ photo: ph }).catch(() => {});
+      }
+    }
     done(res);
   }),
 );

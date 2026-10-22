@@ -4020,3 +4020,157 @@ nav .i .svgi {
   40% { opacity: 1; }
 }
 
+/* ==========================================================================
+   Full Mobile Lightbox Viewer (Full-screen for all photos/images)
+   ========================================================================== */
+dialog.full-mobile-lightbox {
+  position: fixed;
+  inset: 0;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: rgba(4, 10, 18, 0.96) !important;
+  box-shadow: none !important;
+  box-sizing: border-box;
+  z-index: 99999 !important;
+  overflow: hidden;
+}
+
+dialog.full-mobile-lightbox:not([open]) {
+  display: none !important;
+}
+
+dialog.full-mobile-lightbox[open] {
+  display: flex !important;
+  flex-direction: column;
+  animation: lightboxFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+dialog.full-mobile-lightbox::backdrop {
+  background: rgba(3, 7, 18, 0.94);
+  backdrop-filter: blur(12px);
+}
+
+@keyframes lightboxFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.full-mobile-lightbox .lightbox-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(12px, env(safe-area-inset-top, 12px)) 16px 12px 16px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0) 100%);
+  color: #fff;
+  z-index: 10;
+}
+
+.full-mobile-lightbox .lightbox-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60vw;
+}
+
+.full-mobile-lightbox .lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.full-mobile-lightbox .lightbox-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff !important;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.full-mobile-lightbox .lightbox-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.full-mobile-lightbox .lightbox-btn:active {
+  transform: scale(0.95);
+}
+
+.full-mobile-lightbox .lightbox-btn.close {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 1.15rem;
+  line-height: 1;
+  border-radius: 50%;
+}
+
+.full-mobile-lightbox .lightbox-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px max(12px, env(safe-area-inset-right, 12px)) max(18px, env(safe-area-inset-bottom, 18px)) max(12px, env(safe-area-inset-left, 12px));
+  overflow: hidden;
+  cursor: zoom-out;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.full-mobile-lightbox .lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.85);
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: pan-x pan-y pinch-zoom;
+  cursor: default;
+}
+
+/* Clickable image affordances */
+img.avi,
+img.gph,
+img.bigimg,
+img.sig,
+.pavw img,
+.cover.has {
+  cursor: pointer;
+}
+.cover.has {
+  transition: filter 0.15s ease;
+}
+.cover.has:hover {
+  filter: brightness(1.05);
+}
+
+

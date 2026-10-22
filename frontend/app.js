@@ -1305,6 +1305,10 @@ function drawMenu() {
       <button type="button" class="btn-drawer-pri" id="btn-draw-prof">👤 View My Profile</button>
       ${(role === "captain" || role === "vice") ? `<button type="button" class="btn-drawer-sec" id="btn-draw-code">🔑 Change Code</button>` : ""}
     </div>
+    <div class="user-drawer-actions" style="margin-top:6px">
+      <button type="button" class="btn-drawer-sec" id="btn-draw-photo">📷 Edit Photo</button>
+      <button type="button" class="btn-drawer-sec" id="btn-draw-cover">🖼️ Edit Background</button>
+    </div>
   </div>`;
 
   const more = tabsFor().filter((t) => !PRIMARY.includes(t[0])); // tabs already on the bottom bar / top bar are not repeated here
@@ -1373,6 +1377,32 @@ function drawMenu() {
   if (profBtn) profBtn.onclick = () => { m.hidden = true; openMyProfile(); };
   const codeBtn = m.querySelector("#btn-draw-code");
   if (codeBtn) codeBtn.onclick = () => { m.hidden = true; openChangeCode(); };
+  const photoBtn = m.querySelector("#btn-draw-photo");
+  if (photoBtn) {
+    photoBtn.onclick = () => {
+      m.hidden = true;
+      pickPhoto(async (ph) => {
+        await api("/api/me/photo", {
+          method: "PUT",
+          body: { photo: ph },
+        });
+        await load(true);
+        openMyProfile();
+      });
+    };
+  }
+  const coverBtn = m.querySelector("#btn-draw-cover");
+  if (coverBtn) {
+    coverBtn.onclick = () => {
+      m.hidden = true;
+      const [k, id] = ownCoverKey();
+      if (!id) return;
+      pickFiles(async (f) => {
+        await setCover(k, id, f[0]);
+        openMyProfile();
+      });
+    };
+  }
 }
 
 function toggleProfileMenu(e) {
@@ -3448,6 +3478,7 @@ function vProfile() {
     $("view").innerHTML = h;
     if ($("pedit")) $("pedit").onclick = () => openEdit(p, own);
     bindCover("p", id);
+    if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath);
     if ($("prst"))
       $("prst").onclick = () => {
         if (
@@ -3746,12 +3777,61 @@ function ensureDlg(id) {
   }
   return d;
 }
-function openImg(src) {
+function openImg(src, title = "") {
+  if (!src) return;
   const d = ensureDlg("imdlg");
-  d.innerHTML = `<img class="bigimg" src="${src}" alt=""><div class="ctl"><button id="imx">Close</button></div>`;
-  $("imx").onclick = () => d.close();
-  d.showModal();
+  d.className = "full-mobile-lightbox";
+  d.innerHTML = `
+    <div class="lightbox-header">
+      <div class="lightbox-title">${esc(title || "Image")}</div>
+      <div class="lightbox-actions">
+        <a href="${src}" download="hockey_image.jpg" class="lightbox-btn" target="_blank" rel="noopener">⬇ Save</a>
+        <button type="button" class="lightbox-btn close" id="imx" aria-label="Close image">✕</button>
+      </div>
+    </div>
+    <div class="lightbox-content">
+      <img class="lightbox-img" src="${src}" alt="${esc(title || "Full image")}">
+    </div>
+  `;
+  const x = d.querySelector("#imx");
+  if (x) x.onclick = () => d.close();
+  d.onclick = (e) => {
+    if (e.target === d || e.target.classList.contains("lightbox-content")) {
+      d.close();
+    }
+  };
+  if (!d.open) d.showModal();
 }
+
+// Global click handler: tap any avatar, group photo, referee signal, or profile cover to view in full mobile view
+document.addEventListener("click", (e) => {
+  const img = e.target.closest("img.avi, img.bigimg, img.sig, .pavw img, .gph img, #gpimg, #pgph, .cover.has");
+  if (!img) return;
+  if (e.target.closest(".full-mobile-lightbox")) return;
+
+  // Don't intercept if clicking interactive form controls (unless the target itself is an image)
+  if (e.target.closest("button, a, input, select")) {
+    if (e.target.tagName !== "IMG") return;
+  }
+
+  let src = "";
+  let title = "";
+  if (img.tagName === "IMG") {
+    src = img.src;
+    title = img.alt || img.getAttribute("title") || "";
+  } else if (img.classList.contains("cover") && img.style.backgroundImage) {
+    const m = img.style.backgroundImage.match(/url\(["']?([^"']+)["']?\)/);
+    if (m && m[1]) {
+      src = m[1];
+      title = "Background Image";
+    }
+  }
+
+  if (src && !src.startsWith("data:image/svg")) {
+    e.stopPropagation();
+    openImg(src, title);
+  }
+});
 
 // ---------- state ----------
 let GPH = { img: "", at: -1 },
