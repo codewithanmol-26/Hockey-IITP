@@ -2651,6 +2651,24 @@ app.delete(
   }),
 );
 
+const chatbot = require("./chatbot");
+app.post(
+  "/api/chat",
+  h(async (req, res) => {
+    const user = await who(req);
+    const { message, history } = req.body || {};
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+    const result = await chatbot.chat({
+      message: message.trim(),
+      user,
+      history: Array.isArray(history) ? history : [],
+    });
+    res.json(result);
+  }),
+);
+
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.use((err, req, res, next) => {
   console.error(err);
