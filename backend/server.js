@@ -492,7 +492,6 @@ async function readAllRaw(fresh) {
   lastGood = out;
   return out;
 }
-}
 
 // Nothing is sent without a login.
 // Captain / vice / admins get everything. A player gets the shared info (days, schedule, rules, warm-up)
@@ -2552,12 +2551,21 @@ app.post(
     if (!message || typeof message !== "string" || !message.trim()) {
       return res.status(400).json({ error: "Message is required" });
     }
-    const result = await chatbot.chat({
-      message: message.trim(),
-      user,
-      history: Array.isArray(history) ? history : [],
-    });
-    res.json(result);
+    try {
+      const result = await chatbot.chat({
+        message: message.trim(),
+        user,
+        history: Array.isArray(history) ? history : [],
+      });
+      res.json(result);
+    } catch (e) {
+      console.error("Chat error:", e.message);
+      const isKeyErr = /API_KEY_INVALID|API key not valid|GEMINI_API_KEY is missing/i.test(e.message);
+      const msg = isKeyErr
+        ? "The AI assistant is waiting for a valid GEMINI_API_KEY in your server environment variables. Please verify your Gemini API key in Vercel or .env."
+        : "The AI assistant is temporarily unavailable. Please try asking again in a moment.";
+      res.json({ reply: "⚠️ " + msg, isError: true });
+    }
   }),
 );
 
