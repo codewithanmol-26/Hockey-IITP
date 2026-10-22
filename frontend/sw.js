@@ -1,5 +1,5 @@
 // Makes the page installable and able to show alerts. Only the app files are cached; /api (the data) is never cached.
-const V = "hk-v40",
+const V = "hk-v41",
   SHELL = [
     "./",
     "index.html",
@@ -62,14 +62,21 @@ self.addEventListener("fetch", (e) => {
 });
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
+  const targetUrl = (e.notification.data && e.notification.data.url) || "./";
   e.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
-      .then((l) => (l.length ? l[0].focus() : self.clients.openWindow("./"))),
+      .then((l) => {
+        if (l.length) {
+          l[0].focus();
+          return;
+        }
+        return self.clients.openWindow(targetUrl);
+      }),
   );
 });
 
-// Push from the server: a playing day was scheduled or cancelled. Plain notification, no custom sound.
+// Push from the server: a playing day was scheduled or cancelled, or new announcement
 self.addEventListener("push", (e) => {
   let d = {};
   try {
@@ -84,6 +91,7 @@ self.addEventListener("push", (e) => {
       renotify: true,
       icon: "icons/icon-192.png",
       badge: "icons/favicon-32.png",
+      vibrate: [250, 100, 250, 100, 250],
       data: { url: d.url || "./" },
     }),
   );

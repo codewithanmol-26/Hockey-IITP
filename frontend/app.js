@@ -921,6 +921,7 @@ function logout() {
   standalone() ? showLogin() : showPublic();
 }
 function boot() {
+  pushAuto();
   if (!token) return standalone() ? showLogin() : showPublic();
   const c = cacheLoad();
   if (c) {
@@ -1742,43 +1743,42 @@ async function pushEnsure() {
   }
   return pushOn;
 }
+// ---- immediate push permission & registration at startup (PW / app style) ----
+async function requestPushPermissionAndSubscribe() {
+  if (!pushOk()) return;
+  try {
+    const res = await Notification.requestPermission();
+    if (res === "granted") {
+      await pushEnsure();
+      alertOn = true;
+      try {
+        localStorage.setItem("hk_alert", "1");
+      } catch (e) {}
+    }
+  } catch (e) {
+    console.warn("Notification permission error:", e);
+  }
+}
+
 function pushAuto() {
   if (!pushOk()) return;
-  if (Notification.permission === "granted") return pushEnsure();
-  if (Notification.permission !== "default") return; // blocked: only the phone's settings can change that
-  let asked = false;
-  try {
-    asked = localStorage.getItem("hk_pushask") === "1";
-  } catch (e) {}
-  if (asked) return;
-  const tryAsk = (n) => {
-    if (document.querySelector("dialog[open]")) {
-      if (n < 6) setTimeout(() => tryAsk(n + 1), 4000);
-      return;
-    }
-    askPush();
-  };
-  setTimeout(() => tryAsk(0), 1500);
-}
-function askPush() {
-  const mark = () => {
-    try {
-      localStorage.setItem("hk_pushask", "1");
-    } catch (e) {}
-  };
-  const d = ensureDlg("pushdlg");
-  d.innerHTML = `<div class="pushask"><span class="bigic">${ico("bell")}</span><h2>Stay in the loop</h2><p>Allow notifications to get announcements and playing day alerts, even when the app is closed.</p>
-  <div class="ctl"><button class="pri ib" id="pkok" aria-label="Allow notifications" title="Allow notifications">${ico("check")}</button></div></div>`;
-  $("pkok").onclick = async () => {
-    mark();
-    d.close();
-    try {
-      if ((await Notification.requestPermission()) === "granted")
-        await pushEnsure();
-    } catch (e) {}
-  };
-  d.addEventListener("close", mark, { once: true });
-  d.showModal();
+  if (Notification.permission === "granted") {
+    pushEnsure();
+    return;
+  }
+  if (Notification.permission === "default") {
+    // 1. Prompt immediately at startup
+    requestPushPermissionAndSubscribe();
+
+    // 2. Also register one-time touch/click handler for mobile browsers requiring user gesture
+    const onFirstTouch = () => {
+      if (Notification.permission === "default") {
+        requestPushPermissionAndSubscribe();
+      }
+    };
+    window.addEventListener("click", onFirstTouch, { once: true, passive: true });
+    window.addEventListener("touchend", onFirstTouch, { once: true, passive: true });
+  }
 }
 function pushDrop(tk) {
   // on log out: stop this phone getting the previous person's notifications

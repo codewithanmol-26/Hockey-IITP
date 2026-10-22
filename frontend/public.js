@@ -131,6 +131,7 @@ function drawPublic() {
   if (gid("pgph")) gid("pgph").onclick = () => openImg(p.groupPhoto);
 }
 function showPublic() {
+  if (typeof pushAuto === "function") pushAuto();
   gid("app").hidden = true;
   gid("login").hidden = true;
   gid("pub").hidden = false;
