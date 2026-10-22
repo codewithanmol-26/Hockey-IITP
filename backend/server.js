@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const admin = require("firebase-admin");
 const seed = require("./seed.json");
 const jersey = require("./jersey.json");
+const dbLayer = require("./db");
 
 const {
   CAPTAIN_CODE,
@@ -23,9 +24,11 @@ try {
   ].filter((k) => !process.env[k]);
   if (missing.length)
     throw new Error("missing environment variables: " + missing.join(", "));
-  admin.initializeApp({
-    credential: admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT)),
-  });
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT)),
+    });
+  }
 } catch (e) {
   initError = e.message;
 }
@@ -487,6 +490,17 @@ async function readAll(fresh) {
 }
 async function readAllRaw(fresh) {
   if (!fresh && cache && Date.now() - cacheAt < 10000) return cache;
+  if (dbLayer.supabase) {
+    try {
+      const out = await dbLayer.readAllFromSupabase();
+      cache = out;
+      cacheAt = Date.now();
+      lastGood = out;
+      return out;
+    } catch (e) {
+      console.warn("Supabase readAll failed, falling back to Firestore:", e.message);
+    }
+  }
   const [
     pl,
     se,
@@ -701,7 +715,7 @@ app.put(
     const r = {};
     for (const [k, v] of Object.entries((req.body || {}).r || {}))
       if (typeof v === "boolean") r[k] = v;
-    await db.collection("sessions").doc(req.params.date).set({ r });
+    await dbLayer.dualWriteSession(req.params.date, r);
     done(res);
   }),
 );
@@ -710,7 +724,7 @@ app.delete(
   auth,
   dateOk,
   h(async (req, res) => {
-    await db.collection("sessions").doc(req.params.date).delete();
+    await dbLayer.dualDeleteSession(req.params.date);
     done(res);
   }),
 );
@@ -1018,7 +1032,7 @@ app.put(
       status: b.status === "cancelled" ? "cancelled" : "planned",
       tags: cleanTags(b.tags),
     };
-    await db.collection("plans").doc(to).set(plan);
+    await dbLayer.dualWritePlan(to, plan);
     if (to !== from) {
       // moved to another date: carry the availability answers along
       const old = await db.collection("avail").doc(from).get();
@@ -1026,7 +1040,7 @@ app.put(
         await db.collection("avail").doc(to).set(old.data());
         await db.collection("avail").doc(from).delete();
       }
-      await db.collection("plans").doc(from).delete();
+      await dbLayer.dualDeletePlan(from);
     }
     // tell everyone who turned on push: a new playing day, a cancelled one, or a cancelled one that is back on (only for today or later)
     let ev = null;
@@ -1051,7 +1065,7 @@ app.delete(
   auth,
   dateOk,
   h(async (req, res) => {
-    await db.collection("plans").doc(req.params.date).delete();
+    await dbLayer.dualDeletePlan(req.params.date);
     await db.collection("avail").doc(req.params.date).delete();
     done(res);
   }),
@@ -1149,7 +1163,7 @@ app.put(
         return res.status(400).json({ error: "Enter a valid e-mail address." });
       upd.email = e;
     }
-    await db.collection("players").doc(u.id).update(upd);
+    await dbLayer.dualUpdatePlayer(u.id, upd);
     done(res);
   }),
 );
@@ -1174,7 +1188,7 @@ app.put(
         return res.status(400).json({ error: "Enter a valid e-mail address." });
       upd.email = e;
     }
-    await db.collection("players").doc(req.params.id).update(upd); // works for removed students too: their details are kept
+    await dbLayer.dualUpdatePlayer(req.params.id, upd); // works for removed students too: their details are kept
     done(res);
   }),
 );

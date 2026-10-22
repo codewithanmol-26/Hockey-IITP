@@ -200,31 +200,39 @@ ${JSON.stringify(context, null, 2)}
 USER MESSAGE:
 ${query}`;
 
-  // Prioritize fast, stable flash models
+  // Prioritize fast, stable flash models with automatic retry on temporary 503 demand spikes
   const candidateModels = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest"];
   let replyText = null;
   let lastError = null;
 
   for (const model of candidateModels) {
-    try {
-      const res = await Promise.race([
-        ai.models.generateContent({
-          model,
-          contents: prompt
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Timeout with model ${model}`)), 9000)
-        )
-      ]);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await Promise.race([
+          ai.models.generateContent({
+            model,
+            contents: prompt
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout with model ${model}`)), 9000)
+          )
+        ]);
 
-      if (res && res.text) {
-        replyText = res.text.trim();
+        if (res && res.text) {
+          replyText = res.text.trim();
+          break;
+        }
+      } catch (e) {
+        lastError = e;
+        const is503 = /503|UNAVAILABLE|high demand/i.test(e.message);
+        if (is503 && attempt === 0) {
+          await new Promise((r) => setTimeout(r, 600));
+          continue;
+        }
         break;
       }
-    } catch (e) {
-      console.warn(`Attempt with ${model} failed: ${e.message}`);
-      lastError = e;
     }
+    if (replyText) break;
   }
 
   if (!replyText) {

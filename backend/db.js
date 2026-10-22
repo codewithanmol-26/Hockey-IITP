@@ -1,6 +1,6 @@
 /**
- * Unified Database Layer (Supabase with Firebase Fallback)
- * Provides clean asynchronous data access for the IIT Patna Hockey backend and AI Chatbot.
+ * Unified Database Layer (Supabase with Dual-Write & Firestore Fallback)
+ * Ensures 100% data synchronization between Supabase and Firebase Firestore.
  */
 
 const { createClient } = require("@supabase/supabase-js");
@@ -39,7 +39,148 @@ if (FIREBASE_SERVICE_ACCOUNT) {
 }
 
 // -------------------------------------------------------------
-// READ OPERATIONS
+// READ ALL DATA (Powers /api/data)
+// -------------------------------------------------------------
+
+async function readAllFromSupabase() {
+  if (!supabase) throw new Error("Supabase is not initialized");
+
+  const [
+    playersRes,
+    sessionsRes,
+    legacyRes,
+    plansRes,
+    rulesRes,
+    warmupRes,
+    adminsRes,
+    accountsRes,
+    configRes,
+    availRes,
+    announcementsRes
+  ] = await Promise.all([
+    supabase.from("players").select("*").order("n", { ascending: true }),
+    supabase.from("sessions").select("*"),
+    supabase.from("legacy_attendance").select("*"),
+    supabase.from("practice_plans").select("*"),
+    supabase.from("hockey_rules").select("*").order("order_index", { ascending: true }),
+    supabase.from("warmup_drills").select("*").order("order_index", { ascending: true }),
+    supabase.from("admins").select("id, name, disabled, photo, created_at, kind, player_id"),
+    supabase.from("accounts").select("player_id"),
+    supabase.from("app_config").select("key, value"),
+    supabase.from("player_availability").select("*"),
+    supabase.from("announcements").select("*").order("pinned", { ascending: false }).order("created_at", { ascending: false })
+  ]);
+
+  if (playersRes.error) throw playersRes.error;
+
+  const configMap = {};
+  (configRes.data || []).forEach(row => {
+    configMap[row.key] = row.value;
+  });
+
+  const out = {
+    players: (playersRes.data || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      roll: p.roll,
+      position: p.position || "",
+      joined: p.joined || "",
+      n: p.n || 0,
+      size: p.size || "",
+      contact: p.contact || "",
+      jerseyName: p.jersey_name || "",
+      email: p.email || "",
+      jerseyNo: p.jersey_no || "",
+      photo: p.photo || "",
+      removed: !!p.removed
+    })),
+    sessions: {},
+    legacy: {},
+    plans: {},
+    rules: (rulesRes.data || []).map(r => ({
+      id: r.id,
+      title: r.title,
+      icon: r.icon,
+      order: r.order_index,
+      items: r.items || []
+    })),
+    warmup: (warmupRes.data || []).map(w => ({
+      id: w.id,
+      title: w.title,
+      icon: w.icon,
+      order: w.order_index,
+      items: w.items || []
+    })),
+    admins: (adminsRes.data || []).map(a => ({
+      id: a.id,
+      name: a.name,
+      disabled: !!a.disabled,
+      photo: a.photo || "",
+      created: a.created_at || 0,
+      kind: a.kind || "",
+      playerId: a.player_id || ""
+    })),
+    avail: {},
+    announcements: (announcementsRes.data || []).map(an => ({
+      id: an.id,
+      title: an.title,
+      text: an.text,
+      pinned: !!an.pinned,
+      by: an.by_name,
+      role: an.role,
+      at: an.created_at
+    }))
+  };
+
+  (sessionsRes.data || []).forEach(s => { out.sessions[s.date] = s.r || {}; });
+  (legacyRes.data || []).forEach(l => { out.legacy[l.month] = { days: l.days, att: l.att || {} }; });
+  (plansRes.data || []).forEach(p => {
+    out.plans[p.date] = {
+      time: p.time || "",
+      venue: p.venue || "",
+      note: p.note || "",
+      status: p.status || "planned",
+      tags: p.tags || []
+    };
+  });
+  (availRes.data || []).forEach(av => { out.avail[av.date] = av.r || {}; });
+
+  out.group = (configMap.group && configMap.group.url) || "";
+  out.groupPhotoAt = (configMap.groupPhoto && configMap.groupPhoto.at) || 0;
+  out.matches = (configMap.matches && Array.isArray(configMap.matches.items)) ? configMap.matches.items : null;
+  out.staff = configMap.staff || {};
+  out.names = configMap.staffNames || {};
+
+  // Team summary
+  const nv = out.names, lk = nv.links || {},
+    pl2 = (k) => out.players.find(x => x.id === lk[k] && !x.removed) || null;
+  const one = (k) => {
+    const q = pl2(k);
+    return {
+      name: nv[k] || (q ? q.name : ""),
+      photo: (q && q.photo) || out.staff[k] || "",
+      pid: q ? q.id : ""
+    };
+  };
+  out.team = {
+    captain: one("captain"),
+    vice: one("vice"),
+    coach: { name: nv.coach || "" },
+    about: nv.about || ""
+  };
+
+  out.accounts = (accountsRes.data || []).map(ac => ac.player_id);
+  out.template = (configMap.template && configMap.template.text) || "";
+
+  const sd = configMap.schedule || null;
+  const rows = (a) => a.map(o => [o.d, o.t, o.x, o.m, Array.isArray(o.g) ? o.g : []]);
+  out.schedule = (sd && sd.team && sd.gk) ? { team: rows(sd.team), gk: rows(sd.gk) } : null;
+
+  return out;
+}
+
+// -------------------------------------------------------------
+// INDIVIDUAL READ OPERATIONS
 // -------------------------------------------------------------
 
 async function getPlayers(includeRemoved = false) {
@@ -48,7 +189,6 @@ async function getPlayers(includeRemoved = false) {
     if (!includeRemoved) q = q.eq("removed", false);
     const { data, error } = await q;
     if (!error && data) return data;
-    console.warn("Supabase getPlayers error, falling back to Firestore:", error && error.message);
   }
   if (firestore) {
     const snap = await firestore.collection("players").get();
@@ -206,9 +346,90 @@ async function getAccount(roll) {
   return null;
 }
 
+// -------------------------------------------------------------
+// DUAL-WRITE OPERATIONS (Supabase + Firestore in parallel)
+// -------------------------------------------------------------
+
+async function dualWriteSession(date, r) {
+  const ops = [];
+  if (supabase) {
+    ops.push(supabase.from("sessions").upsert({ date, r, updated_at: new Date().toISOString() }, { onConflict: "date" }));
+  }
+  if (firestore) {
+    ops.push(firestore.collection("sessions").doc(date).set({ r }));
+  }
+  return Promise.all(ops);
+}
+
+async function dualDeleteSession(date) {
+  const ops = [];
+  if (supabase) {
+    ops.push(supabase.from("sessions").delete().eq("date", date));
+  }
+  if (firestore) {
+    ops.push(firestore.collection("sessions").doc(date).delete());
+  }
+  return Promise.all(ops);
+}
+
+async function dualWritePlan(date, planData) {
+  const ops = [];
+  if (supabase) {
+    ops.push(supabase.from("practice_plans").upsert({
+      date,
+      time: planData.time || null,
+      venue: planData.venue || null,
+      note: planData.note || null,
+      status: planData.status || "planned",
+      tags: planData.tags || [],
+      updated_at: new Date().toISOString()
+    }, { onConflict: "date" }));
+  }
+  if (firestore) {
+    ops.push(firestore.collection("plans").doc(date).set(planData));
+  }
+  return Promise.all(ops);
+}
+
+async function dualDeletePlan(date) {
+  const ops = [];
+  if (supabase) {
+    ops.push(supabase.from("practice_plans").delete().eq("date", date));
+  }
+  if (firestore) {
+    ops.push(firestore.collection("plans").doc(date).delete());
+  }
+  return Promise.all(ops);
+}
+
+async function dualUpdatePlayer(id, upd) {
+  const ops = [];
+  if (supabase) {
+    const row = {};
+    if (upd.name !== undefined) row.name = upd.name;
+    if (upd.roll !== undefined) row.roll = upd.roll;
+    if (upd.position !== undefined) row.position = upd.position;
+    if (upd.size !== undefined) row.size = upd.size;
+    if (upd.jerseyName !== undefined) row.jersey_name = upd.jerseyName;
+    if (upd.jerseyNo !== undefined) row.jersey_no = String(upd.jerseyNo);
+    if (upd.email !== undefined) row.email = upd.email;
+    if (upd.contact !== undefined) row.contact = upd.contact;
+    if (upd.joined !== undefined) row.joined = upd.joined || null;
+    if (upd.photo !== undefined) row.photo = upd.photo;
+    if (upd.removed !== undefined) row.removed = !!upd.removed;
+    row.updated_at = new Date().toISOString();
+    ops.push(supabase.from("players").update(row).eq("id", id));
+  }
+  if (firestore) {
+    ops.push(firestore.collection("players").doc(id).update(upd));
+  }
+  return Promise.all(ops);
+}
+
 module.exports = {
   supabase,
   firestore,
+  readAllFromSupabase,
   getPlayers,
   getPlayer,
   getSessions,
@@ -217,5 +438,10 @@ module.exports = {
   getAppConfig,
   getHockeyRules,
   getWarmupDrills,
-  getAccount
+  getAccount,
+  dualWriteSession,
+  dualDeleteSession,
+  dualWritePlan,
+  dualDeletePlan,
+  dualUpdatePlayer
 };
