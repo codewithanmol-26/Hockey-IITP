@@ -24,17 +24,19 @@ function applyTheme(t) {
 }
 function paintTheme() {
   const dk = isDark();
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", dk ? "#07131f" : "#0b2a4a");
   ["thm", "pthm"].forEach((id) => {
     const b = document.getElementById(id);
     if (!b) return;
-    b.innerHTML = ico(dk ? "moon" : "sun");
+    b.innerHTML = ico(dk ? "sun" : "moon");
     b.setAttribute(
       "aria-label",
       dk
-        ? "Night mode is on. Switch to day mode"
-        : "Day mode is on. Switch to night mode",
+        ? "Night mode is active. Tap to switch to day mode"
+        : "Day mode is active. Tap to switch to night mode",
     );
-    b.title = dk ? "Switch to day" : "Switch to night";
+    b.title = dk ? "Switch to day mode" : "Switch to night mode";
   });
 }
 function setTheme(t) {
@@ -47,22 +49,35 @@ function setTheme(t) {
 function toggleTheme() {
   setTheme(isDark() ? "light" : "dark");
 }
-["thm", "pthm"].forEach((id) => {
-  const b = document.getElementById(id);
-  if (b)
-    b.onclick = () => {
-      toggleTheme();
-      if (
-        !document.getElementById("menu").hidden &&
-        typeof drawMenu === "function"
-      )
-        drawMenu();
-    };
-});
+function wireThemeButtons() {
+  ["thm", "pthm"].forEach((id) => {
+    const b = document.getElementById(id);
+    if (b && !b._wired) {
+      b._wired = true;
+      b.onclick = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        toggleTheme();
+        if (
+          document.getElementById("menu") &&
+          !document.getElementById("menu").hidden &&
+          typeof drawMenu === "function"
+        )
+          drawMenu();
+      };
+    }
+  });
+  paintTheme();
+}
+wireThemeButtons();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", wireThemeButtons);
+}
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if (!themePref()) paintTheme();
 });
-paintTheme();
 
 // ---------------------------------------------------------------- 2. tags
 // A tag is { k: 'p:<player id>' | 'g:all|gk|fwd|mid|def', n: label }. The same rules are on the server (for push notifications).

@@ -1335,6 +1335,14 @@ function drawMenu() {
     mi("📲", "Share this app", shareApp);
   h +=
     `<div class="ms">App & Tools</div>` +
+    mi(
+      typeof isDark === "function" && isDark() ? "☀️" : "🌙",
+      typeof isDark === "function" && isDark() ? "Switch to day mode" : "Switch to night mode",
+      () => {
+        if (typeof toggleTheme === "function") toggleTheme();
+        drawMenu();
+      },
+    ) +
     mi("📅", "Add schedule to calendar", icsDownload) +
     mi("🐞", "Report a bug", openBug);
   h +=

@@ -3141,18 +3141,34 @@ dialog {
 .thb {
   width: 36px;
   height: 36px;
+  min-width: 36px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid #ffffff44;
-  background: #ffffff1f;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.16);
   color: #fff;
   font-size: 1.05rem;
   line-height: 1;
   display: grid;
   place-items: center;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.thb:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: scale(1.05);
 }
 .thb:active {
-  transform: scale(0.92);
+  transform: scale(0.9) rotate(20deg);
+}
+.thb .svgi {
+  width: 20px;
+  height: 20px;
+  color: #fff;
+  transition: transform 0.25s ease;
 }
 body,
 .card,
