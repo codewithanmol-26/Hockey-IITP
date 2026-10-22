@@ -4014,7 +4014,6 @@ function vMe() {
         ? "Vice-captain"
         : "Admin";
   $("view").innerHTML = `${welcomeHero()}
-  ${myInfoCard()}
   ${annCard()}${featTiles()}${teamCard()}
   ${gphCard()}
   <div class="grid">${upCard()}${newsCard()}${histCard()}</div>`;
