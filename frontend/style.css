@@ -3630,6 +3630,101 @@ nav button .vh {
   gap: 10px;
   margin: 8px 0 2px;
 }
+.crrot button.ib {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.crrot button.ib:hover {
+  background: var(--soft);
+  border-color: var(--brand);
+}
+.crrot button.ib:active {
+  transform: scale(0.92);
+}
+.crrot button.ib .svgi {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---------- Profile Cover & Photo Edit Badges / Icons ---------- */
+.cover-edit-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  z-index: 5;
+  transition: background 0.15s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.cover-edit-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.cover-edit-btn:active {
+  transform: scale(0.95);
+}
+.cover-edit-btn .svgi {
+  width: 14px;
+  height: 14px;
+  color: #fff;
+}
+
+.pavw {
+  margin-top: -52px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.photo-edit-badge {
+  position: absolute;
+  left: calc(50% + 18px);
+  bottom: 0px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff !important;
+  border: 2px solid var(--card);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 5;
+  transition: transform 0.15s ease, filter 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.photo-edit-badge:hover {
+  transform: scale(1.08);
+  filter: brightness(1.1);
+}
+.photo-edit-badge:active {
+  transform: scale(0.92);
+}
+.photo-edit-badge .svgi {
+  width: 16px;
+  height: 16px;
+  color: #fff;
+}
 
 button.sm.ib {
   min-width: 38px;

@@ -362,15 +362,25 @@ const roleLabel = () =>
 // Drag to move, turn left / right with the two rotate buttons. No zoom. The whole-photo button keeps the full picture.
 async function cropFile(file, o) {
   let bm = null;
-  try {
-    bm = await createImageBitmap(file);
-  } catch (e) {
+  if (typeof file === "string") {
     bm = await new Promise((r) => {
       const im = new Image();
+      im.crossOrigin = "anonymous";
       im.onload = () => r(im);
       im.onerror = () => r(null);
-      im.src = URL.createObjectURL(file);
+      im.src = file;
     });
+  } else {
+    try {
+      bm = await createImageBitmap(file);
+    } catch (e) {
+      bm = await new Promise((r) => {
+        const im = new Image();
+        im.onload = () => r(im);
+        im.onerror = () => r(null);
+        im.src = URL.createObjectURL(file);
+      });
+    }
   }
   if (!bm) {
     alert("That file is not a picture.");
@@ -396,6 +406,7 @@ async function cropFile(file, o) {
     oy = 0,
     bw = 0,
     bh = 0,
+    zoom = 1.0,
     done = false;
   const ratio = () => {
     const r = ars[ai][1] || iw / ih;
@@ -403,13 +414,18 @@ async function cropFile(file, o) {
   };
   d.innerHTML = `<button type="button" class="dx" id="cr-xx" aria-label="Back">✕</button><h2>${esc(o.title || "Crop photo")}</h2>
   <div class="crv"><canvas id="crc"></canvas></div>
-  <div class="crrot"><button type="button" class="ib" id="cr-rl" aria-label="Rotate left" title="Rotate left">${ico("rotate-l")}</button><button type="button" class="ib" id="cr-rr" aria-label="Rotate right" title="Rotate right">${ico("rotate-r")}</button></div>
+  <div class="crrot">
+    <button type="button" class="ib" id="cr-zi" aria-label="Zoom in" title="Zoom in">${ico("zoom-in")}</button>
+    <button type="button" class="ib" id="cr-zo" aria-label="Zoom out" title="Zoom out">${ico("zoom-out")}</button>
+    <button type="button" class="ib" id="cr-rl" aria-label="Rotate left" title="Rotate left">${ico("rotate-l")}</button>
+    <button type="button" class="ib" id="cr-rr" aria-label="Rotate right" title="Rotate right">${ico("rotate-r")}</button>
+  </div>
   ${ars.length > 1 ? `<div class="chips crar" style="justify-content:center;margin-top:8px">${ars.map((a, i) => `<button type="button" data-ar="${i}" class="${i === 0 ? "pri" : ""}">${esc(a[0])}</button>`).join("")}</div>` : ""}
-  <p class="mute" style="text-align:center;margin:6px 0 10px">Drag to move the picture</p>
+  <p class="mute" style="text-align:center;margin:6px 0 10px">Drag or pinch to reposition & zoom</p>
   <div class="ctl"><button class="pri ib" id="cr-ok" aria-label="Use photo" title="Use photo">${ico("check")}</button>${o.skip ? `<button class="ib" id="cr-sk" aria-label="Use the whole photo" title="Use the whole photo">${ico("expand")}</button>` : ""}</div>`;
   const cv = d.querySelector("#crc"),
     cx = cv.getContext("2d");
-  const sc = () => Math.max(bw / iw, bh / ih);
+  const sc = () => Math.max(bw / iw, bh / ih) * zoom;
   const clamp = () => {
     const mx = Math.max(0, (iw * sc() - bw) / 2),
       my = Math.max(0, (ih * sc() - bh) / 2);
@@ -445,22 +461,52 @@ async function cropFile(file, o) {
     cv.width = Math.round(bw * dpr);
     cv.height = Math.round(bh * dpr);
     ox = oy = 0;
+    zoom = 1.0;
     draw();
   };
   let drag = null;
+  let pointers = new Map();
+  let prevDist = -1;
   cv.onpointerdown = (e) => {
     cv.setPointerCapture(e.pointerId);
-    drag = [e.clientX, e.clientY];
+    pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pointers.size === 1) drag = [e.clientX, e.clientY];
+    if (pointers.size === 2) {
+      const pts = [...pointers.values()];
+      prevDist = Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]);
+    }
   };
   cv.onpointermove = (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pointers.size === 2) {
+      const pts = [...pointers.values()];
+      const dist = Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]);
+      if (prevDist > 0) {
+        const factor = dist / prevDist;
+        zoom = Math.max(1.0, Math.min(4.0, +(zoom * factor).toFixed(2)));
+        draw();
+      }
+      prevDist = dist;
+      return;
+    }
     if (!drag) return;
     ox += e.clientX - drag[0];
     oy += e.clientY - drag[1];
     drag = [e.clientX, e.clientY];
     draw();
   };
-  cv.onpointerup = cv.onpointercancel = () => {
-    drag = null;
+  cv.onpointerup = cv.onpointercancel = (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) prevDist = -1;
+    if (pointers.size === 1) drag = [...pointers.values()][0];
+    else drag = null;
+  };
+  cv.onwheel = (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.15 : 0.85;
+    zoom = Math.max(1.0, Math.min(4.0, +(zoom * factor).toFixed(2)));
+    draw();
   };
   // turn the picture a quarter turn; the crop frame is reset because the picture's shape changed
   const turn = (dir) => {
@@ -473,10 +519,19 @@ async function cropFile(file, o) {
     x.drawImage(bm, -iw / 2, -ih / 2);
     bm = c;
     [iw, ih] = [ih, iw];
+    zoom = 1.0;
     layout();
   };
   d.querySelector("#cr-rl").onclick = () => turn(-1);
   d.querySelector("#cr-rr").onclick = () => turn(1);
+  d.querySelector("#cr-zi").onclick = () => {
+    zoom = Math.min(4.0, +(zoom * 1.25).toFixed(2));
+    draw();
+  };
+  d.querySelector("#cr-zo").onclick = () => {
+    zoom = Math.max(1.0, +(zoom / 1.25).toFixed(2));
+    draw();
+  };
   d.querySelectorAll("[data-ar]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -594,9 +649,9 @@ async function applyCover(k, id) {
   const rm = document.querySelector('[data-cv="x"]');
   if (rm) rm.hidden = !img;
 }
-async function setCover(k, id, file) {
-  const img = await cropFile(file, {
-    title: "Crop cover picture",
+async function setCover(k, id, fileOrImg) {
+  const img = await cropFile(fileOrImg, {
+    title: "Edit cover picture",
     ars: [
       ["Wide 3:1", 3],
       ["16:9", 16 / 9],
@@ -615,6 +670,17 @@ async function setCover(k, id, file) {
     COV[covKey(k, id)] = img;
     render();
   });
+}
+async function editCurrentCover(k, id) {
+  let img = COV[covKey(k, id)];
+  if (!img) {
+    img = await loadCover(k, id);
+  }
+  if (img) {
+    await setCover(k, id, img);
+  } else {
+    pickFiles((f) => setCover(k, id, f[0]));
+  }
 }
 function removeCover(k, id) {
   if (confirm("Remove the cover picture?"))

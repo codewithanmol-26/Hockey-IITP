@@ -45,6 +45,20 @@ function pickPhoto(cb) {
   };
   f.click();
 }
+async function editCurrentPhoto(currentPh, cb) {
+  if (currentPh) {
+    const out = await cropFile(currentPh, {
+      title: "Edit profile photo",
+      ars: [["Square", 1]],
+      out: 240,
+      q: 0.82,
+      cap: 55000,
+    });
+    if (out) cb(out);
+  } else {
+    pickPhoto(cb);
+  }
+}
 
 // ---------- umpire whistle (synthesised, no audio files) ----------
 let ACX = null;
@@ -1305,10 +1319,6 @@ function drawMenu() {
       <button type="button" class="btn-drawer-pri" id="btn-draw-prof">👤 View My Profile</button>
       ${(role === "captain" || role === "vice") ? `<button type="button" class="btn-drawer-sec" id="btn-draw-code">🔑 Change Code</button>` : ""}
     </div>
-    <div class="user-drawer-actions" style="margin-top:6px">
-      <button type="button" class="btn-drawer-sec" id="btn-draw-photo">📷 Edit Photo</button>
-      <button type="button" class="btn-drawer-sec" id="btn-draw-cover">🖼️ Edit Background</button>
-    </div>
   </div>`;
 
   const more = tabsFor().filter((t) => !PRIMARY.includes(t[0])); // tabs already on the bottom bar / top bar are not repeated here
@@ -1335,14 +1345,6 @@ function drawMenu() {
     mi("📲", "Share this app", shareApp);
   h +=
     `<div class="ms">App & Tools</div>` +
-    mi(
-      typeof isDark === "function" && isDark() ? "☀️" : "🌙",
-      typeof isDark === "function" && isDark() ? "Switch to day mode" : "Switch to night mode",
-      () => {
-        if (typeof toggleTheme === "function") toggleTheme();
-        drawMenu();
-      },
-    ) +
     mi("📅", "Add schedule to calendar", icsDownload) +
     mi("🐞", "Report a bug", openBug);
   h +=
@@ -1385,32 +1387,6 @@ function drawMenu() {
   if (profBtn) profBtn.onclick = () => { m.hidden = true; openMyProfile(); };
   const codeBtn = m.querySelector("#btn-draw-code");
   if (codeBtn) codeBtn.onclick = () => { m.hidden = true; openChangeCode(); };
-  const photoBtn = m.querySelector("#btn-draw-photo");
-  if (photoBtn) {
-    photoBtn.onclick = () => {
-      m.hidden = true;
-      pickPhoto(async (ph) => {
-        await api("/api/me/photo", {
-          method: "PUT",
-          body: { photo: ph },
-        });
-        await load(true);
-        openMyProfile();
-      });
-    };
-  }
-  const coverBtn = m.querySelector("#btn-draw-cover");
-  if (coverBtn) {
-    coverBtn.onclick = () => {
-      m.hidden = true;
-      const [k, id] = ownCoverKey();
-      if (!id) return;
-      pickFiles(async (f) => {
-        await setCover(k, id, f[0]);
-        openMyProfile();
-      });
-    };
-  }
 }
 
 function toggleProfileMenu(e) {
@@ -3082,21 +3058,24 @@ const when = (t) =>
     : "";
 // ---- profile photo + shared helpers ----
 const photoBtns = (own, path, ph, extra) =>
-  `<div class="chips" style="justify-content:center">${extra || ""}<button data-ph="c">📷 ${ph ? "Change photo" : "Add photo"}</button>${ph ? '<button data-ph="x">Remove photo</button>' : ""}<button data-cv="c">🖼 Cover picture</button><button data-cv="x" hidden>Remove cover</button></div>`;
+  `<div class="chips" style="justify-content:center">${extra || ""}${ph ? '<button data-ph="e">✏️ Edit photo</button>' : ""}<button data-ph="c">📷 ${ph ? "Upload new" : "Add photo"}</button>${ph ? '<button data-ph="x">Remove photo</button>' : ""}<button data-cv="e">🖼️ Edit background</button><button data-cv="c">Upload new</button><button data-cv="x" hidden>Remove cover</button></div>`;
 function bindCover(k, id) {
   document.querySelectorAll("[data-cv]").forEach(
     (b) =>
-      (b.onclick = () => {
+      (b.onclick = (e) => {
+        e.stopPropagation();
         if (b.dataset.cv === "x") return removeCover(k, id);
+        if (b.dataset.cv === "e") return editCurrentCover(k, id);
         pickFiles((f) => setCover(k, id, f[0]));
       }),
   );
   applyCover(k, id);
 }
-function bindPhoto(own, path) {
+function bindPhoto(own, path, currentPhoto) {
   document.querySelectorAll("[data-ph]").forEach(
     (b) =>
-      (b.onclick = () => {
+      (b.onclick = (e) => {
+        e.stopPropagation();
         const put = (ph) =>
           run(async () => {
             await api(own ? "/api/me/photo" : path, {
@@ -3106,6 +3085,7 @@ function bindPhoto(own, path) {
             await load(true);
           });
         if (b.dataset.ph === "x") put("");
+        else if (b.dataset.ph === "e") editCurrentPhoto(currentPhoto, put);
         else pickPhoto(put);
       }),
   );
@@ -3474,7 +3454,7 @@ function vProfile() {
     ]
       .filter(Boolean)
       .join(" · ");
-    h = `${back}<div class="card prof"><div class="cover"></div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}</div>
+    h = `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
     <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill g">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill g">🎖️ Vice-captain</span>' : ""}${ADM.some((a) => a.kind === "player" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill g">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
     ${canPh ? photoBtns(own, photoPath, p.photo, '<button class="pri" id="pedit">✏️ Edit profile</button>') : ""}
@@ -3486,7 +3466,7 @@ function vProfile() {
     $("view").innerHTML = h;
     if ($("pedit")) $("pedit").onclick = () => openEdit(p, own);
     bindCover("p", id);
-    if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath);
+    if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath, p.photo);
     if ($("prst"))
       $("prst").onclick = () => {
         if (
@@ -3576,7 +3556,7 @@ function vProfile() {
       acts = `${kv("Role", name)}${kv("Access", "Full: attendance, players, admins")}${own && owner ? `<div class="note" style="margin-top:10px">You are not linked to a player record yet. If you also play, link yourself to get the same profile as the other players. <div class="chips"><button class="pri" id="lkme">🔗 Link my player profile</button></div></div>` : ""}`;
     }
     $("view").innerHTML =
-      `${back}<div class="card prof"><div class="cover"></div><div class="pavw">${avatar(name, ph, 104, "big")}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+      `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
     if ($("lkme")) $("lkme").onclick = openNames;
     if (k === "s") bindCover("s", id);
     if ($("apv"))
@@ -3626,7 +3606,7 @@ function vProfile() {
     render();
     window.scrollTo(0, 0);
   };
-  if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath);
+  if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath, ph);
 }
 function openEdit(p, own) {
   let d = $("eddlg");
