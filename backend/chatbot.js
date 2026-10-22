@@ -7,14 +7,22 @@
 const { GoogleGenAI } = require("@google/genai");
 const db = require("./db");
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 let ai = null;
-if (GEMINI_API_KEY) {
-  try {
-    ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-  } catch (e) {
-    console.error("Failed to initialize Google Gen AI SDK:", e.message);
+let currentKey = null;
+
+function getAiClient() {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  if (!ai || currentKey !== key) {
+    try {
+      ai = new GoogleGenAI({ apiKey: key });
+      currentKey = key;
+    } catch (e) {
+      console.error("Failed to initialize Google Gen AI SDK:", e.message);
+      return null;
+    }
   }
+  return ai;
 }
 
 // -------------------------------------------------------------
@@ -151,7 +159,8 @@ async function getRelevantRulesAndWarmup(query) {
 // -------------------------------------------------------------
 
 async function chat({ message, user, history = [] }) {
-  if (!ai) {
+  const client = getAiClient();
+  if (!client) {
     throw new Error("Gemini AI is not configured. GEMINI_API_KEY is missing on the server.");
   }
   if (!message || typeof message !== "string" || !message.trim()) {
@@ -200,8 +209,8 @@ ${JSON.stringify(context, null, 2)}
 USER MESSAGE:
 ${query}`;
 
-  // Prioritize fast, stable flash models with automatic retry on temporary 503 demand spikes
-  const candidateModels = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest"];
+  // Prioritize gemini-3.8-flash as primary model for latest capabilities and reliability
+  const candidateModels = ["gemini-3.8-flash", "gemini-flash-latest"];
   let replyText = null;
   let lastError = null;
 
@@ -209,12 +218,12 @@ ${query}`;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await Promise.race([
-          ai.models.generateContent({
+          client.models.generateContent({
             model,
             contents: prompt
           }),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout with model ${model}`)), 9000)
+            setTimeout(() => reject(new Error(`Timeout with model ${model}`)), 25000)
           )
         ]);
 
