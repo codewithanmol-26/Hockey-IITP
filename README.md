@@ -5,31 +5,31 @@
     api/        tiny file that lets Vercel run the backend
     vercel.json, package.json, .env.example
 
-## 1. Firebase (database only)
+## 1. Supabase (PostgreSQL Database & Storage)
 
-1.  Firebase console > Project settings > Service accounts > **Generate new private key**. A .json file downloads. Keep it secret.
-2.  Firestore Database > **Rules**, replace everything with the lines below and Publish.
-    The website no longer talks to Firestore directly, only the backend does, so lock it:
-
-        rules_version = '2';
-        service cloud.firestore {
-          match /databases/{db}/documents { match /{doc=**} { allow read, write: if false; } }
-        }
+1. Open your Supabase project dashboard (https://supabase.com).
+2. Go to **Project Settings > API** to find:
+   - `Project URL` (`SUPABASE_URL`)
+   - `service_role` secret key (`SUPABASE_SERVICE_ROLE_KEY`)
+   - `anon` public key (`SUPABASE_ANON_KEY`)
+3. The database migrations and RLS policies are located in `supabase/migrations/20261023000000_initial_schema.sql`.
 
 ## 2. Deploy on Vercel (one project, both parts)
 
 1. Put this whole folder in a GitHub repo (vercel.json must be at the top level of the repo).
 2. vercel.com > Add New > Project > import the repo. Leave Framework as "Other". Do not change build settings.
 3. Before pressing Deploy, open **Environment Variables** and add:
-   - CAPTAIN_CODE (the captain's login code)
-   - VICE_CODE (the vice-captain's login code)
-   - TOKEN_SECRET (any long random text)
-   - FIREBASE_SERVICE_ACCOUNT (open the downloaded .json, copy everything, paste as the value)
+   - `CAPTAIN_CODE` (the captain's login code)
+   - `VICE_CODE` (the vice-captain's login code)
+   - `TOKEN_SECRET` (any long random text)
+   - `SUPABASE_URL` (Supabase project URL)
+   - `SUPABASE_SERVICE_ROLE_KEY` (Supabase service role secret key)
+   - `GEMINI_API_KEY` (Google Gemini API key for the AI Hockey Assistant)
+   - `VAPID_PUBLIC_KEY` & `VAPID_PRIVATE_KEY` (Web push keys)
 4. Deploy. Open your Vercel link, log in, go to **Players** and press **Import team**.
 5. If you change an environment variable later, press **Redeploy**.
 
 Test the backend alone: open `https://YOUR-SITE.vercel.app/api/health` - you should see {"ok":true}.
-If it shows "Backend not configured", a variable above is missing or the JSON was pasted wrongly.
 
 ## How it works for everyone
 
@@ -45,18 +45,19 @@ If it shows "Backend not configured", a variable above is missing or the JSON wa
 - **Removed students** (admin tab): _Remove_ in Players only hides a student (they are logged out, attendance history is kept). _Restore_ brings them back with the same login code. _Delete forever_ erases them.
 - Captain and vice-captain codes are set in Vercel (CAPTAIN_CODE, VICE_CODE). Press **Import team** (Players tab) once after the first deploy.
 
-Firestore layout (you can open and edit these in the Firebase console):
+Supabase PostgreSQL layout:
 
-    players/<roll number>    name, roll, position, joined (YYYY-MM-DD), n (list order), contact, removed
-    sessions/<YYYY-MM-DD>    r: { <roll number>: true or false }
-    legacy/<YYYY-MM>         days, att: { <roll number>: days attended }   (monthly totals, Jul 2026 onward only)
-    plans/<YYYY-MM-DD>       time, note, status
-    rules/<id>, warmup/<id>  title, icon, order, items [ {h, b, img, yt} ]
-    config/schedule          team and gk (7 rows each)
-    admins/<id>              name, disabled, salt, hash   (codes are never stored in plain text)
-    accounts/<roll>          salt, hash of the player's own code
-    signupTries/<roll>       wrong contact-number attempts (locks at 10)
-    config/template          WhatsApp message template
+    players                  id, name, roll, position, joined, order_index, contact, removed, photo, email, jersey_no, jersey_name
+    sessions                 date, r (JSONB { roll: boolean }), created_at
+    legacy_attendance        month, days, att (JSONB { roll: days }), created_at
+    practice_plans           date, time, venue, note, status, tags, created_at
+    hockey_rules             id, title, icon, order_index, items (JSONB)
+    warmup_drills            id, title, icon, order_index, items (JSONB)
+    app_config               key, value (JSONB), updated_at
+    admins                   id, name, disabled, salt, hash
+    accounts                 roll, salt, hash, email
+    signup_tries             roll, tries, locked_until
+    push_subscriptions       endpoint_hash, sub (JSONB), role, uid, created_at
 
 ## Player sign up / login
 

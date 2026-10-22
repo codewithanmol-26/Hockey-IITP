@@ -1298,37 +1298,16 @@ function drawMenu() {
         pickFiles((f) => setGroupPhoto(f[0])),
       ) +
       mi("🏑", "Edit Indian hockey fixtures", openMatches) +
-      (owner
-        ? mi("🎖️", "Edit captain & coach names", openNames) +
-          mi("🔔", "Send me a test notification", testPush) +
-          mi("🛠️", "Set up push notifications", openPushHelp) +
-          mi("✉️", "Test the sign-up e-mail", testEmail)
-        : "");
+      (owner ? mi("🎖️", "Edit captain & coach names", openNames) : "");
   h +=
-    `<div class="ms">Appearance</div>` +
-    mi(
-      isDark() ? "🌙" : "☀️",
-      "Night mode",
-      () => {
-        toggleTheme();
-        drawMenu();
-      },
-      { sw: isDark() },
-    ) +
-    (themePref()
-      ? mi("📱", "Use my phone's day / night setting", () => {
-          setTheme("");
-          drawMenu();
-        })
-      : "") +
     `<div class="ms">Share</div>` +
     mi("📊", "Share attendance report", () => openReport()) +
     mi("📲", "Share this app", shareApp);
   h +=
-    `<div class="ms">Sound</div>` +
-    `<div class="mrow"><span class="i">🔈</span><input type="range" id="mvol" min="0" max="100" step="5" value="${Math.round(volume() * 100)}" aria-label="Volume"><span class="mute" id="mvolv">${Math.round(volume() * 100)}%</span></div>`;
-  h +=
-    `<div class="ms">App</div>` +
+    `<div class="ms">Assistant & App</div>` +
+    mi("🏑", "AI Hockey Assistant", () => {
+      if (window.openHockeyChat) window.openHockeyChat();
+    }) +
     mi("📅", "Add schedule to calendar", icsDownload) +
     mi("🐞", "Report a bug", openBug);
   if (!standalone()) h += mi("⬇️", "Install app", installApp);
@@ -1553,18 +1532,41 @@ async function pushEnsure() {
     let sub = await reg.pushManager.getSubscription();
     if (!sub) {
       const k = await api("/api/push/key");
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: b64u(k.key),
-      });
+      if (k && k.key) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: b64u(k.key),
+        });
+      }
     }
-    await api("/api/push/subscribe", {
-      method: "POST",
-      body: { sub: sub.toJSON() },
-    });
-    pushOn = true;
+    if (sub) {
+      await api("/api/push/subscribe", {
+        method: "POST",
+        body: { sub: sub.toJSON() },
+      });
+      pushOn = true;
+    }
   } catch (e) {
-    pushOn = false;
+    console.warn("Push subscription fallback:", e);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+      const k = await api("/api/push/key");
+      if (k && k.key) {
+        const freshSub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: b64u(k.key),
+        });
+        await api("/api/push/subscribe", {
+          method: "POST",
+          body: { sub: freshSub.toJSON() },
+        });
+        pushOn = true;
+      }
+    } catch (e2) {
+      pushOn = false;
+    }
   }
   return pushOn;
 }
@@ -2658,7 +2660,7 @@ const pushMsg = (r) => {
   const p = r && r.push;
   if (!p) return "";
   if (!p.configured)
-    return "\n\n⚠️ Push notifications are NOT set up on the server (keys missing), so nobody was notified. Open the menu > Set up push notifications.";
+    return "\n\n⚠️ Push notifications are not configured on the server.";
   if (!p.total)
     return "\n\nNobody has turned on notifications yet, so nobody was notified.";
   return (

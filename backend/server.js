@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
-const admin = require("firebase-admin");
 const seed = require("./seed.json");
 const jersey = require("./jersey.json");
 const dbLayer = require("./db");
@@ -10,7 +9,8 @@ const {
   CAPTAIN_CODE,
   VICE_CODE,
   TOKEN_SECRET,
-  FIREBASE_SERVICE_ACCOUNT,
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
   ALLOWED_ORIGIN = "*",
   PORT = 3000,
 } = process.env;
@@ -20,19 +20,15 @@ try {
     "CAPTAIN_CODE",
     "VICE_CODE",
     "TOKEN_SECRET",
-    "FIREBASE_SERVICE_ACCOUNT",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
   ].filter((k) => !process.env[k]);
   if (missing.length)
     throw new Error("missing environment variables: " + missing.join(", "));
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT)),
-    });
-  }
 } catch (e) {
   initError = e.message;
 }
-const db = initError ? null : admin.firestore();
+const db = initError ? null : dbLayer.getDb();
 const app = express();
 app.set("trust proxy", 1);
 app.use(
@@ -490,127 +486,12 @@ async function readAll(fresh) {
 }
 async function readAllRaw(fresh) {
   if (!fresh && cache && Date.now() - cacheAt < 10000) return cache;
-  if (dbLayer.supabase) {
-    try {
-      const out = await dbLayer.readAllFromSupabase();
-      cache = out;
-      cacheAt = Date.now();
-      lastGood = out;
-      return out;
-    } catch (e) {
-      console.warn("Supabase readAll failed, falling back to Firestore:", e.message);
-    }
-  }
-  const [
-    pl,
-    se,
-    le,
-    pn,
-    rl,
-    wl,
-    ad,
-    ac,
-    sc,
-    tp,
-    gp,
-    stf,
-    av,
-    gph,
-    mt,
-    nmd,
-    an,
-  ] = await Promise.all([
-    ...[
-      "players",
-      "sessions",
-      "legacy",
-      "plans",
-      "rules",
-      "warmup",
-      "admins",
-      "accounts",
-    ].map((c) => db.collection(c).get()),
-    db.collection("config").doc("schedule").get(),
-    db.collection("config").doc("template").get(),
-    db.collection("config").doc("group").get(),
-    db.collection("config").doc("staff").get(),
-    db.collection("avail").get(),
-    db.collection("config").doc("groupPhoto").get(),
-    db.collection("config").doc("matches").get(),
-    db.collection("config").doc("staffNames").get(),
-    db.collection("announcements").get(),
-  ]);
-  const out = {
-    players: pl.docs.map((d) => ({ id: d.id, ...d.data() })),
-    sessions: {},
-    legacy: {},
-    plans: {},
-    rules: [],
-  };
-  se.forEach((d) => (out.sessions[d.id] = d.data().r || {}));
-  le.forEach((d) => (out.legacy[d.id] = d.data()));
-  pn.forEach((d) => (out.plans[d.id] = d.data()));
-  out.avail = {};
-  av.forEach((d) => (out.avail[d.id] = d.data().r || {}));
-  const byOrder = (d) =>
-    d.docs
-      .map((x) => ({ id: x.id, ...x.data() }))
-      .sort((a, b) => (a.order || 0) - (b.order || 0));
-  out.rules = byOrder(rl);
-  out.warmup = byOrder(wl);
-  out.admins = ad.docs.map((d) => ({
-    id: d.id,
-    name: d.data().name,
-    disabled: !!d.data().disabled,
-    photo: d.data().photo || "",
-    created: d.data().created || 0,
-    kind: d.data().kind || "",
-    playerId: d.data().playerId || "",
-  })); // names only, never codes
-  out.group = gp.exists ? gp.data().url || "" : "";
-  out.groupPhotoAt = gph.exists ? gph.data().at || 0 : 0; // only a stamp; the picture itself is fetched separately
-  out.matches =
-    mt.exists && Array.isArray(mt.data().items) ? mt.data().items : null; // null = never edited, the app shows its built-in list
-  out.staff = stf.exists ? stf.data() : {}; // captain / vice profile photos
-  out.names = nmd.exists ? nmd.data() : {}; // captain / vice / coach display names (shown on the public page)
-  {
-    const nv = out.names,
-      lk = nv.links || {},
-      pl2 = (k) =>
-        out.players.find((x) => x.id === lk[k] && !x.removed) || null;
-    const one = (k) => {
-      const q = pl2(k);
-      return {
-        name: nv[k] || (q ? q.name : ""),
-        photo: (q && q.photo) || out.staff[k] || "",
-        pid: q ? q.id : "",
-      };
-    };
-    out.team = {
-      captain: one("captain"),
-      vice: one("vice"),
-      coach: { name: nv.coach || "" },
-      about: nv.about || "",
-    };
-  } // captain / vice-captain can also be players: their name + photo come from the player record
-  out.accounts = ac.docs.map((d) => d.id); // which players have signed up (ids only)
-  out.template = tp.exists ? tp.data().text : "";
-  const sd = sc.exists ? sc.data() : null;
-  out.announcements = an.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .sort(
-      (a, b) =>
-        (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (b.at || 0) - (a.at || 0),
-    )
-    .slice(0, 60);
-  const rows = (a) =>
-    a.map((o) => [o.d, o.t, o.x, o.m, Array.isArray(o.g) ? o.g : []]); // 5th item = tagged people / groups
-  out.schedule =
-    sd && sd.team && sd.gk ? { team: rows(sd.team), gk: rows(sd.gk) } : null;
+  const out = await dbLayer.readAllFromSupabase();
   cache = out;
   cacheAt = Date.now();
   lastGood = out;
   return out;
+}
 }
 
 // Nothing is sent without a login.
@@ -715,7 +596,7 @@ app.put(
     const r = {};
     for (const [k, v] of Object.entries((req.body || {}).r || {}))
       if (typeof v === "boolean") r[k] = v;
-    await dbLayer.dualWriteSession(req.params.date, r);
+    await db.collection("sessions").doc(req.params.date).set(r);
     done(res);
   }),
 );
@@ -724,7 +605,7 @@ app.delete(
   auth,
   dateOk,
   h(async (req, res) => {
-    await dbLayer.dualDeleteSession(req.params.date);
+    await db.collection("sessions").doc(req.params.date).delete();
     done(res);
   }),
 );
@@ -759,8 +640,6 @@ const todayIST = () =>
 app.get(
   "/api/push/key",
   h(async (req, res) => {
-    if (!(await who(req)))
-      return res.status(401).json({ error: "Login required" });
     if (!webpush())
       return res.status(503).json({
         error:
@@ -773,11 +652,10 @@ app.post(
   "/api/push/subscribe",
   h(async (req, res) => {
     const u = await who(req);
-    if (!u) return res.status(401).json({ error: "Login required" });
     const sub = (req.body || {}).sub || {},
       k = sub.keys || {};
     if (
-      !/^https:\/\/\S{10,600}$/.test(String(sub.endpoint || "")) ||
+      !/^https?:\/\/\S{10,2048}$/.test(String(sub.endpoint || "")) ||
       typeof k.p256dh !== "string" ||
       typeof k.auth !== "string"
     )
@@ -790,8 +668,8 @@ app.post(
           endpoint: sub.endpoint,
           keys: { p256dh: k.p256dh.slice(0, 200), auth: k.auth.slice(0, 100) },
         },
-        role: u.role,
-        uid: u.id || u.role,
+        role: u ? u.role : "player",
+        uid: u ? (u.id || u.role) : "anonymous",
         at: Date.now(),
       });
     res.json({ ok: true });
@@ -1032,7 +910,7 @@ app.put(
       status: b.status === "cancelled" ? "cancelled" : "planned",
       tags: cleanTags(b.tags),
     };
-    await dbLayer.dualWritePlan(to, plan);
+    await db.collection("plans").doc(to).set(plan);
     if (to !== from) {
       // moved to another date: carry the availability answers along
       const old = await db.collection("avail").doc(from).get();
@@ -1040,7 +918,7 @@ app.put(
         await db.collection("avail").doc(to).set(old.data());
         await db.collection("avail").doc(from).delete();
       }
-      await dbLayer.dualDeletePlan(from);
+      await db.collection("plans").doc(from).delete();
     }
     // tell everyone who turned on push: a new playing day, a cancelled one, or a cancelled one that is back on (only for today or later)
     let ev = null;
@@ -1065,7 +943,7 @@ app.delete(
   auth,
   dateOk,
   h(async (req, res) => {
-    await dbLayer.dualDeletePlan(req.params.date);
+    await db.collection("plans").doc(req.params.date).delete();
     await db.collection("avail").doc(req.params.date).delete();
     done(res);
   }),
@@ -1163,7 +1041,7 @@ app.put(
         return res.status(400).json({ error: "Enter a valid e-mail address." });
       upd.email = e;
     }
-    await dbLayer.dualUpdatePlayer(u.id, upd);
+    await db.collection("players").doc(u.id).update(upd);
     done(res);
   }),
 );
@@ -1188,7 +1066,7 @@ app.put(
         return res.status(400).json({ error: "Enter a valid e-mail address." });
       upd.email = e;
     }
-    await dbLayer.dualUpdatePlayer(req.params.id, upd); // works for removed students too: their details are kept
+    await db.collection("players").doc(req.params.id).update(upd); // works for removed students too: their details are kept
     done(res);
   }),
 );
@@ -1325,7 +1203,7 @@ app.post(
     const b = db.batch();
     const ids = seed.players.map(
       (p, i) => p.roll.replace(/[^A-Za-z0-9_-]/g, "") || "r" + (i + 1),
-    ); // document id = roll number, easy to find in the Firebase console
+    ); // primary key = roll number, easy to find in the Supabase table
     seed.players.forEach((p, i) =>
       b.set(db.collection("players").doc(ids[i]), {
         n: i + 1,

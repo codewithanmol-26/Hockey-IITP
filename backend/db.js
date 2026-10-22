@@ -1,16 +1,14 @@
 /**
- * Unified Database Layer (Supabase with Dual-Write & Firestore Fallback)
- * Ensures 100% data synchronization between Supabase and Firebase Firestore.
+ * Pure Supabase Database Layer for IIT Patna Hockey
+ * Completely replaces Firebase Firestore with a 100% compatible Supabase PostgreSQL adapter.
  */
 
 const { createClient } = require("@supabase/supabase-js");
-const admin = require("firebase-admin");
+const crypto = require("crypto");
 
 const {
   SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY,
-  FIREBASE_SERVICE_ACCOUNT,
-  DATABASE_TARGET = "supabase"
+  SUPABASE_SERVICE_ROLE_KEY
 } = process.env;
 
 let supabase = null;
@@ -24,19 +22,504 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
   }
 }
 
-let firestore = null;
-if (FIREBASE_SERVICE_ACCOUNT) {
-  try {
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT))
-      });
-    }
-    firestore = admin.firestore();
-  } catch (e) {
-    console.error("Failed to initialize Firestore:", e.message);
+const genId = () => crypto.randomBytes(10).toString("hex");
+
+const TABLE_MAP = {
+  players: { table: "players", pk: "id" },
+  accounts: { table: "accounts", pk: "player_id" },
+  admins: { table: "admins", pk: "id" },
+  sessions: { table: "sessions", pk: "date" },
+  legacy: { table: "legacy_attendance", pk: "month" },
+  plans: { table: "practice_plans", pk: "date" },
+  rules: { table: "hockey_rules", pk: "id" },
+  warmup: { table: "warmup_drills", pk: "id" },
+  config: { table: "app_config", pk: "key" },
+  blobs: { table: "blobs", pk: "id" },
+  gallery: { table: "gallery", pk: "id" },
+  galleryFull: { table: "gallery", pk: "id" },
+  health: { table: "health_logs", pk: "id" },
+  pushSubs: { table: "push_subscriptions", pk: "endpoint_hash" },
+  announcements: { table: "announcements", pk: "id" },
+  bugs: { table: "bug_reports", pk: "id" },
+  helpMsgs: { table: "help_messages", pk: "id" },
+  workouts: { table: "workouts", pk: "id" },
+  avail: { table: "player_availability", pk: "date" },
+  signupTries: { table: "signup_tries", pk: "roll" },
+  otps: { table: "login_otps", pk: "id" }
+};
+
+function rowToDoc(col, row) {
+  if (!row) return null;
+  const mapping = TABLE_MAP[col] || { table: col, pk: "id" };
+  const id = row[mapping.pk] || row.id;
+
+  if (col === "config") {
+    return { id, data: () => row.value || {} };
+  }
+  if (col === "blobs") {
+    return { id, data: () => ({ img: row.img || "" }) };
+  }
+  if (col === "galleryFull") {
+    return { id, data: () => ({ img: row.full_img || "" }) };
+  }
+  if (col === "gallery") {
+    return {
+      id,
+      data: () => ({
+        thumb: row.thumb,
+        by: row.by_name,
+        key: row.user_key,
+        cat: row.cat,
+        desc: row.description,
+        at: row.created_at
+      })
+    };
+  }
+  if (col === "sessions") {
+    return { id, data: () => ({ r: row.r || {} }) };
+  }
+  if (col === "avail") {
+    return { id, data: () => ({ r: row.r || {} }) };
+  }
+  if (col === "legacy") {
+    return { id, data: () => ({ days: row.days, att: row.att || {} }) };
+  }
+  if (col === "plans") {
+    return {
+      id,
+      data: () => ({
+        time: row.time,
+        venue: row.venue,
+        note: row.note,
+        status: row.status,
+        tags: row.tags || []
+      })
+    };
+  }
+  if (col === "rules" || col === "warmup") {
+    return {
+      id,
+      data: () => ({
+        title: row.title,
+        icon: row.icon,
+        order: row.order_index,
+        items: row.items || []
+      })
+    };
+  }
+  if (col === "accounts") {
+    return {
+      id,
+      data: () => ({
+        salt: row.salt,
+        hash: row.hash,
+        created: row.created_at
+      })
+    };
+  }
+  if (col === "players") {
+    return {
+      id,
+      data: () => ({
+        name: row.name,
+        roll: row.roll,
+        position: row.position,
+        joined: row.joined,
+        n: row.n,
+        size: row.size,
+        contact: row.contact,
+        jerseyName: row.jersey_name,
+        email: row.email,
+        jerseyNo: row.jersey_no,
+        photo: row.photo,
+        removed: !!row.removed
+      })
+    };
+  }
+  if (col === "pushSubs") {
+    return {
+      id,
+      data: () => ({
+        sub: row.sub || {},
+        role: row.role,
+        uid: row.uid,
+        at: row.created_at
+      })
+    };
+  }
+  if (col === "health") {
+    return {
+      id,
+      data: () => ({
+        key: row.user_key,
+        date: row.log_date,
+        steps: row.steps,
+        km: row.km,
+        sleep: row.sleep,
+        kcal: row.kcal,
+        height: row.height,
+        weight: row.weight,
+        at: row.recorded_at
+      })
+    };
+  }
+  if (col === "announcements") {
+    return {
+      id,
+      data: () => ({
+        title: row.title,
+        text: row.text,
+        pinned: row.pinned,
+        by: row.by_name,
+        role: row.role,
+        at: row.created_at
+      })
+    };
+  }
+  if (col === "bugs") {
+    return {
+      id,
+      data: () => ({
+        desc: row.desc_text,
+        shot: row.shot,
+        by: row.by_name,
+        role: row.role,
+        status: row.status,
+        at: row.created_at
+      })
+    };
+  }
+  if (col === "helpMsgs") {
+    return {
+      id,
+      data: () => ({
+        name: row.name,
+        roll: row.roll,
+        contact: row.contact,
+        topic: row.topic,
+        msg: row.msg,
+        done: row.done,
+        at: row.created_at
+      })
+    };
+  }
+
+  return { id, data: () => row };
+}
+
+function docToRow(col, id, data) {
+  if (!data) return {};
+  const mapping = TABLE_MAP[col] || { table: col, pk: "id" };
+
+  if (col === "config") {
+    return { key: id, value: data, updated_at: new Date().toISOString() };
+  }
+  if (col === "blobs") {
+    return { id, img: data.img || "", updated_at: new Date().toISOString() };
+  }
+  if (col === "galleryFull") {
+    return { id, full_img: data.img || "" };
+  }
+  if (col === "gallery") {
+    return {
+      id,
+      thumb: data.thumb || "",
+      by_name: data.by || "",
+      user_key: data.key || "",
+      cat: data.cat || "practice",
+      description: data.desc || "",
+      created_at: data.at || Date.now()
+    };
+  }
+  if (col === "sessions") {
+    return { date: id, r: data.r || {}, updated_at: new Date().toISOString() };
+  }
+  if (col === "avail") {
+    return { date: id, r: data.r || {}, updated_at: new Date().toISOString() };
+  }
+  if (col === "legacy") {
+    return { month: id, days: data.days || 0, att: data.att || {} };
+  }
+  if (col === "plans") {
+    return {
+      date: id,
+      time: data.time || "",
+      venue: data.venue || "",
+      note: data.note || "",
+      status: data.status || "planned",
+      tags: data.tags || [],
+      updated_at: new Date().toISOString()
+    };
+  }
+  if (col === "rules" || col === "warmup") {
+    return {
+      id,
+      title: data.title || "",
+      icon: data.icon || "",
+      order_index: data.order || 0,
+      items: data.items || []
+    };
+  }
+  if (col === "accounts") {
+    return {
+      player_id: id,
+      salt: data.salt,
+      hash: data.hash,
+      created_at: data.created || Date.now()
+    };
+  }
+  if (col === "players") {
+    const row = { id };
+    if (data.name !== undefined) row.name = data.name;
+    if (data.roll !== undefined) row.roll = data.roll;
+    if (data.position !== undefined) row.position = data.position;
+    if (data.joined !== undefined) row.joined = data.joined || null;
+    if (data.n !== undefined) row.n = data.n;
+    if (data.size !== undefined) row.size = data.size;
+    if (data.contact !== undefined) row.contact = data.contact;
+    if (data.jerseyName !== undefined) row.jersey_name = data.jerseyName;
+    if (data.email !== undefined) row.email = data.email;
+    if (data.jerseyNo !== undefined) row.jersey_no = String(data.jerseyNo);
+    if (data.photo !== undefined) row.photo = data.photo;
+    if (data.removed !== undefined) row.removed = !!data.removed;
+    row.updated_at = new Date().toISOString();
+    return row;
+  }
+  if (col === "pushSubs") {
+    return {
+      endpoint_hash: id,
+      sub: data.sub || {},
+      role: data.role || "",
+      uid: data.uid || "",
+      created_at: data.at || Date.now()
+    };
+  }
+  if (col === "health") {
+    return {
+      id,
+      user_key: data.key || "",
+      log_date: data.date || "2026-01-01",
+      steps: data.steps,
+      km: data.km,
+      sleep: data.sleep,
+      kcal: data.kcal,
+      height: data.height,
+      weight: data.weight,
+      recorded_at: data.at || Date.now()
+    };
+  }
+  if (col === "announcements") {
+    return {
+      id,
+      title: data.title || "",
+      text: data.text || "",
+      pinned: !!data.pinned,
+      by_name: data.by || "",
+      role: data.role || "",
+      created_at: data.at || Date.now()
+    };
+  }
+  if (col === "bugs") {
+    return {
+      id,
+      desc_text: data.desc || "",
+      shot: data.shot || "",
+      by_name: data.by || "",
+      role: data.role || "",
+      status: data.status || "open",
+      created_at: data.at || Date.now()
+    };
+  }
+  if (col === "helpMsgs") {
+    return {
+      id,
+      name: data.name || "",
+      roll: data.roll || "",
+      contact: data.contact || "",
+      topic: data.topic || "",
+      msg: data.msg || "",
+      done: !!data.done,
+      created_at: data.at || Date.now()
+    };
+  }
+
+  return { [mapping.pk]: id, ...data };
+}
+
+class DocumentReference {
+  constructor(col, id) {
+    this.col = col;
+    this.id = id || genId();
+    this.mapping = TABLE_MAP[col] || { table: col, pk: "id" };
+  }
+
+  async get() {
+    const { data, error } = await supabase
+      .from(this.mapping.table)
+      .select("*")
+      .eq(this.mapping.pk, this.id)
+      .maybeSingle();
+
+    const exists = !error && data !== null;
+    const doc = exists ? rowToDoc(this.col, data) : null;
+
+    return {
+      exists,
+      id: this.id,
+      data: () => (doc ? doc.data() : {})
+    };
+  }
+
+  async set(data, options = {}) {
+    const row = docToRow(this.col, this.id, data);
+    const { error } = await supabase
+      .from(this.mapping.table)
+      .upsert(row, { onConflict: this.mapping.pk });
+    if (error) throw error;
+    return true;
+  }
+
+  async update(data) {
+    const row = docToRow(this.col, this.id, data);
+    delete row[this.mapping.pk];
+    const { error } = await supabase
+      .from(this.mapping.table)
+      .update(row)
+      .eq(this.mapping.pk, this.id);
+    if (error) throw error;
+    return true;
+  }
+
+  async delete() {
+    const { error } = await supabase
+      .from(this.mapping.table)
+      .delete()
+      .eq(this.mapping.pk, this.id);
+    if (error) throw error;
+    return true;
   }
 }
+
+class CollectionReference {
+  constructor(col) {
+    this.col = col;
+    this.mapping = TABLE_MAP[col] || { table: col, pk: "id" };
+    this.filters = [];
+    this.orders = [];
+    this.limitCount = null;
+  }
+
+  doc(id) {
+    return new DocumentReference(this.col, id);
+  }
+
+  where(field, op, val) {
+    const q = new CollectionReference(this.col);
+    q.filters = [...this.filters, { field, op, val }];
+    q.orders = [...this.orders];
+    q.limitCount = this.limitCount;
+    return q;
+  }
+
+  orderBy(field, dir = "asc") {
+    const q = new CollectionReference(this.col);
+    q.filters = [...this.filters];
+    q.orders = [...this.orders, { field, dir }];
+    q.limitCount = this.limitCount;
+    return q;
+  }
+
+  limit(n) {
+    const q = new CollectionReference(this.col);
+    q.filters = [...this.filters];
+    q.orders = [...this.orders];
+    q.limitCount = n;
+    return q;
+  }
+
+  count() {
+    return {
+      get: async () => {
+        let req = supabase.from(this.mapping.table).select("*", { count: "exact", head: true });
+        for (const f of this.filters) {
+          if (f.op === "==") req = req.eq(f.field, f.val);
+        }
+        const { count, error } = await req;
+        return { data: () => ({ count: count || 0 }) };
+      }
+    };
+  }
+
+  async add(data) {
+    const id = genId();
+    const docRef = this.doc(id);
+    await docRef.set(data);
+    return docRef;
+  }
+
+  async get() {
+    let req = supabase.from(this.mapping.table).select("*");
+    for (const f of this.filters) {
+      if (f.op === "==") {
+        const field = f.field === "removed" ? "removed" : f.field === "uid" ? "uid" : f.field;
+        req = req.eq(field, f.val);
+      }
+    }
+    for (const o of this.orders) {
+      const colField = o.field === "at" ? "created_at" : o.field === "order" ? "order_index" : o.field;
+      req = req.order(colField, { ascending: o.dir !== "desc" });
+    }
+    if (this.limitCount) {
+      req = req.limit(this.limitCount);
+    }
+
+    const { data, error } = await req;
+    if (error) throw error;
+
+    const docs = (data || []).map(row => {
+      const docObj = rowToDoc(this.col, row);
+      return {
+        id: docObj.id,
+        data: docObj.data,
+        ref: this.doc(docObj.id)
+      };
+    });
+
+    return {
+      empty: docs.length === 0,
+      size: docs.length,
+      docs,
+      forEach: (fn) => docs.forEach(fn)
+    };
+  }
+}
+
+class Batch {
+  constructor() {
+    this.ops = [];
+  }
+  set(docRef, data) {
+    this.ops.push(() => docRef.set(data));
+    return this;
+  }
+  update(docRef, data) {
+    this.ops.push(() => docRef.update(data));
+    return this;
+  }
+  delete(docRef) {
+    this.ops.push(() => docRef.delete());
+    return this;
+  }
+  async commit() {
+    await Promise.all(this.ops.map(fn => fn()));
+    return true;
+  }
+}
+
+const db = {
+  collection: (col) => new CollectionReference(col),
+  batch: () => new Batch()
+};
 
 // -------------------------------------------------------------
 // READ ALL DATA (Powers /api/data)
@@ -179,256 +662,87 @@ async function readAllFromSupabase() {
   return out;
 }
 
-// -------------------------------------------------------------
-// INDIVIDUAL READ OPERATIONS
-// -------------------------------------------------------------
-
+// Direct data getters
 async function getPlayers(includeRemoved = false) {
-  if (DATABASE_TARGET === "supabase" && supabase) {
-    let q = supabase.from("players").select("*").order("n", { ascending: true });
-    if (!includeRemoved) q = q.eq("removed", false);
-    const { data, error } = await q;
-    if (!error && data) return data;
-  }
-  if (firestore) {
-    const snap = await firestore.collection("players").get();
-    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    return includeRemoved ? list : list.filter(p => !p.removed);
-  }
-  return [];
+  let q = supabase.from("players").select("*").order("n", { ascending: true });
+  if (!includeRemoved) q = q.eq("removed", false);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
 }
 
 async function getPlayer(id) {
-  if (DATABASE_TARGET === "supabase" && supabase) {
-    const { data, error } = await supabase.from("players").select("*").eq("id", id).maybeSingle();
-    if (!error && data) return data;
-  }
-  if (firestore) {
-    const doc = await firestore.collection("players").doc(id).get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
-  }
-  return null;
+  const { data, error } = await supabase.from("players").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 async function getSessions() {
-  if (DATABASE_TARGET === "supabase" && supabase) {
-    const { data, error } = await supabase.from("sessions").select("date, r").order("date", { ascending: true });
-    if (!error && data) {
-      const out = {};
-      data.forEach(row => { out[row.date] = row.r || {}; });
-      return out;
-    }
-  }
-  if (firestore) {
-    const snap = await firestore.collection("sessions").get();
-    const out = {};
-    snap.forEach(d => { out[d.id] = d.data().r || {}; });
-    return out;
-  }
-  return {};
+  const { data, error } = await supabase.from("sessions").select("date, r").order("date", { ascending: true });
+  if (error) throw error;
+  const out = {};
+  (data || []).forEach(row => { out[row.date] = row.r || {}; });
+  return out;
 }
 
 async function getLegacy() {
-  if (DATABASE_TARGET === "supabase" && supabase) {
-    const { data, error } = await supabase.from("legacy_attendance").select("month, days, att");
-    if (!error && data) {
-      const out = {};
-      data.forEach(row => { out[row.month] = { days: row.days, att: row.att || {} }; });
-      return out;
-    }
-  }
-  if (firestore) {
-    const snap = await firestore.collection("legacy").get();
-    const out = {};
-    snap.forEach(d => { out[d.id] = d.data(); });
-    return out;
-  }
-  return {};
+  const { data, error } = await supabase.from("legacy_attendance").select("month, days, att");
+  if (error) throw error;
+  const out = {};
+  (data || []).forEach(row => { out[row.month] = { days: row.days, att: row.att || {} }; });
+  return out;
 }
 
 async function getPracticePlans() {
-  if (DATABASE_TARGET === "supabase" && supabase) {
-    const { data, error } = await supabase.from("practice_plans").select("*").order("date", { ascending: true });
-    if (!error && data) {
-      const out = {};
-      data.forEach(p => {
-        out[p.date] = {
-          time: p.time,
-          venue: p.venue,
-          note: p.note,
-          status: p.status,
-          tags: p.tags || []
-        };
-      });
-      return out;
-    }
-  }
-  if (firestore) {
-    const snap = await firestore.collection("plans").get();
-    const out = {};
-    snap.forEach(d => { out[d.id] = d.data(); });
-    return out;
-  }
-  return {};
+  const { data, error } = await supabase.from("practice_plans").select("*").order("date", { ascending: true });
+  if (error) throw error;
+  const out = {};
+  (data || []).forEach(p => {
+    out[p.date] = {
+      time: p.time,
+      venue: p.venue,
+      note: p.note,
+      status: p.status,
+      tags: p.tags || []
+    };
+  });
+  return out;
 }
 
 async function getAppConfig(key) {
-  if (DATABASE_TARGET === "supabase" && supabase) {
-    const { data, error } = await supabase.from("app_config").select("value").eq("key", key).maybeSingle();
-    if (!error && data) return data.value;
-  }
-  if (firestore) {
-    const doc = await firestore.collection("config").doc(key).get();
-    return doc.exists ? doc.data() : null;
-  }
-  return null;
+  const { data, error } = await supabase.from("app_config").select("value").eq("key", key).maybeSingle();
+  if (error) throw error;
+  return data ? data.value : null;
 }
 
 async function getHockeyRules() {
-  if (DATABASE_TARGET === "supabase" && supabase) {
-    const { data, error } = await supabase.from("hockey_rules").select("*").order("order_index", { ascending: true });
-    if (!error && data) {
-      return data.map(r => ({
-        id: r.id,
-        title: r.title,
-        icon: r.icon,
-        order: r.order_index,
-        items: r.items || []
-      }));
-    }
-  }
-  if (firestore) {
-    const snap = await firestore.collection("rules").get();
-    return snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (a.order || 0) - (b.order || 0));
-  }
-  return [];
+  const { data, error } = await supabase.from("hockey_rules").select("*").order("order_index", { ascending: true });
+  if (error) throw error;
+  return (data || []).map(r => ({
+    id: r.id,
+    title: r.title,
+    icon: r.icon,
+    order: r.order_index,
+    items: r.items || []
+  }));
 }
 
 async function getWarmupDrills() {
-  if (DATABASE_TARGET === "supabase" && supabase) {
-    const { data, error } = await supabase.from("warmup_drills").select("*").order("order_index", { ascending: true });
-    if (!error && data) {
-      return data.map(w => ({
-        id: w.id,
-        title: w.title,
-        icon: w.icon,
-        order: w.order_index,
-        items: w.items || []
-      }));
-    }
-  }
-  if (firestore) {
-    const snap = await firestore.collection("warmup").get();
-    return snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (a.order || 0) - (b.order || 0));
-  }
-  return [];
-}
-
-async function getAccount(roll) {
-  if (DATABASE_TARGET === "supabase" && supabase) {
-    const { data, error } = await supabase.from("accounts").select("*").eq("player_id", roll).maybeSingle();
-    if (!error && data) {
-      return {
-        salt: data.salt,
-        hash: data.hash,
-        created: data.created_at
-      };
-    }
-  }
-  if (firestore) {
-    const doc = await firestore.collection("accounts").doc(roll).get();
-    return doc.exists ? doc.data() : null;
-  }
-  return null;
-}
-
-// -------------------------------------------------------------
-// DUAL-WRITE OPERATIONS (Supabase + Firestore in parallel)
-// -------------------------------------------------------------
-
-async function dualWriteSession(date, r) {
-  const ops = [];
-  if (supabase) {
-    ops.push(supabase.from("sessions").upsert({ date, r, updated_at: new Date().toISOString() }, { onConflict: "date" }));
-  }
-  if (firestore) {
-    ops.push(firestore.collection("sessions").doc(date).set({ r }));
-  }
-  return Promise.all(ops);
-}
-
-async function dualDeleteSession(date) {
-  const ops = [];
-  if (supabase) {
-    ops.push(supabase.from("sessions").delete().eq("date", date));
-  }
-  if (firestore) {
-    ops.push(firestore.collection("sessions").doc(date).delete());
-  }
-  return Promise.all(ops);
-}
-
-async function dualWritePlan(date, planData) {
-  const ops = [];
-  if (supabase) {
-    ops.push(supabase.from("practice_plans").upsert({
-      date,
-      time: planData.time || null,
-      venue: planData.venue || null,
-      note: planData.note || null,
-      status: planData.status || "planned",
-      tags: planData.tags || [],
-      updated_at: new Date().toISOString()
-    }, { onConflict: "date" }));
-  }
-  if (firestore) {
-    ops.push(firestore.collection("plans").doc(date).set(planData));
-  }
-  return Promise.all(ops);
-}
-
-async function dualDeletePlan(date) {
-  const ops = [];
-  if (supabase) {
-    ops.push(supabase.from("practice_plans").delete().eq("date", date));
-  }
-  if (firestore) {
-    ops.push(firestore.collection("plans").doc(date).delete());
-  }
-  return Promise.all(ops);
-}
-
-async function dualUpdatePlayer(id, upd) {
-  const ops = [];
-  if (supabase) {
-    const row = {};
-    if (upd.name !== undefined) row.name = upd.name;
-    if (upd.roll !== undefined) row.roll = upd.roll;
-    if (upd.position !== undefined) row.position = upd.position;
-    if (upd.size !== undefined) row.size = upd.size;
-    if (upd.jerseyName !== undefined) row.jersey_name = upd.jerseyName;
-    if (upd.jerseyNo !== undefined) row.jersey_no = String(upd.jerseyNo);
-    if (upd.email !== undefined) row.email = upd.email;
-    if (upd.contact !== undefined) row.contact = upd.contact;
-    if (upd.joined !== undefined) row.joined = upd.joined || null;
-    if (upd.photo !== undefined) row.photo = upd.photo;
-    if (upd.removed !== undefined) row.removed = !!upd.removed;
-    row.updated_at = new Date().toISOString();
-    ops.push(supabase.from("players").update(row).eq("id", id));
-  }
-  if (firestore) {
-    ops.push(firestore.collection("players").doc(id).update(upd));
-  }
-  return Promise.all(ops);
+  const { data, error } = await supabase.from("warmup_drills").select("*").order("order_index", { ascending: true });
+  if (error) throw error;
+  return (data || []).map(w => ({
+    id: w.id,
+    title: w.title,
+    icon: w.icon,
+    order: w.order_index,
+    items: w.items || []
+  }));
 }
 
 module.exports = {
   supabase,
-  firestore,
+  db,
+  getDb: () => db,
   readAllFromSupabase,
   getPlayers,
   getPlayer,
@@ -437,11 +751,5 @@ module.exports = {
   getPracticePlans,
   getAppConfig,
   getHockeyRules,
-  getWarmupDrills,
-  getAccount,
-  dualWriteSession,
-  dualDeleteSession,
-  dualWritePlan,
-  dualDeletePlan,
-  dualUpdatePlayer
+  getWarmupDrills
 };
