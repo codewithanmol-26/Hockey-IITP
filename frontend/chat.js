@@ -14,7 +14,7 @@
     fab.id = "chat-fab";
     fab.type = "button";
     fab.setAttribute("aria-label", "Open Hockey AI Assistant");
-    fab.title = "Hockey AI Assistant";
+    fab.title = "Hockey AI Assistant (Drag to move)";
     fab.innerHTML = `<span class="fab-icon">🏑</span><span class="fab-label">AI Chat</span>`;
     document.body.appendChild(fab);
 
@@ -25,10 +25,15 @@
     dlg.setAttribute("aria-labelledby", "chat-title");
     dlg.innerHTML = `
       <div class="chat-header">
-        <button type="button" class="dx" id="chat-close" aria-label="Close Assistant">✕</button>
+        <div class="chat-header-actions">
+          <button type="button" class="dx" id="chat-close" aria-label="Close Assistant" title="Close">✕</button>
+        </div>
         <div class="chat-header-info">
           <h2 id="chat-title">Hockey AI Assistant</h2>
           <span class="chat-sub">Rules · Practice Schedules · Attendance</span>
+        </div>
+        <div class="chat-header-status">
+          <span class="status-dot"></span>
         </div>
       </div>
       <div class="chat-body" id="chat-msgs" role="log" aria-live="polite">
@@ -58,8 +63,9 @@
     `;
     document.body.appendChild(dlg);
 
-    // Event Listeners
-    fab.onclick = openChat;
+    // Movable / Draggable functionality for FAB
+    makeDraggable(fab);
+
     document.getElementById("chat-close").onclick = closeChat;
     dlg.addEventListener("cancel", closeChat);
 
@@ -81,6 +87,108 @@
         sendMessage(val);
         input.value = "";
       }
+    };
+  }
+
+  function makeDraggable(fab) {
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+    let hasMoved = false;
+
+    // Restore saved position if valid
+    try {
+      const saved = JSON.parse(localStorage.getItem("hk_fab_pos") || "null");
+      if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+        const maxX = window.innerWidth - 65;
+        const maxY = window.innerHeight - 65;
+        const curX = Math.min(maxX, Math.max(10, saved.x));
+        const curY = Math.min(maxY, Math.max(10, saved.y));
+        fab.style.left = `${curX}px`;
+        fab.style.top = `${curY}px`;
+        fab.style.bottom = "auto";
+        fab.style.right = "auto";
+      }
+    } catch (e) {}
+
+    function onStart(clientX, clientY) {
+      isDragging = true;
+      hasMoved = false;
+      startX = clientX;
+      startY = clientY;
+      const rect = fab.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+      fab.classList.add("dragging");
+    }
+
+    function onMove(clientX, clientY) {
+      if (!isDragging) return;
+      const dx = clientX - startX;
+      const dy = clientY - startY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        hasMoved = true;
+      }
+      const maxX = window.innerWidth - fab.offsetWidth - 10;
+      const maxY = window.innerHeight - fab.offsetHeight - 10;
+      const newX = Math.min(maxX, Math.max(10, initialLeft + dx));
+      const newY = Math.min(maxY, Math.max(10, initialTop + dy));
+
+      fab.style.left = `${newX}px`;
+      fab.style.top = `${newY}px`;
+      fab.style.bottom = "auto";
+      fab.style.right = "auto";
+    }
+
+    function onEnd() {
+      if (!isDragging) return;
+      isDragging = false;
+      fab.classList.remove("dragging");
+      if (hasMoved) {
+        try {
+          const rect = fab.getBoundingClientRect();
+          localStorage.setItem("hk_fab_pos", JSON.stringify({ x: rect.left, y: rect.top }));
+        } catch (e) {}
+      }
+    }
+
+    // Mouse drag support
+    fab.addEventListener("mousedown", (e) => {
+      onStart(e.clientX, e.clientY);
+      const moveHandler = (ev) => onMove(ev.clientX, ev.clientY);
+      const upHandler = () => {
+        onEnd();
+        window.removeEventListener("mousemove", moveHandler);
+        window.removeEventListener("mouseup", upHandler);
+      };
+      window.addEventListener("mousemove", moveHandler);
+      window.addEventListener("mouseup", upHandler);
+    });
+
+    // Touch drag support (mobile)
+    fab.addEventListener("touchstart", (e) => {
+      const t = e.touches[0];
+      onStart(t.clientX, t.clientY);
+    }, { passive: true });
+
+    fab.addEventListener("touchmove", (e) => {
+      if (!isDragging) return;
+      const t = e.touches[0];
+      onMove(t.clientX, t.clientY);
+    }, { passive: true });
+
+    fab.addEventListener("touchend", () => {
+      onEnd();
+    });
+
+    // Click handler: opens popup only if not dragged
+    fab.onclick = (e) => {
+      if (hasMoved) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      openChat();
     };
   }
 

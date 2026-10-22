@@ -29,9 +29,7 @@
           <h1>IITP Hockey</h1><span class="who">Team app</span>
         </div>
       </div>
-      <div class="hb"><button
-          id="pli" class="pri plog">Log in</button><button id="pmb" class="mbtn" data-ic="dots" aria-label="Menu"
-          aria-haspopup="true" aria-expanded="false"></button></div>
+      <div class="hb"><button id="pli" class="pri plog">Log in</button></div>
     </header>
     <main id="pview"></main>
   </div>
@@ -82,8 +80,7 @@
         </div>
       </div>
       <div class="hb"><button
-          id="hp" class="hi" aria-label="My profile"></button><button id="mb" class="mbtn" data-ic="dots"
-          aria-label="Menu" aria-haspopup="true" aria-expanded="false"></button></div>
+          id="hp" class="hi" aria-label="My profile and menu" title="My profile and menu"></button></div>
     </header>
     <nav id="nav" aria-label="Main"></nav>
     <main id="view"></main>
@@ -105,9 +102,6 @@
     <p class="mute">Add many at once: one student per line as <b>Name, Roll no, E-mail</b></p>
     <p><textarea id="sb" rows="4" placeholder="Aditya Raj, 2501ME22, aditya@iitp.ac.in"></textarea></p>
     <button id="sba">Add all</button>
-    <hr>
-    <p class="mute">Load the jersey form list (name, roll no, e-mail, size, jersey name and number).</p>
-    <button id="sj">Import jersey form list</button>
     <p id="sm" class="mute" role="status"></p>
     <div class="ctl"><button type="button" id="sx">Close</button></div>
   </dialog>
@@ -135,6 +129,17 @@
 
   <dialog id="avdlg"></dialog>
   <dialog id="pdlg"></dialog>
+  <dialog id="codedlg">
+    <h2>Change Login Code</h2>
+    <p class="mute">Set a private code for yourself. You will use this code to log in as Captain or Vice-captain.</p>
+    <form id="codeform" autocomplete="off">
+      <label class="fl">Current code<input id="curcode" type="password" placeholder="Current login code" required></label>
+      <label class="fl">New code<input id="newcode" type="password" placeholder="At least 4 characters" minlength="4" maxlength="30" required></label>
+      <label class="fl">Confirm new code<input id="newcode2" type="password" placeholder="Repeat new code" minlength="4" maxlength="30" required></label>
+      <p id="codemsg" class="err" role="alert"></p>
+      <div class="ctl"><button type="submit" class="pri" id="codebtn">Save New Code</button><button type="button" id="codex">Cancel</button></div>
+    </form>
+  </dialog>
 
   <div id="fatal" hidden
     style="position:fixed;inset:0;z-index:99;background:#0b2a4a;color:#fff;padding:24px;font-family:system-ui,sans-serif;overflow:auto">

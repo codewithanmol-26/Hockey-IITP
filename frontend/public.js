@@ -163,16 +163,18 @@ function pubMenu() {
   m.innerHTML = h;
   wireMenu(m);
 }
-gid("pmb").onclick = (e) => {
-  e.stopPropagation();
-  const m = gid("menu");
-  if (!m.hidden) {
-    m.hidden = true;
-    return;
-  }
-  pubMenu();
-  m.hidden = false;
-};
+if (gid("pmb")) {
+  gid("pmb").onclick = (e) => {
+    e.stopPropagation();
+    const m = gid("menu");
+    if (!m.hidden) {
+      m.hidden = true;
+      return;
+    }
+    pubMenu();
+    m.hidden = false;
+  };
+}
 gid("pli").onclick = () => showLogin();
 
 // ---------------------------------------------------------------- menu cross
@@ -310,7 +312,8 @@ function bindHome() {
   if (gid("myp")) gid("myp").onclick = openMyProfile;
   if (gid("mye"))
     gid("mye").onclick = () => {
-      const p = P.find((x) => x.id === me);
+      const myId = role === "player" ? me : (MYPID || "");
+      const p = P.find((x) => x.id === myId);
       if (p) openEdit(p, true);
     };
 }

@@ -210,7 +210,7 @@ USER MESSAGE:
 ${query}`;
 
   // Prioritize gemini-3.8-flash as primary model for latest capabilities and reliability
-  const candidateModels = ["gemini-3.8-flash", "gemini-flash-latest"];
+  const candidateModels = ["gemini-3.8-flash", "gemini-3.5-flash"];
   let replyText = null;
   let lastError = null;
 

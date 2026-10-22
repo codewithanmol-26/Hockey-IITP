@@ -1,8 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
-const seed = require("./seed.json");
-const jersey = require("./jersey.json");
 const dbLayer = require("./db");
 
 const {
@@ -102,6 +100,9 @@ const owner = (req, res, next) =>
         .json({ error: "Only the captain or vice-captain can do this" });
 const h = (fn) => (req, res, next) => fn(req, res).catch(next);
 
+const hashCode = (code, salt) =>
+  crypto.scryptSync(String(code), salt, 32).toString("hex");
+
 // ---- login (max 5 tries per minute per IP) ----
 const tries = new Map();
 app.post(
@@ -115,9 +116,24 @@ app.post(
     const { role, code, name } = req.body || {};
     const c = String(code || "");
     let payload = null;
-    if (role === "captain" && eq(c, CAPTAIN_CODE)) payload = { role };
-    else if (role === "vice" && eq(c, VICE_CODE)) payload = { role };
-    else if (role === "admin") {
+
+    // Check custom codes from Supabase app_config first, then fallback to env
+    const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
+    const customCodes = customCodesDoc && customCodesDoc.exists ? (customCodesDoc.data() || {}) : {};
+
+    if (role === "captain") {
+      if (customCodes.captain && customCodes.captain.hash) {
+        if (eq(hashCode(c, customCodes.captain.salt), customCodes.captain.hash)) payload = { role };
+      } else if (eq(c, CAPTAIN_CODE)) {
+        payload = { role };
+      }
+    } else if (role === "vice") {
+      if (customCodes.vice && customCodes.vice.hash) {
+        if (eq(hashCode(c, customCodes.vice.salt), customCodes.vice.hash)) payload = { role };
+      } else if (eq(c, VICE_CODE)) {
+        payload = { role };
+      }
+    } else if (role === "admin") {
       // extra admins log in with the name the captain gave them + their code
       const want = String(name || "")
         .trim()
@@ -143,6 +159,45 @@ app.post(
   }),
 );
 
+// Captain & Vice-captain can change their own login code anytime (stored securely in Supabase)
+app.post(
+  "/api/auth/change-code",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const { currentCode, newCode } = req.body || {};
+    const cur = String(currentCode || "").trim();
+    const nw = String(newCode || "").trim();
+    if (!nw || nw.length < 4 || nw.length > 30) {
+      return res.status(400).json({ error: "New code must be between 4 and 30 characters." });
+    }
+
+    const role = req.user.role; // 'captain' or 'vice'
+    const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
+    const customCodes = customCodesDoc && customCodesDoc.exists ? (customCodesDoc.data() || {}) : {};
+
+    const expectedEnv = role === "captain" ? CAPTAIN_CODE : VICE_CODE;
+    const currentCustom = customCodes[role];
+    let ok = false;
+    if (currentCustom && currentCustom.hash) {
+      ok = eq(hashCode(cur, currentCustom.salt), currentCustom.hash);
+    } else {
+      ok = eq(cur, expectedEnv);
+    }
+    if (!ok) {
+      return res.status(401).json({ error: "Current code is incorrect." });
+    }
+
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = hashCode(nw, salt);
+    customCodes[role] = { salt, hash, at: Date.now() };
+
+    await db.collection("config").doc("custom_codes").set(customCodes);
+    bust();
+    res.json({ ok: true, message: `Your ${role === "captain" ? "Captain" : "Vice-captain"} code has been updated successfully!` });
+  }),
+);
+
 // ---- player accounts: roll number + personal code (first signup checked with an e-mail code) ----
 const normRoll = (v) =>
   String(v || "")
@@ -159,8 +214,6 @@ async function findPlayer(roll) {
     ) || null
   );
 }
-const hashCode = (code, salt) =>
-  crypto.scryptSync(String(code), salt, 32).toString("hex");
 const limited = (key, max, ms = 60000) => {
   // small in-memory brute-force limiter
   const now = Date.now();
@@ -1136,15 +1189,6 @@ app.post(
     res.json({ ok: true, ...r });
   }),
 );
-app.post(
-  "/api/players/import-jersey",
-  auth,
-  h(async (req, res) => {
-    const r = await addStudents(jersey);
-    bust();
-    res.json({ ok: true, ...r });
-  }),
-);
 // Removing only hides the student (attendance history is kept). They are logged out at once and can be restored from the Removed tab.
 app.delete(
   "/api/players/:id",
@@ -1188,120 +1232,6 @@ app.delete(
     await ref.delete();
     await db.collection("accounts").doc(req.params.id).delete();
     await db.collection("signupTries").doc(req.params.id).delete();
-    done(res);
-  }),
-);
-
-// One-time import of the team and past monthly totals from the attendance register
-app.post(
-  "/api/import",
-  auth,
-  h(async (req, res) => {
-    if (!(await db.collection("players").limit(1).get()).empty)
-      return res.status(409).json({ error: "Players already exist" });
-    const b = db.batch();
-    const ids = seed.players.map(
-      (p, i) => p.roll.replace(/[^A-Za-z0-9_-]/g, "") || "r" + (i + 1),
-    ); // primary key = roll number, easy to find in the Supabase table
-    seed.players.forEach((p, i) =>
-      b.set(db.collection("players").doc(ids[i]), {
-        n: i + 1,
-        name: p.name,
-        roll: p.roll,
-        position: p.pos,
-        joined: p.joined,
-      }),
-    );
-    for (const m in seed.months) {
-      const att = {};
-      seed.months[m].att.forEach((v, i) => (att[ids[i]] = v));
-      b.set(db.collection("legacy").doc(m), { days: seed.months[m].days, att });
-    }
-    for (const d in seed.sessions || {})
-      b.set(db.collection("sessions").doc(d), { r: seed.sessions[d] });
-    (seed.removedPlayers || []).forEach((p, i) =>
-      b.set(db.collection("players").doc(p.id), {
-        n: 100 + i,
-        name: p.name,
-        roll: p.roll,
-        position: "",
-        joined: p.joined,
-        removed: true,
-        removedAt: Date.now(),
-      }),
-    );
-    (seed.newPlayers || []).forEach((p, i) =>
-      b.set(db.collection("players").doc(p.id), {
-        n: 200 + i,
-        name: p.name,
-        roll: p.roll,
-        position: p.pos,
-        joined: p.joined,
-      }),
-    );
-    await b.commit();
-    done(res);
-  }),
-);
-
-// Replace the old monthly totals (Nov 2025, Jan 2026, Feb 2026) with the day-wise attendance from the WhatsApp group.
-// Safe to press more than once. Other months, players and accounts are not touched.
-app.post(
-  "/api/import-daywise",
-  auth,
-  h(async (req, res) => {
-    const ids = seed.players.map(
-      (p, i) => p.roll.replace(/[^A-Za-z0-9_-]/g, "") || "r" + (i + 1),
-    );
-    const b = db.batch();
-    for (const d in seed.sessions || {})
-      b.set(db.collection("sessions").doc(d), { r: seed.sessions[d] });
-    for (const m of seed.replaced || [])
-      b.delete(db.collection("legacy").doc(m));
-    // months only partly available day-wise keep a small monthly total for the days not yet entered
-    for (const m of seed.partial || []) {
-      const att = {};
-      seed.months[m].att.forEach((v, i) => (att[ids[i]] = v));
-      b.set(db.collection("legacy").doc(m), { days: seed.months[m].days, att });
-    }
-    // people who attended but left the team go to Removed students (existing records are never overwritten)
-    const rp = seed.removedPlayers || [];
-    const have = await Promise.all(
-      rp.map((p) => db.collection("players").doc(p.id).get()),
-    );
-    rp.forEach((p, i) => {
-      if (!have[i].exists)
-        b.set(db.collection("players").doc(p.id), {
-          n: 100 + i,
-          name: p.name,
-          roll: p.roll,
-          position: "",
-          joined: p.joined,
-          removed: true,
-          removedAt: Date.now(),
-        });
-    });
-    // students recorded twice under different names are merged into one (only removed students are ever dropped)
-    for (const id of seed.dropPlayers || []) {
-      const d = await db.collection("players").doc(id).get();
-      if (d.exists && d.data().removed) b.delete(d.ref);
-    }
-    // new team members who joined after the register was made (added as current players if not already there)
-    const np = seed.newPlayers || [];
-    const haveNew = await Promise.all(
-      np.map((p) => db.collection("players").doc(p.id).get()),
-    );
-    np.forEach((p, i) => {
-      if (!haveNew[i].exists)
-        b.set(db.collection("players").doc(p.id), {
-          n: 200 + i,
-          name: p.name,
-          roll: p.roll,
-          position: p.pos,
-          joined: p.joined,
-        });
-    });
-    await b.commit();
     done(res);
   }),
 );

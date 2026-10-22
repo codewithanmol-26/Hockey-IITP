@@ -1271,7 +1271,7 @@ async function installApp() {
 }
 $("inst").onclick = installApp;
 
-// ---- the 3-dot menu: every tab, tools and settings, each option once ----
+// ---- professional profile & account drawer: user card, quick actions, settings ----
 let menuActs = [];
 function drawMenu() {
   menuActs = [];
@@ -1280,7 +1280,31 @@ function drawMenu() {
     menuActs.push(fn);
     return `<button class="mi ${o.on ? "on" : ""} ${o.cls || ""}" data-k="${menuActs.length - 1}"${o.sw !== undefined ? ' role="switch" aria-checked="' + o.sw + '"' : ""}><span class="i">${ic}</span><span class="t">${label}</span>${o.sw !== undefined ? `<span class="sw ${o.sw ? "on" : ""}"></span>` : ""}</button>`;
   };
-  let h = menuHead("Menu");
+
+  const myId = role === "player" ? me : (MYPID || "");
+  const lp = myId ? P.find((x) => x.id === myId) : null;
+  const roleName = role === "captain" ? "Captain" : role === "vice" ? "Vice-captain" : role === "admin" ? "Admin" : "Player";
+  const userSub = lp ? [lp.position || "Hockey player", lp.roll].filter(Boolean).join(" · ") : (roleName === "Admin" ? "Team Administrator" : roleName);
+
+  let h = `<div class="user-drawer-card">
+    <div class="user-drawer-top">
+      <div class="user-drawer-avatar">${avatar(WHO, MYPH, 50)}</div>
+      <div class="user-drawer-meta">
+        <div class="user-drawer-name">${esc(WHO || "Team Member")}</div>
+        <div class="user-drawer-badges">
+          <span class="user-role-badge ${role}">${roleName}</span>
+          ${lp && lp.roll ? `<span class="user-player-pill">${esc(lp.roll)}</span>` : ""}
+        </div>
+        <div class="user-drawer-sub">${esc(userSub)}</div>
+      </div>
+      <button type="button" class="mx" data-mx aria-label="Close menu" title="Close menu">${ico("close")}</button>
+    </div>
+    <div class="user-drawer-actions">
+      <button type="button" class="btn-drawer-pri" id="btn-draw-prof">👤 View My Profile</button>
+      ${(role === "captain" || role === "vice") ? `<button type="button" class="btn-drawer-sec" id="btn-draw-code">🔑 Change Code</button>` : ""}
+    </div>
+  </div>`;
+
   const more = tabsFor().filter((t) => !PRIMARY.includes(t[0])); // tabs already on the bottom bar / top bar are not repeated here
   if (more.length)
     h +=
@@ -1333,9 +1357,16 @@ function drawMenu() {
   m.innerHTML = h;
   bindVol("mvol", "mvolv", playClick);
   wireMenu(m);
+
+  // Wire profile card actions
+  const profBtn = m.querySelector("#btn-draw-prof");
+  if (profBtn) profBtn.onclick = () => { m.hidden = true; openMyProfile(); };
+  const codeBtn = m.querySelector("#btn-draw-code");
+  if (codeBtn) codeBtn.onclick = () => { m.hidden = true; openChangeCode(); };
 }
-$("mb").onclick = (e) => {
-  e.stopPropagation();
+
+function toggleProfileMenu(e) {
+  if (e) e.stopPropagation();
   const m = $("menu");
   if (!m.hidden) {
     m.hidden = true;
@@ -1343,15 +1374,72 @@ $("mb").onclick = (e) => {
   }
   drawMenu();
   m.hidden = false;
-  $("mb").setAttribute("aria-expanded", "true");
-};
+}
+if ($("mb")) $("mb").onclick = toggleProfileMenu;
+$("hp").onclick = toggleProfileMenu;
+
 document.addEventListener("click", (e) => {
-  if (!e.composedPath().includes($("menu")) && !e.target.closest(".mbtn"))
+  if (!e.composedPath().includes($("menu")) && !e.target.closest("#hp") && !e.target.closest(".mbtn"))
     $("menu").hidden = true;
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") $("menu").hidden = true;
 });
+
+// ---- change login code (captain / vice-captain) ----
+function openChangeCode() {
+  const dlg = $("codedlg");
+  if (!dlg) return;
+  $("curcode").value = "";
+  $("newcode").value = "";
+  $("newcode2").value = "";
+  $("codemsg").textContent = "";
+  $("codemsg").className = "err";
+  dlg.showModal();
+}
+if ($("codex")) $("codex").onclick = () => $("codedlg").close();
+if ($("codeform")) {
+  $("codeform").onsubmit = async (e) => {
+    e.preventDefault();
+    const cur = $("curcode").value.trim();
+    const nw = $("newcode").value.trim();
+    const nw2 = $("newcode2").value.trim();
+    const msg = $("codemsg");
+    msg.className = "err";
+    msg.textContent = "";
+
+    if (nw.length < 4 || nw.length > 30) {
+      msg.textContent = "New code must be between 4 and 30 characters.";
+      return;
+    }
+    if (nw !== nw2) {
+      msg.textContent = "New codes do not match.";
+      return;
+    }
+    const btn = $("codebtn");
+    btn.disabled = true;
+    btn.textContent = "Saving...";
+    try {
+      const res = await api("/api/auth/change-code", {
+        method: "POST",
+        body: { currentCode: cur, newCode: nw }
+      });
+      msg.className = "ok";
+      msg.textContent = res.message || "Code updated successfully!";
+      setTimeout(() => {
+        $("codedlg").close();
+        btn.disabled = false;
+        btn.textContent = "Save New Code";
+        toast(res.message || "Code updated successfully!");
+      }, 1200);
+    } catch (err) {
+      msg.className = "err";
+      msg.textContent = err.message || "Failed to change code. Check current code.";
+      btn.disabled = false;
+      btn.textContent = "Save New Code";
+    }
+  };
+}
 
 // ---- add students (captain / admin) ----
 function openAdd() {
@@ -1412,7 +1500,6 @@ $("sba").onclick = async () => {
   if (await bulk("/api/players/bulk", { players }, $("sba")))
     $("sb").value = "";
 };
-$("sj").onclick = () => bulk("/api/players/import-jersey", {}, $("sj"));
 
 // ---- WhatsApp sharing (opens WhatsApp with the text ready; the person picks the group and presses send) ----
 let GROUP = window.WA_GROUP || "";
@@ -2924,38 +3011,17 @@ const kv = (a, b) =>
   b ? `<div class="kv"><span>${a}</span><b>${b}</b></div>` : "";
 
 function vPlayers() {
-  const imp = !P.length && !RM.length,
-    S = Object.fromEntries(stats("all").map((x) => [x.p.id, x]));
+  const S = Object.fromEntries(stats("all").map((x) => [x.p.id, x]));
   $("view").innerHTML = `<div class="card"><h2>Players (${P.length})</h2>
-  ${!imp ? `<div class="note">${["2025-11", "2026-01", "2026-02", "2026-03", "2026-04", "2026-07", "2026-09"].some((m) => L[m]) ? "Attendance for Nov 2025 to Sep 2026 is still monthly totals. " : "Attendance from the WhatsApp register (to 13 Oct 2026) is loaded. "}<button id="dw">${["2025-11", "2026-01", "2026-02", "2026-03", "2026-04", "2026-07", "2026-09"].some((m) => L[m]) ? "Replace with day-wise attendance" : "Re-apply register data"}</button></div>` : ""}
-  ${imp ? '<div class="note">Team list is empty. <button id="imp">Import team and past attendance from the register</button></div>' : ""}
   <div class="ctl"><input id="pq" type="search" placeholder="Search name or roll no" aria-label="Search players"><button id="padd">➕ Add students</button></div>
   <p class="mute" style="margin:0 0 8px">Tap a player to open their profile.</p>
   <div class="tiles">${
     P.map((p) => {
       const s = S[p.id] || { pct: 0, pr: 0, t: 0 };
       return `<div class="pt" role="button" tabindex="0" data-pf="${p.id}" data-q="${esc((p.name + " " + p.roll + " " + (p.position || "")).toLowerCase())}">${avatar(p.name, p.photo, 46)}<span class="pi"><b>${esc(p.name)}</b><small>${esc([p.roll, p.position].filter(Boolean).join(" · ")) || "&nbsp;"}</small><span class="bar"><i style="width:${s.pct}%"></i></span></span><span class="pc"><b>${s.t ? s.pct + "%" : "–"}</b><small>${ACC.includes(p.id) ? "✔ signed up" : "not signed up"}</small></span></div>`;
-    }).join("") || (imp ? "" : empty("👥", "No players yet."))
+    }).join("") || empty("👥", "No players yet.")
   }</div>
-  ${P.length ? "" : '<p class="mute" style="text-align:center">Add students from the ⋮ menu → Add students.</p>'}</div>`;
-  if ($("dw"))
-    $("dw").onclick = () => {
-      if (
-        confirm(
-          "Load the day-wise attendance from the register? This overwrites attendance saved for those dates (up to 13 Oct 2026).",
-        )
-      )
-        run(async () => {
-          await api("/api/import-daywise", { method: "POST" });
-          await load();
-        });
-    };
-  if ($("imp"))
-    $("imp").onclick = () =>
-      run(async () => {
-        await api("/api/import", { method: "POST" });
-        await load();
-      });
+  ${P.length ? "" : '<p class="mute" style="text-align:center">Add students using the ➕ Add students button above.</p>'}</div>`;
   $("padd").onclick = openAdd;
   $("pq").oninput = (e) => {
     const q = e.target.value.trim().toLowerCase();
@@ -3260,7 +3326,7 @@ function vProfile() {
       prof = null;
       return render();
     }
-    own = role === "player" && p.id === me;
+    own = (role === "player" && p.id === me) || (MYPID && p.id === MYPID);
     const gone = !!p.removed,
       a = statsFor(p, "all"),
       canPh = admin || own;
@@ -3863,6 +3929,7 @@ function vMe() {
         ? "Vice-captain"
         : "Admin";
   $("view").innerHTML = `${welcomeHero()}
+  ${myInfoCard()}
   ${annCard()}${featTiles()}${teamCard()}
   ${gphCard()}
   <div class="grid">${upCard()}${newsCard()}${histCard()}</div>`;
@@ -5276,7 +5343,6 @@ function vBugs() {
   );
 }
 
-$("hp").onclick = openMyProfile;
 boot();
 setInterval(() => {
   if (token && !document.hidden) load();
@@ -5326,13 +5392,17 @@ function avCounts(d) {
 // players answer for themselves; staff see the counts and a button to open the full list
 function availBlock(d, compact) {
   if (!d || !PL[d] || PL[d].status === "cancelled") return "";
-  if (role === "player") {
-    const cur = ((AVL[d] || {})[me] || {}).s || "";
-    return `<div class="avb"><div class="mute" style="margin:6px 0 4px">${compact ? "" : "<b>Will you be there?</b> "}${cur ? "You said: <b>" + avLabel(cur) + "</b>. Tap again to clear." : "Tell the captain if you can come."}</div>${avChips(d, me, cur)}${reasonBox(d, me, cur, ((AVL[d] || {})[me] || {}).why)}</div>`;
+  let h = "";
+  const myId = role === "player" ? me : (MYPID || "");
+  if (myId) {
+    const cur = ((AVL[d] || {})[myId] || {}).s || "";
+    h += `<div class="avb"><div class="mute" style="margin:6px 0 4px">${compact ? "" : "<b>Your availability:</b> "}${cur ? "You marked: <b>" + avLabel(cur) + "</b>. Tap again to clear." : "Mark if you will be on the field."}</div>${avChips(d, myId, cur)}${reasonBox(d, myId, cur, ((AVL[d] || {})[myId] || {}).why)}</div>`;
   }
-  if (!admin) return "";
-  const { c, none } = avCounts(d);
-  return `<div class="avb"><span class="avs">${AVS.map((a) => `<span class="${a[0]}">${a[1]} <b>${c[a[0]]}</b></span>`).join("")}<span class="none">⏳ <b>${none}</b> no reply</span></span> <button type="button" data-avd="${d}">Availability</button></div>`;
+  if (admin) {
+    const { c, none } = avCounts(d);
+    h += `<div class="avb" style="${myId ? "margin-top:6px;" : ""}"><span class="avs">${AVS.map((a) => `<span class="${a[0]}">${a[1]} <b>${c[a[0]]}</b></span>`).join("")}<span class="none">⏳ <b>${none}</b> no reply</span></span> <button type="button" data-avd="${d}">Team availability</button></div>`;
+  }
+  return h;
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest && e.target.closest("[data-av]");

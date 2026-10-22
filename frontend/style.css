@@ -427,6 +427,207 @@ nav button.on::after {
 .mu .mute {
   display: block;
 }
+
+/* ---------- Professional User Profile & Account Drawer Header ---------- */
+.user-drawer-card {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.user-drawer-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+.user-drawer-avatar {
+  flex: none;
+}
+.user-drawer-avatar .av {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  border: 2px solid var(--card);
+}
+.user-drawer-meta {
+  flex: 1;
+  min-width: 0;
+}
+.user-drawer-name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ink);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-drawer-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.user-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.user-role-badge.captain {
+  background: #f59e0b22;
+  color: #d97706;
+  border: 1px solid #f59e0b55;
+}
+.user-role-badge.vice {
+  background: #3b82f622;
+  color: #2563eb;
+  border: 1px solid #3b82f655;
+}
+.user-role-badge.admin {
+  background: #8b5cf622;
+  color: #7c3aed;
+  border: 1px solid #8b5cf655;
+}
+.user-role-badge.player {
+  background: #10b98122;
+  color: #059669;
+  border: 1px solid #10b98155;
+}
+.user-player-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--mute);
+  background: var(--card);
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+.user-drawer-sub {
+  font-size: 0.78rem;
+  color: var(--mute);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-drawer-top .mx {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--mute);
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.user-drawer-top .mx:hover {
+  background: var(--card);
+  color: var(--ink);
+}
+.user-drawer-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.btn-drawer-pri,
+.btn-drawer-sec {
+  flex: 1;
+  min-width: 120px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.btn-drawer-pri {
+  background: var(--brand);
+  color: #fff;
+  border: none;
+}
+.btn-drawer-pri:hover {
+  filter: brightness(1.1);
+}
+.btn-drawer-sec {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.btn-drawer-sec:hover {
+  background: var(--soft);
+}
+
+/* ---------- Change Code Dialog ---------- */
+#codedlg {
+  max-width: 400px;
+  width: 90vw;
+  border-radius: 18px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  background: var(--card);
+  color: var(--ink);
+}
+#codedlg h2 {
+  margin: 0 0 6px 0;
+  font-size: 1.2rem;
+}
+#codedlg p.mute {
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+#codedlg .fl {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+#codedlg .fl input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+#codedlg .fl input:focus {
+  outline: 2px solid var(--brand);
+}
+#codedlg .ctl {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+#codedlg #codemsg {
+  font-size: 0.85rem;
+  min-height: 1.2em;
+  margin: 6px 0;
+}
+#codedlg #codemsg.ok {
+  color: #10b981;
+}
+#codedlg #codemsg.err {
+  color: var(--a);
+}
 .av {
   width: 38px;
   height: 38px;
@@ -3603,10 +3804,28 @@ nav .i .svgi {
 #chat-fab:active {
   transform: scale(0.96);
 }
+#chat-fab.dragging {
+  cursor: grabbing !important;
+  user-select: none !important;
+  touch-action: none !important;
+  transition: none !important;
+  opacity: 0.92;
+  box-shadow: 0 10px 28px rgba(11, 42, 74, 0.55);
+}
 #chat-fab .fab-icon {
   font-size: 1.15rem;
 }
 
+@keyframes chatPopup {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
 .chat-dialog {
   width: 94vw;
   max-width: 480px;
@@ -3620,7 +3839,10 @@ nav .i .svgi {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.38);
+}
+.chat-dialog[open] {
+  animation: chatPopup 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .chat-dialog::backdrop {
   background: #07131f88;
@@ -3633,6 +3855,24 @@ nav .i .svgi {
   border-bottom: 1px solid var(--line);
   background: var(--soft);
   position: relative;
+}
+.chat-header-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+}
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+  animation: pulseDot 2s infinite ease-in-out;
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
 }
 .chat-dialog .chat-header .dx {
   position: static;
