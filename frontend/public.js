@@ -150,9 +150,6 @@ function pubMenu() {
     return `<button class="mi" data-k="${menuActs.length - 1}"><span class="i">${ic}</span><span class="t">${label}</span></button>`;
   };
   let h = menuHead("Menu");
-  h += mi("🏑", "AI Hockey Assistant", () => {
-    if (window.openHockeyChat) window.openHockeyChat();
-  });
   if (!standalone()) h += mi("📲", "Open in app / install", openInApp);
   h += mi("📲", "Share this app", shareApp);
   const g = (PUB && PUB.group) || window.WA_GROUP || "";

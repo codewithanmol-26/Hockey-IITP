@@ -1328,10 +1328,7 @@ function drawMenu() {
     mi("📊", "Share attendance report", () => openReport()) +
     mi("📲", "Share this app", shareApp);
   h +=
-    `<div class="ms">Assistant & App</div>` +
-    mi("🏑", "AI Hockey Assistant", () => {
-      if (window.openHockeyChat) window.openHockeyChat();
-    }) +
+    `<div class="ms">App & Tools</div>` +
     mi("📅", "Add schedule to calendar", icsDownload) +
     mi("🐞", "Report a bug", openBug);
   if (!standalone()) h += mi("⬇️", "Install app", installApp);
