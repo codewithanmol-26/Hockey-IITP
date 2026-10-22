@@ -1024,6 +1024,7 @@ function useData(d, force) {
   err = "";
   showApp();
   render();
+  checkAlerts();
   if (!pushChecked) {
     pushChecked = true;
     pushAuto();
@@ -1331,6 +1332,17 @@ function drawMenu() {
     `<div class="ms">App & Tools</div>` +
     mi("📅", "Add schedule to calendar", icsDownload) +
     mi("🐞", "Report a bug", openBug);
+  h +=
+    `<div class="ms">Notifications</div>` +
+    mi(
+      alertOn ? "🔔" : "🔕",
+      "Alert 15 min before practice",
+      async () => {
+        await setAlert(!alertOn);
+        drawMenu();
+      },
+      { sw: alertOn },
+    );
   if (!standalone()) h += mi("⬇️", "Install app", installApp);
   if (GROUP)
     h += mi("💬", "Join WhatsApp group", () =>
@@ -1593,6 +1605,82 @@ function span(t) {
   let b = k[1] ? cv(k[1]) : a + 120;
   if (b <= a) b = a + 120;
   return { a, b };
+}
+let alertOn = false;
+try {
+  alertOn = localStorage.getItem("hk_alert") === "1";
+} catch (e) {}
+
+async function notify(title, body, tag) {
+  try {
+    const r = await navigator.serviceWorker.getRegistration();
+    if (r) {
+      await r.showNotification(title, { body, tag });
+      return;
+    }
+  } catch (e) {}
+  try {
+    new Notification(title, { body, tag });
+  } catch (e) {}
+}
+
+async function setAlert(on) {
+  if (on) {
+    if (!("Notification" in window))
+      return alert(
+        'This browser cannot show alerts. On iPhone: Share > Add to Home Screen, then open the app from the home screen. You can also use "Add schedule to calendar".',
+      );
+    if ((await Notification.requestPermission()) !== "granted")
+      return alert(
+        "Alerts are blocked. Allow notifications for this site in your browser settings, then try again.",
+      );
+  }
+  alertOn = on;
+  try {
+    localStorage.setItem("hk_alert", on ? "1" : "0");
+  } catch (e) {}
+  alert(
+    on
+      ? 'Alerts are ON. You get a reminder 15 minutes before each fixed playing day. Keep the app open or in the background. For a reminder that always works, also use "Add schedule to calendar".'
+      : "Alerts are OFF.",
+  );
+  if (on) checkAlerts();
+}
+
+function checkAlerts() {
+  if (
+    !alertOn ||
+    !loaded ||
+    !("Notification" in window) ||
+    Notification.permission !== "granted"
+  )
+    return;
+  let fired = {};
+  try {
+    fired = JSON.parse(localStorage.getItem("hk_fired") || "{}");
+  } catch (e) {}
+  const now = Date.now();
+  for (const d of Object.keys(PL)) {
+    const p = PL[d];
+    if (p.status === "cancelled") continue;
+    const sp = span(p.time);
+    if (!sp) continue;
+    const left = new Date(d + "T00:00").getTime() + sp.a * 60000 - now,
+      key = d + "|" + p.time;
+    if (left > 0 && left <= 15 * 60000 && !fired[key]) {
+      fired[key] = 1;
+      notify(
+        "🏑 Hockey in " + Math.max(1, Math.round(left / 60000)) + " min",
+        (SCH && SCH.team && SCH.team[dayIdx(d)] && SCH.team[dayIdx(d)][1] ? SCH.team[dayIdx(d)][1] : "Practice") +
+          (p.time ? " · " + p.time : "") +
+          (p.venue ? " · " + p.venue : ""),
+        key,
+      );
+      try {
+        localStorage.setItem("hk_fired", JSON.stringify(fired));
+      } catch (e) {}
+    }
+  }
 }
 // ---- push: the server sends a notification for new announcements, scheduled / cancelled playing days and day reminders (works with the app closed) ----
 // There is no switch in the app. The phone asks for permission once; after that it is managed in the phone's own app settings.
@@ -5342,10 +5430,16 @@ function vBugs() {
 
 boot();
 setInterval(() => {
-  if (token && !document.hidden) load();
+  if (token && !document.hidden) {
+    load();
+    checkAlerts();
+  }
 }, 20000);
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) load();
+  if (!document.hidden) {
+    load();
+    checkAlerts();
+  }
 });
 
 // ---- availability for a playing day (active / injured / can't come / maybe) ----
