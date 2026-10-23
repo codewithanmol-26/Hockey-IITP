@@ -1,8 +1,9 @@
 /**
  * IIT Patna Hockey - AI Chatbot UI Component
  * Modeled after the official Google Gemini interface:
- * Single sleek floating trigger, minimal prompt bar with embedded microphone and send button,
- * subtle speaker read-aloud icon, role/profile awareness, and auto-reset on open.
+ * Single sleek floating trigger, vertical sheet/modal motion with drag-to-dismiss,
+ * modern interactive topic cards, unified prompt pill bar with mic & send,
+ * role/profile awareness, and auto-reset on open.
  */
 
 (function () {
@@ -29,7 +30,7 @@
     const existingDlg = document.getElementById("chatdlg");
     if (existingDlg) existingDlg.remove();
 
-    // 1. Sleek Floating Action Icon Button
+    // 1. Sleek Floating Action Icon Button (Compact 38px)
     const fab = document.createElement("button");
     fab.id = "chat-fab";
     fab.type = "button";
@@ -38,42 +39,66 @@
     fab.innerHTML = `<span class="fab-icon">🏑</span><span class="fab-badge">AI</span>`;
     document.body.appendChild(fab);
 
-    // 2. Chat Dialog Modal (Gemini Style)
+    // 2. Chat Dialog Modal with Drag Handle & Redesigned Header
     const dlg = document.createElement("dialog");
     dlg.id = "chatdlg";
     dlg.className = "chat-dialog";
     dlg.setAttribute("aria-labelledby", "chat-title");
     dlg.innerHTML = `
-      <div class="chat-header">
-        <div class="chat-header-actions">
-          <button type="button" class="dx" id="chat-close" aria-label="Close Assistant" title="Close">✕</button>
-        </div>
-        <div class="chat-header-info">
-          <div class="chat-title-row">
-            <h2 id="chat-title">Hockey AI Assistant</h2>
+      <div class="chat-sheet-handle" id="chat-drag-handle" title="Drag to move or pull down to close">
+        <span class="chat-drag-pill"></span>
+      </div>
+      <div class="chat-header" id="chat-header">
+        <div class="chat-header-left">
+          <div class="chat-bot-avatar">
+            <span class="avatar-icon">🏑</span>
             <span class="status-dot" title="AI active"></span>
           </div>
-          <div class="chat-badge-row">
-            <span id="chat-user-badge" class="chat-user-badge" title="Your current profile status">👤 Checking profile…</span>
+          <div class="chat-header-info">
+            <div class="chat-title-row">
+              <h2 id="chat-title">Hockey AI</h2>
+              <span class="chat-engine-tag">Gemini</span>
+            </div>
+            <div class="chat-badge-row">
+              <span id="chat-user-badge" class="chat-user-badge" title="Your current profile status">👤 Checking profile…</span>
+            </div>
           </div>
+        </div>
+        <div class="chat-header-actions">
+          <button type="button" class="chat-act-btn" id="chat-reset-btn" aria-label="Start new chat" title="Start new chat">↺</button>
+          <button type="button" class="chat-act-btn chat-close-btn" id="chat-close" aria-label="Close Assistant" title="Close">✕</button>
         </div>
       </div>
       <div class="chat-body" id="chat-msgs" role="log" aria-live="polite"></div>
-      <div class="chat-chips" id="chat-chips"></div>
+      <div class="chat-chips-wrap">
+        <div class="chat-chips" id="chat-chips"></div>
+      </div>
       <form class="chat-form" id="chat-form" autocomplete="off">
-        <input type="text" id="chat-input" placeholder="Ask anything…" maxlength="300" required />
-        <button type="button" id="chat-mic" class="chat-mic-btn" aria-label="Voice input" title="Tap to speak">🎙️</button>
-        <button type="submit" id="chat-send" class="pri chat-send-btn" aria-label="Send Message">➤</button>
+        <div class="chat-input-pill">
+          <input type="text" id="chat-input" placeholder="Ask Hockey AI anything…" maxlength="300" required />
+          <button type="button" id="chat-mic" class="chat-mic-btn" aria-label="Voice input" title="Tap to speak">🎙️</button>
+          <button type="submit" id="chat-send" class="chat-send-btn" aria-label="Send Message" title="Send">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+          </button>
+        </div>
       </form>
     `;
     document.body.appendChild(dlg);
 
-    // 3. Attach Draggable + Click handler
+    // 3. Attach Draggable + Click handler on FAB button
     makeDraggable(fab);
 
-    // 4. Close handlers
+    // 4. Attach Vertical Motion (Drag down to dismiss / vertical tracking)
+    attachVerticalMotion(dlg);
+
+    // 5. Close & Reset handlers
     const closeBtn = document.getElementById("chat-close");
     if (closeBtn) closeBtn.onclick = closeChat;
+    const resetBtn = document.getElementById("chat-reset-btn");
+    if (resetBtn) resetBtn.onclick = resetChat;
+
     dlg.addEventListener("cancel", closeChat);
     dlg.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
@@ -82,27 +107,27 @@
       }
     });
 
-    // Click outside dialog to close
+    // Click outside dialog (on backdrop) to close
     dlg.addEventListener("click", (e) => {
       if (e.target === dlg) {
         closeChat();
       }
     });
 
-    // Prevent any background scrolling / moving when touching the modal backdrop or chrome
+    // Prevent background scrolling only when touching the backdrop
     dlg.addEventListener("touchmove", (e) => {
-      if (!e.target.closest("#chat-msgs") && !e.target.closest("#chat-chips")) {
+      if (e.target === dlg) {
         e.preventDefault();
       }
     }, { passive: false });
 
-    // 5. Mic button click (Gemini voice input)
+    // 6. Mic button click (Gemini voice input)
     const micBtn = document.getElementById("chat-mic");
     if (micBtn) {
       micBtn.onclick = toggleMic;
     }
 
-    // 6. Form Submission
+    // 7. Form Submission
     const form = document.getElementById("chat-form");
     if (form) {
       form.onsubmit = (e) => {
@@ -120,6 +145,119 @@
     resetChat();
   }
 
+  /**
+   * Vertical Motion on Chatbot Window:
+   * Handles smooth vertical dragging on the handle and header.
+   * Pulling down translates the window vertically; releasing past threshold dismisses it.
+   */
+  function attachVerticalMotion(dlg) {
+    const handle = dlg.querySelector("#chat-drag-handle");
+    const header = dlg.querySelector("#chat-header");
+    if (!handle && !header) return;
+
+    let isDragging = false;
+    let startY = 0;
+    let currentTranslateY = 0;
+    let startTime = 0;
+
+    const dragTargets = [handle, header].filter(Boolean);
+
+    dragTargets.forEach((target) => {
+      target.addEventListener("pointerdown", onPointerDown);
+    });
+
+    function onPointerDown(e) {
+      // Don't drag if clicking buttons, inputs, or interactive controls
+      if (e.target.closest("button") || e.target.closest("input") || e.target.closest("a")) {
+        return;
+      }
+
+      isDragging = true;
+      startY = e.clientY;
+      currentTranslateY = 0;
+      startTime = Date.now();
+
+      dlg.classList.add("chat-dragging");
+      dlg.style.transition = "none";
+
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch (_) {}
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerEnd);
+      window.addEventListener("pointercancel", onPointerCancel);
+    }
+
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      const dy = e.clientY - startY;
+
+      // Allow vertical motion
+      if (dy > 0) {
+        currentTranslateY = dy;
+      } else {
+        // Elastic resistance for upwards drag
+        currentTranslateY = dy * 0.25;
+      }
+
+      dlg.style.transform = `translateY(${currentTranslateY}px)`;
+    }
+
+    function onPointerEnd(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      dlg.classList.remove("chat-dragging");
+
+      try {
+        if (e.target && typeof e.target.releasePointerCapture === "function") {
+          e.target.releasePointerCapture(e.pointerId);
+        }
+      } catch (_) {}
+
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerCancel);
+
+      const elapsed = Math.max(1, Date.now() - startTime);
+      const velocity = currentTranslateY / elapsed;
+
+      // If dragged down past threshold (95px) or swiped down fast (> 0.38px/ms)
+      if (currentTranslateY > 95 || (currentTranslateY > 35 && velocity > 0.38)) {
+        dlg.style.transition = "transform 0.22s cubic-bezier(0.3, 0, 0.8, 1), opacity 0.2s ease-out";
+        dlg.style.transform = "translateY(110%)";
+        dlg.style.opacity = "0";
+        setTimeout(() => {
+          closeChat();
+          dlg.style.transform = "";
+          dlg.style.opacity = "";
+          dlg.style.transition = "";
+        }, 220);
+      } else {
+        // Snap back smoothly
+        dlg.style.transition = "transform 0.26s cubic-bezier(0.16, 1, 0.3, 1)";
+        dlg.style.transform = "";
+        setTimeout(() => {
+          dlg.style.transition = "";
+        }, 260);
+      }
+    }
+
+    function onPointerCancel() {
+      if (!isDragging) return;
+      isDragging = false;
+      dlg.classList.remove("chat-dragging");
+      dlg.style.transition = "transform 0.26s cubic-bezier(0.16, 1, 0.3, 1)";
+      dlg.style.transform = "";
+      setTimeout(() => {
+        dlg.style.transition = "";
+      }, 260);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerCancel);
+    }
+  }
+
   function resetChat() {
     stopSpeaking();
     stopListening();
@@ -127,45 +265,97 @@
     const prof = getUserContext();
     updateUserBadge(prof);
 
-    // 1. Reset messages with personalized greeting
+    // 1. Reset messages with personalized greeting & interactive topic cards
     const msgs = document.getElementById("chat-msgs");
     if (msgs) {
       msgs.innerHTML = "";
       const botDiv = document.createElement("div");
-      botDiv.className = "chat-msg bot";
+      botDiv.className = "chat-msg bot welcome-msg";
 
       const nameDisplay = prof.name && prof.name !== "Guest" ? prof.name : "there";
       const rolePill = prof.title ? `<span class="bubble-role-pill">${escapeHtml(prof.title)}</span>` : "";
 
-      let attendanceLine = `<li>🔒 <b>Attendance:</b> <i>Log in with student roll number to view personal records</i></li>`;
+      let attendanceCard = `
+        <button type="button" class="topic-card" data-q="What are the basic rules and tactics of field hockey?">
+          <span class="topic-icon">🏑</span>
+          <span class="topic-info">
+            <span class="topic-name">Field Hockey Basics</span>
+            <span class="topic-hint">Gameplay, positions & tactics</span>
+          </span>
+          <span class="topic-arrow">›</span>
+        </button>
+      `;
+
       if (prof.role === "player" || (prof.role === "admin" && prof.playerId) || prof.role === "captain" || prof.role === "vice") {
-        attendanceLine = `<li>📊 <b>Your Attendance:</b> e.g. <i>"What is my attendance percentage?"</i></li>`;
+        attendanceCard = `
+          <button type="button" class="topic-card" data-q="What is my attendance percentage and record?">
+            <span class="topic-icon">📊</span>
+            <span class="topic-info">
+              <span class="topic-name">My Attendance</span>
+              <span class="topic-hint">Check your practice attendance & %</span>
+            </span>
+            <span class="topic-arrow">›</span>
+          </button>
+        `;
       } else if (prof.role === "admin") {
-        attendanceLine = `<li>📊 <b>Team Sessions:</b> e.g. <i>"How many total sessions have we played?"</i></li>`;
+        attendanceCard = `
+          <button type="button" class="topic-card" data-q="How many total team sessions have been conducted?">
+            <span class="topic-icon">📊</span>
+            <span class="topic-info">
+              <span class="topic-name">Team Attendance</span>
+              <span class="topic-hint">Total sessions conducted & stats</span>
+            </span>
+            <span class="topic-arrow">›</span>
+          </button>
+        `;
       }
 
       botDiv.innerHTML = `
-        <div class="msg-bubble">
-          👋 <b>Hi ${escapeHtml(nameDisplay)}!</b> ${rolePill}<br><br>
-          I am the official <b>IIT Patna Hockey Team AI Assistant</b> powered by Gemini & Supabase.<br><br>
-          Feel free to ask me about:
-          <ul>
-            <li>🥗 <b>Diet & Fitness:</b> e.g. <i>"How to plan diet for hockey?"</i> or <i>"What should I eat before practice?"</i></li>
-            <li>📅 <b>Practice Schedules:</b> e.g. <i>"When is the next practice scheduled?"</i></li>
-            <li>🏑 <b>Rules & Warm-ups:</b> e.g. <i>"Explain penalty corner rules"</i> or <i>"Show warm-up drills"</i></li>
-            ${attendanceLine}
-          </ul>
+        <div class="msg-bubble welcome-bubble">
+          <div class="welcome-header">
+            <div class="welcome-avatar">🏑</div>
+            <div class="welcome-heading">
+              <div class="welcome-title">Hi ${escapeHtml(nameDisplay)}! 👋 ${rolePill}</div>
+              <div class="welcome-sub">I'm your <b>Hockey AI Assistant</b>. Tap a topic below or ask anything!</div>
+            </div>
+          </div>
+          <div class="welcome-grid">
+            <button type="button" class="topic-card" data-q="How should I plan my diet for hockey practice and matches?">
+              <span class="topic-icon">🥗</span>
+              <span class="topic-info">
+                <span class="topic-name">Diet & Nutrition</span>
+                <span class="topic-hint">Pre/post practice meal advice</span>
+              </span>
+              <span class="topic-arrow">›</span>
+            </button>
+            <button type="button" class="topic-card" data-q="When is the next practice scheduled?">
+              <span class="topic-icon">📅</span>
+              <span class="topic-info">
+                <span class="topic-name">Practice Schedule</span>
+                <span class="topic-hint">Dates, timings & venue</span>
+              </span>
+              <span class="topic-arrow">›</span>
+            </button>
+            <button type="button" class="topic-card" data-q="Explain the rules of penalty corner in field hockey">
+              <span class="topic-icon">⚡</span>
+              <span class="topic-info">
+                <span class="topic-name">Penalty Corner Rules</span>
+                <span class="topic-hint">Drills, pushes & scoring rules</span>
+              </span>
+              <span class="topic-arrow">›</span>
+            </button>
+            ${attendanceCard}
+          </div>
         </div>
-        <button type="button" class="bubble-speak-btn" aria-label="Listen to message" title="Listen">🔊</button>
       `;
 
-      const speakBtn = botDiv.querySelector(".bubble-speak-btn");
-      if (speakBtn) {
-        speakBtn.onclick = () => {
-          const bubble = botDiv.querySelector(".msg-bubble");
-          if (bubble) speakText(bubble.textContent || "", speakBtn);
+      // Attach clicks to topic cards
+      botDiv.querySelectorAll(".topic-card").forEach((card) => {
+        card.onclick = () => {
+          const q = card.getAttribute("data-q");
+          if (q) sendMessage(q, { fromVoice: false });
         };
-      }
+      });
 
       msgs.appendChild(botDiv);
     }
@@ -175,18 +365,18 @@
     if (chipsContainer) {
       chipsContainer.innerHTML = "";
       const chipList = [
-        { label: "🥗 Plan Hockey Diet", q: "How should I plan my diet for hockey practice and matches?" },
+        { label: "🥗 Plan Diet", q: "How should I plan my diet for hockey practice and matches?" },
         { label: "📅 Next Practice", q: "When is the next practice scheduled?" },
-        { label: "🏑 Penalty Corner Rules", q: "Explain the rules of penalty corner in field hockey" },
-        { label: "📊 My Attendance", q: "What is my attendance percentage?" },
-        { label: "🔥 Warm-up Routine", q: "What are the team warm-up drills?" }
+        { label: "⚡ Penalty Corner", q: "Explain the rules of penalty corner in field hockey" },
+        { label: "📊 Attendance", q: "What is my attendance percentage?" },
+        { label: "🔥 Warm-up Routine", q: "What are the recommended team warm-up drills?" },
+        { label: "🧤 Goalkeeping Tips", q: "What are key field hockey goalkeeping positioning tips?" }
       ];
 
       chipList.forEach(item => {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "chip";
-        btn.setAttribute("data-q", item.q);
         btn.textContent = item.label;
         btn.onclick = () => sendMessage(item.q, { fromVoice: false });
         chipsContainer.appendChild(btn);
@@ -206,31 +396,32 @@
 
     if (!prof || prof.role === "guest") {
       badge.className = "chat-user-badge guest";
-      badge.innerHTML = `👥 Guest / Visitor (Not in team)`;
-      badge.title = "You are currently browsing as a guest. Personal attendance is private to team players.";
+      badge.innerHTML = `👥 Guest • Visitor`;
+      badge.title = "Browsing as guest. Team records are private.";
       return;
     }
 
     if (prof.role === "admin") {
       const isInst = prof.adminType === "instructor";
-      badge.className = isInst ? "chat-user-badge instructor" : "chat-user-badge";
+      badge.className = isInst ? "chat-user-badge instructor" : "chat-user-badge admin";
       badge.innerHTML = isInst
         ? `🛡️ Instructor: ${escapeHtml(prof.name || "Admin")}`
-        : `🛡️ Player Admin: ${escapeHtml(prof.name || "Admin")}`;
-      badge.title = isInst ? "Signed in as Instructor" : "Signed in as Player Admin";
+        : `🛡️ Admin: ${escapeHtml(prof.name || "Admin")}`;
+      badge.title = isInst ? "Signed in as Instructor" : "Signed in as Admin";
       return;
     }
 
     if (prof.role === "captain" || prof.role === "vice") {
-      badge.className = "chat-user-badge";
+      badge.className = "chat-user-badge captain";
       badge.innerHTML = `⭐ ${escapeHtml(prof.title || "Captain")}: ${escapeHtml(prof.name || "")}`;
       badge.title = `Signed in as ${prof.title || "Captain"}`;
       return;
     }
 
     if (prof.role === "player") {
-      badge.className = "chat-user-badge";
-      badge.innerHTML = `🏑 ${escapeHtml(prof.name || "Player")}${prof.position ? ` (${escapeHtml(prof.position)})` : ""}`;
+      badge.className = "chat-user-badge player";
+      const pos = prof.position ? ` • ${escapeHtml(prof.position)}` : "";
+      badge.innerHTML = `🏑 ${escapeHtml(prof.name || "Player")}${pos}`;
       badge.title = `Signed in as Player (Roll: ${escapeHtml(prof.roll || prof.id || "")})`;
       return;
     }
@@ -249,26 +440,27 @@
     try {
       const saved = JSON.parse(localStorage.getItem("hk_fab_pos") || "null");
       if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
-        const maxX = window.innerWidth - 65;
-        const maxY = window.innerHeight - 65;
-        const curX = Math.min(maxX, Math.max(10, saved.x));
-        const curY = Math.min(maxY, Math.max(10, saved.y));
-        fab.style.left = `${curX}px`;
-        fab.style.top = `${curY}px`;
-        fab.style.bottom = "auto";
+        const maxX = window.innerWidth - 44;
+        const maxY = window.innerHeight - 44;
+        const clampX = Math.max(8, Math.min(saved.x, maxX));
+        const clampY = Math.max(8, Math.min(saved.y, maxY));
+        fab.style.left = clampX + "px";
+        fab.style.top = clampY + "px";
         fab.style.right = "auto";
+        fab.style.bottom = "auto";
       }
-    } catch (e) {}
+    } catch (_) {}
 
     fab.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0 && e.pointerType === "mouse") return;
       isPointerDown = true;
       hasDragged = false;
       startX = e.clientX;
       startY = e.clientY;
+
       const rect = fab.getBoundingClientRect();
       initialLeft = rect.left;
       initialTop = rect.top;
+
       try {
         fab.setPointerCapture(e.pointerId);
       } catch (_) {}
@@ -278,24 +470,25 @@
       if (!isPointerDown) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      const dist = Math.hypot(dx, dy);
 
-      // Drag threshold: must move at least 8px to count as a drag
-      if (!hasDragged && dist > 8) {
+      if (!hasDragged && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
         hasDragged = true;
         fab.classList.add("dragging");
       }
 
       if (hasDragged) {
-        const maxX = window.innerWidth - fab.offsetWidth - 10;
-        const maxY = window.innerHeight - fab.offsetHeight - 10;
-        const newX = Math.min(maxX, Math.max(10, initialLeft + dx));
-        const newY = Math.min(maxY, Math.max(10, initialTop + dy));
+        let newX = initialLeft + dx;
+        let newY = initialTop + dy;
 
-        fab.style.left = `${newX}px`;
-        fab.style.top = `${newY}px`;
-        fab.style.bottom = "auto";
+        const maxX = window.innerWidth - fab.offsetWidth - 8;
+        const maxY = window.innerHeight - fab.offsetHeight - 8;
+        newX = Math.max(8, Math.min(newX, maxX));
+        newY = Math.max(8, Math.min(newY, maxY));
+
+        fab.style.left = newX + "px";
+        fab.style.top = newY + "px";
         fab.style.right = "auto";
+        fab.style.bottom = "auto";
       }
     });
 
@@ -336,6 +529,11 @@
     const dlg = document.getElementById("chatdlg");
     if (!dlg) return;
 
+    // Reset inline motion styles so dialog opens cleanly
+    dlg.style.transform = "";
+    dlg.style.opacity = "";
+    dlg.style.transition = "";
+
     // Reset chat on every open as requested
     resetChat();
 
@@ -354,7 +552,6 @@
     }
 
     if (window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
-      // Only focus input on fine pointer (desktop), never on mobile touchscreens to avoid jumping keyboard
       setTimeout(() => {
         const inp = document.getElementById("chat-input");
         if (inp) inp.focus();
@@ -378,6 +575,9 @@
     window.scrollTo(0, restoreY);
 
     if (dlg) {
+      dlg.style.transform = "";
+      dlg.style.opacity = "";
+      dlg.style.transition = "";
       if (typeof dlg.close === "function") {
         if (dlg.open) dlg.close();
       } else {
@@ -504,7 +704,7 @@
       micBtn.classList.remove("listening");
       micBtn.title = "Tap to speak";
     }
-    if (input) input.placeholder = "Ask anything…";
+    if (input) input.placeholder = "Ask Hockey AI anything…";
 
     if (recognition) {
       try { recognition.stop(); } catch (_) {}
@@ -551,26 +751,23 @@
     if (voice) utt.voice = voice;
 
     if (btn) {
-      btn.textContent = "⏹️";
+      btn.innerHTML = `<span class="speak-icon">⏹️</span><span class="speak-label">Stop</span>`;
+      btn.classList.add("speaking");
       btn.title = "Stop audio";
       activeSpeakBtn = btn;
     }
 
-    utt.onend = () => {
+    const resetBtn = () => {
       if (btn) {
-        btn.textContent = "🔊";
+        btn.innerHTML = `<span class="speak-icon">🔊</span><span class="speak-label">Listen</span>`;
+        btn.classList.remove("speaking");
         btn.title = "Listen";
       }
       if (activeSpeakBtn === btn) activeSpeakBtn = null;
     };
 
-    utt.onerror = () => {
-      if (btn) {
-        btn.textContent = "🔊";
-        btn.title = "Listen";
-      }
-      if (activeSpeakBtn === btn) activeSpeakBtn = null;
-    };
+    utt.onend = resetBtn;
+    utt.onerror = resetBtn;
 
     activeUtterance = utt;
     window.speechSynthesis.speak(utt);
@@ -581,7 +778,8 @@
       try { window.speechSynthesis.cancel(); } catch (_) {}
     }
     if (activeSpeakBtn) {
-      activeSpeakBtn.textContent = "🔊";
+      activeSpeakBtn.innerHTML = `<span class="speak-icon">🔊</span><span class="speak-label">Listen</span>`;
+      activeSpeakBtn.classList.remove("speaking");
       activeSpeakBtn.title = "Listen";
       activeSpeakBtn = null;
     }
@@ -611,7 +809,14 @@
     // Append typing indicator
     const typingDiv = document.createElement("div");
     typingDiv.className = "chat-msg bot typing";
-    typingDiv.innerHTML = `<div class="msg-bubble"><span class="dots"><span>.</span><span>.</span><span>.</span></span> Thinking…</div>`;
+    typingDiv.innerHTML = `
+      <div class="bot-msg-wrap">
+        <div class="msg-bubble">
+          <span class="dots"><span>●</span><span>●</span><span>●</span></span>
+          <span style="margin-left: 6px; font-weight: 500;">Thinking…</span>
+        </div>
+      </div>
+    `;
     msgs.appendChild(typingDiv);
     scrollToBottom();
 
@@ -652,8 +857,15 @@
       const botDiv = document.createElement("div");
       botDiv.className = "chat-msg bot";
       botDiv.innerHTML = `
-        <div class="msg-bubble">${renderMarkdown(botReply)}</div>
-        <button type="button" class="bubble-speak-btn" aria-label="Listen to message" title="Listen">🔊</button>
+        <div class="bot-msg-wrap">
+          <div class="msg-bubble">${renderMarkdown(botReply)}</div>
+          <div class="msg-meta">
+            <button type="button" class="bubble-speak-btn" aria-label="Listen to message" title="Listen">
+              <span class="speak-icon">🔊</span>
+              <span class="speak-label">Listen</span>
+            </button>
+          </div>
+        </div>
       `;
 
       const speakBtn = botDiv.querySelector(".bubble-speak-btn");
@@ -678,7 +890,7 @@
       if (sendBtn) sendBtn.disabled = false;
       if (input) {
         input.disabled = false;
-        // Never auto-focus input: prevents virtual keyboard from abruptly popping open
+        // Never auto-focus input: prevents virtual keyboard from abruptly popping open on mobile
       }
       scrollToBottom();
     }
