@@ -29,13 +29,13 @@
     const existingDlg = document.getElementById("chatdlg");
     if (existingDlg) existingDlg.remove();
 
-    // 1. Single Clean Floating Action Button
+    // 1. Sleek Floating Action Icon Button
     const fab = document.createElement("button");
     fab.id = "chat-fab";
     fab.type = "button";
     fab.setAttribute("aria-label", "Open Hockey AI Assistant");
     fab.title = "Hockey AI Assistant (Drag to move)";
-    fab.innerHTML = `<span class="fab-icon">🏑</span><span class="fab-label">AI Chat</span>`;
+    fab.innerHTML = `<span class="fab-icon">🏑</span><span class="fab-badge">AI</span>`;
     document.body.appendChild(fab);
 
     // 2. Chat Dialog Modal (Gemini Style)
@@ -88,6 +88,13 @@
         closeChat();
       }
     });
+
+    // Prevent any background scrolling / moving when touching the modal backdrop or chrome
+    dlg.addEventListener("touchmove", (e) => {
+      if (!e.target.closest("#chat-msgs") && !e.target.closest("#chat-chips")) {
+        e.preventDefault();
+      }
+    }, { passive: false });
 
     // 5. Mic button click (Gemini voice input)
     const micBtn = document.getElementById("chat-mic");
@@ -323,12 +330,22 @@
     });
   }
 
+  let savedScrollY = 0;
+
   function openChat() {
     const dlg = document.getElementById("chatdlg");
     if (!dlg) return;
 
     // Reset chat on every open as requested
     resetChat();
+
+    // Lock background scroll position completely: NO background should move
+    savedScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${savedScrollY}px`;
+    document.body.style.width = "100%";
+    document.body.classList.add("chat-modal-open");
+    document.documentElement.classList.add("chat-modal-open");
 
     if (typeof dlg.showModal === "function") {
       if (!dlg.open) dlg.showModal();
@@ -350,11 +367,22 @@
     stopSpeaking();
     stopListening();
     const dlg = document.getElementById("chatdlg");
-    if (!dlg) return;
-    if (typeof dlg.close === "function") {
-      if (dlg.open) dlg.close();
-    } else {
-      dlg.removeAttribute("open");
+
+    // Restore background cleanly without jumping
+    const restoreY = savedScrollY;
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.width = "";
+    document.body.classList.remove("chat-modal-open");
+    document.documentElement.classList.remove("chat-modal-open");
+    window.scrollTo(0, restoreY);
+
+    if (dlg) {
+      if (typeof dlg.close === "function") {
+        if (dlg.open) dlg.close();
+      } else {
+        dlg.removeAttribute("open");
+      }
     }
     const fab = document.getElementById("chat-fab");
     if (fab) fab.focus();
