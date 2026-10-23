@@ -339,6 +339,11 @@ function _scan(n) {
 }
 // every open dialog has a back arrow at its top-left (so nothing needs a cross or a Cancel button)
 function _backBtn(d) {
+  if (d.id === "chatdlg" || d.classList.contains("chat-dialog") || d.hasAttribute("data-noback")) {
+    const existing = d.querySelector(":scope > .dx");
+    if (existing) existing.remove();
+    return;
+  }
   let b = d.querySelector(":scope > .dx");
   if (!b) {
     b = document.createElement("button");
@@ -378,6 +383,11 @@ function paintIcons(root) {
 (function () {
   const sm = HTMLDialogElement.prototype.showModal;
   HTMLDialogElement.prototype.showModal = function () {
+    if (this.id === "chatdlg" || this.classList.contains("chat-dialog") || this.hasAttribute("data-noback")) {
+      const existing = this.querySelector(":scope > .dx");
+      if (existing) existing.remove();
+      return sm.call(this);
+    }
     this.querySelectorAll(".ctl > button").forEach((b) => {
       if (
         !b.children.length &&

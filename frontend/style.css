@@ -4008,6 +4008,9 @@ html.chat-modal-open {
   touch-action: pan-y !important;
   transform: translateY(0);
 }
+.chat-dialog > .dx {
+  display: none !important;
+}
 .chat-dialog:not([open]) {
   display: none !important;
 }

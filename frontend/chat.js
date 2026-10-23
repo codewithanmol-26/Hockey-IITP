@@ -43,6 +43,7 @@
     const dlg = document.createElement("dialog");
     dlg.id = "chatdlg";
     dlg.className = "chat-dialog";
+    dlg.setAttribute("data-noback", "true");
     dlg.setAttribute("aria-labelledby", "chat-title");
     dlg.innerHTML = `
       <div class="chat-sheet-handle" id="chat-drag-handle" title="Drag to move or pull down to close">
@@ -490,6 +491,10 @@
     dlg.style.transform = "";
     dlg.style.opacity = "";
     dlg.style.transition = "";
+
+    // Ensure no injected back arrow button exists
+    const dx = dlg.querySelector(":scope > .dx");
+    if (dx) dx.remove();
 
     // Reset chat on every open as requested
     resetChat();
