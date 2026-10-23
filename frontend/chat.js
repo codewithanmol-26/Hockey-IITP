@@ -1,8 +1,8 @@
 /**
  * IIT Patna Hockey - AI Chatbot UI Component
- * Provides a floating assistant button with dedicated Voice button, modal chat dialog,
- * quick suggestion chips, role/profile awareness (Instructor, Player, Guest), reset on open,
- * two-way voice communication (Speech-to-Text & Text-to-Speech), and touch-friendly controls.
+ * Modeled after the official Google Gemini interface:
+ * Single sleek floating trigger, minimal prompt bar with embedded microphone and send button,
+ * subtle speaker read-aloud icon, role/profile awareness, and auto-reset on open.
  */
 
 (function () {
@@ -10,7 +10,6 @@
   let recognition = null;
   let activeUtterance = null;
   let activeSpeakBtn = null;
-  let autoVoiceEnabled = true; // default to voice read-aloud enabled
 
   function getUserContext() {
     try {
@@ -22,27 +21,24 @@
   }
 
   function initChatUI() {
-    // Clean up any stale elements if present
-    const existingWrap = document.getElementById("chat-fab-wrap") || document.getElementById("chat-fab");
+    // Clean up any old elements if present
+    const existingWrap = document.getElementById("chat-fab-wrap");
     if (existingWrap) existingWrap.remove();
+    const existingFab = document.getElementById("chat-fab");
+    if (existingFab) existingFab.remove();
     const existingDlg = document.getElementById("chatdlg");
     if (existingDlg) existingDlg.remove();
 
-    // 1. Floating Action Button Wrapper (Chat + Voice)
-    const fabWrap = document.createElement("div");
-    fabWrap.id = "chat-fab-wrap";
-    fabWrap.className = "chat-fab-wrap";
-    fabWrap.innerHTML = `
-      <button type="button" id="chat-fab" aria-label="Open Hockey AI Assistant" title="Hockey AI Chat (Drag to move)">
-        <span class="fab-icon">🏑</span><span class="fab-label">AI Chat</span>
-      </button>
-      <button type="button" id="voice-fab" class="voice-fab" aria-label="Talk by Voice" title="Voice Assistant (Tap to speak)">
-        <span class="fab-icon">🎙️</span><span class="fab-label">Voice</span>
-      </button>
-    `;
-    document.body.appendChild(fabWrap);
+    // 1. Single Clean Floating Action Button
+    const fab = document.createElement("button");
+    fab.id = "chat-fab";
+    fab.type = "button";
+    fab.setAttribute("aria-label", "Open Hockey AI Assistant");
+    fab.title = "Hockey AI Assistant (Drag to move)";
+    fab.innerHTML = `<span class="fab-icon">🏑</span><span class="fab-label">AI Chat</span>`;
+    document.body.appendChild(fab);
 
-    // 2. Chat Dialog Modal
+    // 2. Chat Dialog Modal (Gemini Style)
     const dlg = document.createElement("dialog");
     dlg.id = "chatdlg";
     dlg.className = "chat-dialog";
@@ -61,23 +57,19 @@
             <span id="chat-user-badge" class="chat-user-badge" title="Your current profile status">👤 Checking profile…</span>
           </div>
         </div>
-        <div class="chat-header-voice">
-          <button type="button" class="chat-header-voice-btn" id="chat-header-mic" title="Speak your question">🎙️ Speak</button>
-          <button type="button" class="chat-tool-btn on" id="chat-voice-toggle" aria-label="Toggle Voice Read-aloud" title="Voice Read-aloud (ON)">🔊</button>
-        </div>
       </div>
       <div class="chat-body" id="chat-msgs" role="log" aria-live="polite"></div>
       <div class="chat-chips" id="chat-chips"></div>
       <form class="chat-form" id="chat-form" autocomplete="off">
-        <button type="button" id="chat-mic" class="chat-mic-btn" aria-label="Voice input" title="Voice Input (Tap to speak)">🎙️</button>
-        <input type="text" id="chat-input" placeholder="Ask or speak about hockey, diet, schedule…" maxlength="300" required />
-        <button type="submit" id="chat-send" class="pri" aria-label="Send Message">Send</button>
+        <input type="text" id="chat-input" placeholder="Ask anything…" maxlength="300" required />
+        <button type="button" id="chat-mic" class="chat-mic-btn" aria-label="Voice input" title="Tap to speak">🎙️</button>
+        <button type="submit" id="chat-send" class="pri chat-send-btn" aria-label="Send Message">➤</button>
       </form>
     `;
     document.body.appendChild(dlg);
 
     // 3. Attach Draggable + Click handler
-    makeDraggable(fabWrap);
+    makeDraggable(fab);
 
     // 4. Close handlers
     const closeBtn = document.getElementById("chat-close");
@@ -97,39 +89,13 @@
       }
     });
 
-    // 5. Header voice toggle
-    const voiceToggleBtn = document.getElementById("chat-voice-toggle");
-    if (voiceToggleBtn) {
-      voiceToggleBtn.onclick = () => {
-        autoVoiceEnabled = !autoVoiceEnabled;
-        voiceToggleBtn.classList.toggle("on", autoVoiceEnabled);
-        voiceToggleBtn.textContent = autoVoiceEnabled ? "🔊" : "🔇";
-        voiceToggleBtn.title = autoVoiceEnabled
-          ? "Voice Read-aloud is ON (Replies will be spoken)"
-          : "Voice Read-aloud is OFF";
-        if (!autoVoiceEnabled && window.speechSynthesis) {
-          window.speechSynthesis.cancel();
-          if (activeSpeakBtn) {
-            activeSpeakBtn.textContent = "🔊";
-            activeSpeakBtn = null;
-          }
-        }
-      };
-    }
-
-    // 6. Header mic button
-    const headerMic = document.getElementById("chat-header-mic");
-    if (headerMic) {
-      headerMic.onclick = toggleMic;
-    }
-
-    // 7. Form mic button click
+    // 5. Mic button click (Gemini voice input)
     const micBtn = document.getElementById("chat-mic");
     if (micBtn) {
       micBtn.onclick = toggleMic;
     }
 
-    // 8. Form Submission
+    // 6. Form Submission
     const form = document.getElementById("chat-form");
     if (form) {
       form.onsubmit = (e) => {
@@ -143,7 +109,7 @@
       };
     }
 
-    // Initial population of greeting and chips
+    // Populate initial greeting and chips
     resetChat();
   }
 
@@ -154,7 +120,7 @@
     const prof = getUserContext();
     updateUserBadge(prof);
 
-    // 1. Reset messages with personalized greeting and Voice banner
+    // 1. Reset messages with personalized greeting
     const msgs = document.getElementById("chat-msgs");
     if (msgs) {
       msgs.innerHTML = "";
@@ -175,14 +141,6 @@
         <div class="msg-bubble">
           👋 <b>Hi ${escapeHtml(nameDisplay)}!</b> ${rolePill}<br><br>
           I am the official <b>IIT Patna Hockey Team AI Assistant</b> powered by Gemini & Supabase.<br><br>
-          <div class="chat-voice-callout" id="chat-voice-callout" role="button" tabindex="0">
-            <span class="callout-mic">🎙️</span>
-            <div class="callout-text">
-              <b>Tap here to speak your question</b>
-              <span>Voice input & spoken answers enabled</span>
-            </div>
-          </div>
-          <br>
           Feel free to ask me about:
           <ul>
             <li>🥗 <b>Diet & Fitness:</b> e.g. <i>"How to plan diet for hockey?"</i> or <i>"What should I eat before practice?"</i></li>
@@ -202,20 +160,14 @@
         };
       }
 
-      const voiceCallout = botDiv.querySelector("#chat-voice-callout");
-      if (voiceCallout) {
-        voiceCallout.onclick = () => startListening();
-      }
-
       msgs.appendChild(botDiv);
     }
 
-    // 2. Reset suggestion chips
+    // 2. Suggestion chips
     const chipsContainer = document.getElementById("chat-chips");
     if (chipsContainer) {
       chipsContainer.innerHTML = "";
       const chipList = [
-        { label: "🎙️ Speak to Assistant", q: "__VOICE__" },
         { label: "🥗 Plan Hockey Diet", q: "How should I plan my diet for hockey practice and matches?" },
         { label: "📅 Next Practice", q: "When is the next practice scheduled?" },
         { label: "🏑 Penalty Corner Rules", q: "Explain the rules of penalty corner in field hockey" },
@@ -229,13 +181,7 @@
         btn.className = "chip";
         btn.setAttribute("data-q", item.q);
         btn.textContent = item.label;
-        btn.onclick = () => {
-          if (item.q === "__VOICE__") {
-            startListening();
-          } else {
-            sendMessage(item.q, { fromVoice: false });
-          }
-        };
+        btn.onclick = () => sendMessage(item.q, { fromVoice: false });
         chipsContainer.appendChild(btn);
       });
     }
@@ -286,7 +232,7 @@
     badge.innerHTML = `👤 ${escapeHtml(prof.name || "Team Member")}`;
   }
 
-  function makeDraggable(fabWrap) {
+  function makeDraggable(fab) {
     let isPointerDown = false;
     let hasDragged = false;
     let startX = 0, startY = 0;
@@ -296,32 +242,32 @@
     try {
       const saved = JSON.parse(localStorage.getItem("hk_fab_pos") || "null");
       if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
-        const maxX = window.innerWidth - 130;
+        const maxX = window.innerWidth - 65;
         const maxY = window.innerHeight - 65;
         const curX = Math.min(maxX, Math.max(10, saved.x));
         const curY = Math.min(maxY, Math.max(10, saved.y));
-        fabWrap.style.left = `${curX}px`;
-        fabWrap.style.top = `${curY}px`;
-        fabWrap.style.bottom = "auto";
-        fabWrap.style.right = "auto";
+        fab.style.left = `${curX}px`;
+        fab.style.top = `${curY}px`;
+        fab.style.bottom = "auto";
+        fab.style.right = "auto";
       }
     } catch (e) {}
 
-    fabWrap.addEventListener("pointerdown", (e) => {
+    fab.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 && e.pointerType === "mouse") return;
       isPointerDown = true;
       hasDragged = false;
       startX = e.clientX;
       startY = e.clientY;
-      const rect = fabWrap.getBoundingClientRect();
+      const rect = fab.getBoundingClientRect();
       initialLeft = rect.left;
       initialTop = rect.top;
       try {
-        fabWrap.setPointerCapture(e.pointerId);
+        fab.setPointerCapture(e.pointerId);
       } catch (_) {}
     });
 
-    fabWrap.addEventListener("pointermove", (e) => {
+    fab.addEventListener("pointermove", (e) => {
       if (!isPointerDown) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
@@ -330,49 +276,54 @@
       // Drag threshold: must move at least 8px to count as a drag
       if (!hasDragged && dist > 8) {
         hasDragged = true;
-        fabWrap.classList.add("dragging");
+        fab.classList.add("dragging");
       }
 
       if (hasDragged) {
-        const maxX = window.innerWidth - fabWrap.offsetWidth - 10;
-        const maxY = window.innerHeight - fabWrap.offsetHeight - 10;
+        const maxX = window.innerWidth - fab.offsetWidth - 10;
+        const maxY = window.innerHeight - fab.offsetHeight - 10;
         const newX = Math.min(maxX, Math.max(10, initialLeft + dx));
         const newY = Math.min(maxY, Math.max(10, initialTop + dy));
 
-        fabWrap.style.left = `${newX}px`;
-        fabWrap.style.top = `${newY}px`;
-        fabWrap.style.bottom = "auto";
-        fabWrap.style.right = "auto";
+        fab.style.left = `${newX}px`;
+        fab.style.top = `${newY}px`;
+        fab.style.bottom = "auto";
+        fab.style.right = "auto";
       }
     });
 
     const onPointerEnd = (e) => {
       if (!isPointerDown) return;
       isPointerDown = false;
-      fabWrap.classList.remove("dragging");
+      fab.classList.remove("dragging");
       try {
-        fabWrap.releasePointerCapture(e.pointerId);
+        fab.releasePointerCapture(e.pointerId);
       } catch (_) {}
 
       if (hasDragged) {
         try {
-          const rect = fabWrap.getBoundingClientRect();
+          const rect = fab.getBoundingClientRect();
           localStorage.setItem("hk_fab_pos", JSON.stringify({ x: rect.left, y: rect.top }));
         } catch (_) {}
       } else {
-        const voiceClicked = e.target.closest("#voice-fab");
-        openChat({ startVoice: Boolean(voiceClicked) });
+        openChat();
       }
     };
 
-    fabWrap.addEventListener("pointerup", onPointerEnd);
-    fabWrap.addEventListener("pointercancel", () => {
+    fab.addEventListener("pointerup", onPointerEnd);
+    fab.addEventListener("pointercancel", () => {
       isPointerDown = false;
-      fabWrap.classList.remove("dragging");
+      fab.classList.remove("dragging");
+    });
+
+    // Direct click fallback
+    fab.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!hasDragged) openChat();
     });
   }
 
-  function openChat(options = {}) {
+  function openChat() {
     const dlg = document.getElementById("chatdlg");
     if (!dlg) return;
 
@@ -385,9 +336,7 @@
       dlg.setAttribute("open", "");
     }
 
-    if (options && options.startVoice) {
-      setTimeout(() => startListening(), 250);
-    } else if (window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+    if (window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
       // Only focus input on fine pointer (desktop), never on mobile touchscreens to avoid jumping keyboard
       setTimeout(() => {
         const inp = document.getElementById("chat-input");
@@ -443,7 +392,7 @@
   }
 
   // -------------------------------------------------------------
-  // Voice Communication: Speech-to-Text & Text-to-Speech
+  // Voice Input (Microphone like original Gemini)
   // -------------------------------------------------------------
 
   function toggleMic() {
@@ -457,7 +406,7 @@
   function startListening() {
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRec) {
-      alert("Voice recognition requires Google Chrome, Edge, or Safari on iOS 14.5+. Please use Chrome/Safari or type your message.");
+      alert("Voice input is not supported in this browser. Please use Chrome, Edge, or Safari.");
       return;
     }
 
@@ -469,24 +418,15 @@
       recognition.continuous = false;
 
       const micBtn = document.getElementById("chat-mic");
-      const headerMic = document.getElementById("chat-header-mic");
-      const voiceFab = document.getElementById("voice-fab");
       const input = document.getElementById("chat-input");
 
       recognition.onstart = () => {
         isListening = true;
         if (micBtn) {
           micBtn.classList.add("listening");
-          micBtn.title = "Listening… tap to cancel";
+          micBtn.title = "Listening… tap to stop";
         }
-        if (headerMic) {
-          headerMic.classList.add("listening");
-          headerMic.textContent = "⏹️ Stop";
-        }
-        if (voiceFab) {
-          voiceFab.classList.add("listening");
-        }
-        if (input) input.placeholder = "Listening to you… speak now";
+        if (input) input.placeholder = "Listening… speak now";
       };
 
       recognition.onresult = (e) => {
@@ -512,7 +452,7 @@
         console.warn("Speech recognition error:", e.error);
         stopListening();
         if (e.error === "not-allowed") {
-          alert("Microphone permission was denied. Please allow microphone access in your browser settings to talk to the assistant.");
+          alert("Microphone permission was denied. Please allow microphone access in browser settings.");
         }
       };
 
@@ -530,22 +470,13 @@
   function stopListening() {
     isListening = false;
     const micBtn = document.getElementById("chat-mic");
-    const headerMic = document.getElementById("chat-header-mic");
-    const voiceFab = document.getElementById("voice-fab");
     const input = document.getElementById("chat-input");
 
     if (micBtn) {
       micBtn.classList.remove("listening");
-      micBtn.title = "Voice Input (Tap to speak)";
+      micBtn.title = "Tap to speak";
     }
-    if (headerMic) {
-      headerMic.classList.remove("listening");
-      headerMic.textContent = "🎙️ Speak";
-    }
-    if (voiceFab) {
-      voiceFab.classList.remove("listening");
-    }
-    if (input) input.placeholder = "Ask or speak about hockey, diet, schedule…";
+    if (input) input.placeholder = "Ask anything…";
 
     if (recognition) {
       try { recognition.stop(); } catch (_) {}
@@ -553,9 +484,12 @@
     }
   }
 
+  // -------------------------------------------------------------
+  // Voice Output (Speech Synthesis)
+  // -------------------------------------------------------------
+
   function speakText(text, btn) {
     if (!("speechSynthesis" in window)) {
-      alert("Text-to-speech audio is not supported in this browser.");
       return;
     }
 
@@ -566,7 +500,7 @@
 
     stopSpeaking();
 
-    // Strip HTML & markdown for clean audio voice
+    // Strip HTML & markdown for clean speech
     const clean = String(text)
       .replace(/<[^>]+>/g, " ")
       .replace(/\*\*(.*?)\*\*/g, "$1")
@@ -701,8 +635,8 @@
 
       msgs.appendChild(botDiv);
 
-      // If user queried via mic OR autoVoice is on, read reply aloud automatically
-      if (fromVoice || autoVoiceEnabled) {
+      // If user spoke the question, read the answer aloud automatically
+      if (fromVoice) {
         speakText(botReply, speakBtn);
       }
 
@@ -716,7 +650,7 @@
       if (sendBtn) sendBtn.disabled = false;
       if (input) {
         input.disabled = false;
-        // DO NOT call input.focus() here: prevents mobile keyboard from abruptly opening after every bot answer!
+        // Never auto-focus input: prevents virtual keyboard from abruptly popping open
       }
       scrollToBottom();
     }

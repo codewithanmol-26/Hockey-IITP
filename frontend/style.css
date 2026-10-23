@@ -3917,18 +3917,11 @@ nav .i .svgi {
 /* ==========================================================================
    AI Chatbot Widget (Floating Button & Modal Dialog)
    ========================================================================== */
-.chat-fab-wrap {
+#chat-fab {
   position: fixed;
   bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
-  right: 14px;
+  right: 18px;
   z-index: 999;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  user-select: none;
-  touch-action: none;
-}
-#chat-fab {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -3945,41 +3938,22 @@ nav .i .svgi {
   touch-action: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-#voice-fab {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  border-radius: 20px;
-  background: #10b981;
-  color: #fff;
-  border: none;
-  font-weight: 700;
-  font-size: 0.8rem;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
-  cursor: pointer;
-  user-select: none;
-  touch-action: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-#chat-fab:hover, #voice-fab:hover {
+#chat-fab:hover {
   transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(11, 42, 74, 0.4);
 }
-#chat-fab:active, #voice-fab:active {
+#chat-fab:active {
   transform: scale(0.96);
 }
-.chat-fab-wrap.dragging {
+#chat-fab.dragging {
   cursor: grabbing !important;
   user-select: none !important;
   touch-action: none !important;
   transition: none !important;
   opacity: 0.92;
+  box-shadow: 0 8px 22px rgba(11, 42, 74, 0.5);
 }
-#voice-fab.listening {
-  background: #ef4444 !important;
-  animation: micPulse 1.2s infinite ease-in-out;
-}
-#chat-fab .fab-icon, #voice-fab .fab-icon {
+#chat-fab .fab-icon {
   font-size: 0.95rem;
 }
 
@@ -4032,30 +4006,6 @@ nav .i .svgi {
 .chat-dialog .chat-header-actions {
   display: flex;
   align-items: center;
-  gap: 5px;
-}
-.chat-tool-btn {
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0;
-  color: var(--ink);
-  transition: background 0.15s ease, transform 0.1s ease;
-}
-.chat-tool-btn:hover {
-  background: var(--line);
-}
-.chat-tool-btn.on {
-  background: var(--brand);
-  color: #fff;
-  border-color: var(--brand);
 }
 .chat-dialog .chat-header .dx {
   position: static;
@@ -4132,84 +4082,17 @@ nav .i .svgi {
   color: #fcd34d;
   background: rgba(217, 119, 6, 0.22);
 }
-.chat-header-voice {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
-.chat-header-voice-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 8px !important;
-  border-radius: 12px !important;
-  font-size: 0.72rem !important;
-  font-weight: 700 !important;
-  background: #10b98118 !important;
-  color: #059669 !important;
-  border: 1px solid #10b98144 !important;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-[data-theme="dark"] .chat-header-voice-btn {
-  background: #10b98133 !important;
-  color: #6ee7b7 !important;
-  border-color: #10b98166 !important;
-}
-.chat-header-voice-btn:hover {
-  background: #10b98133 !important;
-}
-.chat-header-voice-btn.listening {
-  background: #ef4444 !important;
-  color: #fff !important;
-  border-color: #ef4444 !important;
-  animation: micPulse 1.2s infinite ease-in-out;
-}
-.chat-voice-callout {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--soft);
-  border: 1px dashed var(--brand);
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin: 6px 0 2px 0;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease;
-}
-.chat-voice-callout:hover {
-  background: rgba(11, 42, 74, 0.08);
-  transform: translateY(-1px);
-}
-[data-theme="dark"] .chat-voice-callout:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-.callout-mic {
-  font-size: 1.2rem;
-  background: #10b98122;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.callout-text {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.76rem;
-  line-height: 1.25;
-}
-.callout-text b {
-  color: var(--ink);
-}
-.callout-text span {
-  font-size: 0.68rem;
-  color: var(--mute);
-}
 .bubble-role-pill {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--line);
+  color: var(--ink);
+  margin-left: 4px;
+  vertical-align: middle;
+}
   display: inline-block;
   font-size: 0.66rem;
   font-weight: 700;
@@ -4365,19 +4248,35 @@ nav .i .svgi {
 .chat-form input:focus {
   border-color: var(--brand);
 }
-.chat-form button[type="submit"] {
-  padding: 0 13px;
-  border-radius: 9px;
-  font-weight: 700;
-  font-size: 0.82rem;
-}
-.chat-form button.chat-mic-btn {
-  width: 36px !important;
-  min-width: 36px !important;
-  max-width: 36px !important;
-  height: 36px !important;
+.chat-form .chat-send-btn {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  height: 32px !important;
   padding: 0 !important;
-  font-size: 1.15rem !important;
+  border-radius: 9px !important;
+  font-size: 0.95rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: var(--brand) !important;
+  color: #fff !important;
+  border: none !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.chat-form .chat-send-btn:hover {
+  opacity: 0.92;
+  transform: scale(1.04);
+}
+.chat-form .chat-mic-btn {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  font-size: 1rem !important;
   border-radius: 9px !important;
   background: var(--soft) !important;
   border: 1px solid var(--line) !important;
@@ -4388,11 +4287,13 @@ nav .i .svgi {
   flex-shrink: 0 !important;
   color: var(--ink) !important;
   box-shadow: none !important;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
-.chat-form button.chat-mic-btn:hover {
+.chat-form .chat-mic-btn:hover {
   background: var(--line) !important;
+  transform: scale(1.04);
 }
-.chat-form button.chat-mic-btn.listening {
+.chat-form .chat-mic-btn.listening {
   background: #ef4444 !important;
   border-color: #dc2626 !important;
   color: #fff !important;
