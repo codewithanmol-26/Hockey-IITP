@@ -69,6 +69,12 @@
     const closeBtn = document.getElementById("chat-close");
     if (closeBtn) closeBtn.onclick = closeChat;
     dlg.addEventListener("cancel", closeChat);
+    dlg.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeChat();
+      }
+    });
 
     // Click outside dialog to close
     dlg.addEventListener("click", (e) => {
@@ -214,6 +220,8 @@
     } else {
       dlg.removeAttribute("open");
     }
+    const fab = document.getElementById("chat-fab");
+    if (fab) fab.focus();
   }
 
   function scrollToBottom() {

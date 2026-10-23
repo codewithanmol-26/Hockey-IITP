@@ -32,7 +32,16 @@ app.set("trust proxy", 1);
 app.use(
   cors({ origin: ALLOWED_ORIGIN === "*" ? true : ALLOWED_ORIGIN.split(",") }),
 );
-app.use(express.static(require("path").join(__dirname, "../frontend"))); // used when running locally; Vercel serves the frontend itself
+app.use(
+  express.static(require("path").join(__dirname, "../frontend"), {
+    maxAge: "1d",
+    setHeaders: (res, path) => {
+      if (path.endsWith("sw.js")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    },
+  }),
+); // used when running locally; Vercel serves the frontend itself
 app.use(express.json({ limit: "2mb" }));
 app.use((req, res, next) =>
   initError

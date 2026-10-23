@@ -1,5 +1,5 @@
 // Makes the page installable and able to show alerts. Only the app files are cached; /api (the data) is never cached.
-const V = "hk-v47",
+const V = "hk-v48",
   SHELL = [
     "./",
     "index.html",
@@ -42,22 +42,22 @@ self.addEventListener("fetch", (e) => {
     u.pathname.startsWith("/api")
   )
     return;
-  const net = fetch(r).then((x) => {
-    if (x.ok) {
-      const c = x.clone();
-      caches.open(V).then((h) => h.put(r, c));
-    }
-    return x;
-  });
-  const slow = new Promise((ok, no) =>
-    setTimeout(() => caches.match(r).then((x) => (x ? ok(x) : no())), 3500),
-  ); // slow connection: use the saved copy of the app
+
+  // Stale-while-revalidate: respond from cache immediately for near 0ms load speed, update cache in background
   e.respondWith(
-    Promise.race([net, slow])
-      .catch(() => net)
-      .catch(() =>
-        caches.match(r).then((x) => x || caches.match("index.html")),
-      ),
+    caches.match(r).then((cached) => {
+      const net = fetch(r)
+        .then((x) => {
+          if (x && x.ok) {
+            const c = x.clone();
+            caches.open(V).then((h) => h.put(r, c));
+          }
+          return x;
+        })
+        .catch(() => cached || caches.match("index.html"));
+
+      return cached || net;
+    }),
   );
 });
 self.addEventListener("notificationclick", (e) => {

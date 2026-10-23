@@ -23,8 +23,8 @@ function avatar(name, photo, size, cls) {
   const s = String(name || "?").trim(),
     c = AVC[[...s].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVC.length];
   return photo
-    ? `<img class="avi ${cls || ""}" src="${photo}" alt="" style="width:${size}px;height:${size}px">`
-    : `<span class="avi ${cls || ""}" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px;background:${c}">${esc((s[0] || "?").toUpperCase())}</span>`;
+    ? `<img class="avi ${cls || ""}" src="${photo}" alt="${esc(s)}" width="${size}" height="${size}" loading="lazy" decoding="async" style="width:${size}px;height:${size}px">`
+    : `<span class="avi ${cls || ""}" role="img" aria-label="${esc(s)}" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px;background:${c}">${esc((s[0] || "?").toUpperCase())}</span>`;
 }
 // choose a photo, centre-crop to a small square and give back a JPEG data URL
 function pickPhoto(cb) {
@@ -3797,16 +3797,19 @@ function openImg(src, title = "") {
   if (!src) return;
   const d = ensureDlg("imdlg");
   d.className = "full-mobile-lightbox";
+  d.setAttribute("aria-label", title || "Image preview");
+  d.setAttribute("role", "dialog");
+  d.setAttribute("aria-modal", "true");
   d.innerHTML = `
     <div class="lightbox-header">
       <div class="lightbox-title">${esc(title || "Image")}</div>
       <div class="lightbox-actions">
-        <a href="${src}" download="hockey_image.jpg" class="lightbox-btn" target="_blank" rel="noopener">⬇ Save</a>
+        <a href="${src}" download="hockey_image.jpg" class="lightbox-btn" target="_blank" rel="noopener" aria-label="Download full resolution image">⬇ Save</a>
         <button type="button" class="lightbox-btn close" id="imx" aria-label="Close image">✕</button>
       </div>
     </div>
     <div class="lightbox-content">
-      <img class="lightbox-img" src="${src}" alt="${esc(title || "Full image")}">
+      <img class="lightbox-img" src="${src}" alt="${esc(title || "Full image")}" decoding="async">
     </div>
   `;
   const x = d.querySelector("#imx");
@@ -3816,7 +3819,14 @@ function openImg(src, title = "") {
       d.close();
     }
   };
+  d.onkeydown = (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      d.close();
+    }
+  };
   if (!d.open) d.showModal();
+  if (x) setTimeout(() => x.focus(), 60);
 }
 
 // Global click handler: tap any avatar, group photo, referee signal, or profile cover to view in full mobile view
