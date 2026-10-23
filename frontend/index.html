@@ -4,37 +4,87 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Hockey Attendance</title>
+  <title>IIT Patna Hockey · Official Team Portal</title>
   <meta name="theme-color" content="#0b2a4a">
-  <meta name="description" content="IITP hockey team attendance, schedule and rules">
+  <meta name="description" content="Official web portal of the Indian Institute of Technology Patna Field Hockey Team. Practice schedules, player attendance, team roster, match rules, and team announcements.">
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/svg+xml" href="icons/iitp-hockey-crest.svg">
+  <link rel="alternate icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Hockey">
+  <meta name="apple-mobile-web-app-title" content="IITP Hockey">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta property="og:title" content="IIT Patna Hockey · Official Team Portal">
+  <meta property="og:description" content="Official portal for IIT Patna Field Hockey Team: live practice schedules, turnout analytics, team roster, and announcements.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="icons/iitp-hockey-crest.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
-  <link rel="preload" href="style.css?v=59" as="style">
-  <link rel="stylesheet" href="style.css?v=59">
+  <link rel="preload" href="style.css?v=60" as="style">
+  <link rel="stylesheet" href="style.css?v=60">
 </head>
 
 <body>
   <a href="#view" class="skip-link">Skip to main content</a>
 
-  <!-- 0. Public page: what everyone sees without logging in (features, captain, coach, photos, news) -->
+  <!-- 0. Public page: collegiate portal for IIT Patna Hockey -->
   <div id="pub" hidden>
-    <header>
-      <div class="brand"><img src="icons/icon-192.png" alt="IIT Patna Hockey Logo" width="34" height="34">
-        <div>
-          <h1>IITP Hockey</h1><span class="who">Team app</span>
-        </div>
+    <header class="pub-header">
+      <div class="pub-brand">
+        <a href="#pub-hero" class="pub-brand-link" aria-label="IIT Patna Hockey Home">
+          <img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Hockey Crest" width="46" height="46" class="pub-crest">
+          <div class="pub-brand-text">
+            <span class="pub-brand-title">IIT PATNA</span>
+            <span class="pub-brand-sub"><span class="pip"></span>HOCKEY TEAM</span>
+          </div>
+        </a>
       </div>
-      <div class="hb">
+
+      <nav class="pub-nav" id="pub-nav" aria-label="Main Navigation">
+        <a href="#pub-hero" class="pub-nav-link active">Home</a>
+        <a href="#pub-about" class="pub-nav-link">About</a>
+        <a href="#pub-schedule" class="pub-nav-link">Schedule</a>
+        <a href="#pub-progress" class="pub-nav-link">My Progress</a>
+        <a href="#pub-announcements" class="pub-nav-link">Notices</a>
+        <a href="#pub-gallery" class="pub-nav-link">Photos</a>
+        <a href="#pub-rules" class="pub-nav-link">Rules</a>
+        <a href="#pub-faq" class="pub-nav-link">FAQ</a>
+      </nav>
+
+      <div class="pub-actions">
+        <div class="text-sizer" role="group" aria-label="Text size controls">
+          <button type="button" id="pfs-down" class="f-btn" title="Decrease font size" aria-label="Decrease font size">A−</button>
+          <button type="button" id="pfs-up" class="f-btn" title="Increase font size" aria-label="Increase font size">A+</button>
+        </div>
         <button id="pthm" class="thb" type="button" aria-label="Toggle day / night mode" title="Toggle day / night mode"></button>
-        <button id="pli" class="pri plog">Log in</button>
+        <button id="pli" class="btn-login-gold">Log in</button>
+        <button type="button" id="pmb" class="pub-burger" aria-label="Toggle navigation menu" aria-expanded="false">
+          <span class="pub-burger-bar"></span>
+          <span class="pub-burger-bar"></span>
+          <span class="pub-burger-bar"></span>
+        </button>
       </div>
     </header>
+
+    <div id="pub-drawer" class="pub-drawer" hidden>
+      <div class="pub-drawer-content">
+        <a href="#pub-hero" class="pub-drawer-link">🏠 Home</a>
+        <a href="#pub-about" class="pub-drawer-link">🏑 About the Team</a>
+        <a href="#pub-schedule" class="pub-drawer-link">📅 Practice Schedule</a>
+        <a href="#pub-progress" class="pub-drawer-link">📊 My Progress Lookup</a>
+        <a href="#pub-announcements" class="pub-drawer-link">📢 Announcements & Fixtures</a>
+        <a href="#pub-gallery" class="pub-drawer-link">🖼️ Team Photos</a>
+        <a href="#pub-rules" class="pub-drawer-link">📖 FIH Rules & Whistle</a>
+        <a href="#pub-faq" class="pub-drawer-link">❓ FAQ & Help Desk</a>
+        <div class="pub-drawer-footer">
+          <button class="btn-login-gold full" data-plog>Member Login</button>
+        </div>
+      </div>
+    </div>
+
     <main id="pview"></main>
   </div>
 
@@ -42,7 +92,7 @@
   <section id="login" hidden>
     <div class="lg-card">
       <button type="button" id="lgx" class="lgx" data-ic="back" aria-label="Back" title="Back"></button>
-      <img class="lg-logo" src="icons/icon-192.png" alt="IIT Patna Hockey Logo" width="84" height="84">
+      <img class="lg-logo" src="icons/iitp-hockey-crest.svg" alt="IIT Patna Hockey Crest" width="84" height="84">
       <h1>IITP Hockey</h1>
       <p class="lg-sub">Attendance · Schedule · Rules</p>
       <div class="seg" role="tablist"><button type="button" id="t1" class="on">Player</button><button type="button"
@@ -78,12 +128,16 @@
   <div id="app" hidden>
     <header>
       <button id="xb" class="hx" data-ic="back" aria-label="Back to Home" title="Back" hidden></button>
-      <div class="brand"><img src="icons/icon-192.png" alt="IIT Patna Hockey Logo" width="34" height="34">
+      <div class="brand"><img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Hockey Crest" width="36" height="36">
         <div>
           <h1>IITP Hockey</h1><span id="who" class="who"></span>
         </div>
       </div>
       <div class="hb">
+        <div class="text-sizer app-sizer" role="group" aria-label="Text size controls">
+          <button type="button" id="afs-down" class="f-btn" title="Decrease font size" aria-label="Decrease font size">A−</button>
+          <button type="button" id="afs-up" class="f-btn" title="Increase font size" aria-label="Increase font size">A+</button>
+        </div>
         <button id="thm" class="thb" type="button" aria-label="Toggle day / night mode" title="Toggle day / night mode"></button>
         <button id="hp" class="hi" aria-label="My profile and menu" title="My profile and menu"></button>
       </div>
@@ -174,12 +228,12 @@
     })();
   </script>
   <script src="config.js"></script>
-  <script src="icons.js?v=59"></script>
-  <script src="public.js"></script>
+  <script src="icons.js?v=60"></script>
+  <script src="public.js?v=60"></script>
   <script src="extras.js"></script>
   <script src="help.js"></script>
-  <script src="app.js?v=59"></script>
-  <script src="chat.js?v=59"></script>
+  <script src="app.js?v=60"></script>
+  <script src="chat.js?v=60"></script>
 </body>
 
 </html>

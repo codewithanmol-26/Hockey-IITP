@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 180" width="160" height="180" fill="none">
+  <!-- Outer Shield -->
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e3a66" />
+      <stop offset="50%" stop-color="#0b2a4a" />
+      <stop offset="100%" stop-color="#06182c" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="crestShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0b2a4a" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Shield Base -->
+  <path d="M 80 8 C 124 8, 148 18, 148 48 C 148 116, 114 154, 80 172 C 46 154, 12 116, 12 48 C 12 18, 36 8, 80 8 Z"
+        fill="url(#shieldGrad)"
+        stroke="url(#goldGrad)"
+        stroke-width="4.5"
+        filter="url(#crestShadow)" />
+
+  <!-- Inner Inset Shield Line -->
+  <path d="M 80 16 C 118 16, 138 24, 138 50 C 138 110, 108 144, 80 160 C 52 144, 22 110, 22 50 C 22 24, 42 16, 80 16 Z"
+        fill="none"
+        stroke="#ffffff"
+        stroke-opacity="0.18"
+        stroke-width="1.5" />
+
+  <!-- IIT PATNA Header Arc Ribbon Banner -->
+  <path d="M 26 38 Q 80 26 134 38 L 131 52 Q 80 40 29 52 Z" fill="url(#goldGrad)" />
+  <text x="80" y="47" text-anchor="middle" font-family="'Outfit', 'Barlow Condensed', sans-serif" font-weight="800" font-size="10.5" fill="#0b2a4a" letter-spacing="1.4">IIT PATNA</text>
+
+  <!-- Crossed Field Hockey Sticks -->
+  <!-- Left stick -->
+  <path d="M 44 126 C 42 126, 40 128, 41 130 C 44 135, 52 138, 59 135 C 65 132, 65 125, 62 121 L 115 62 L 121 67 L 68 126 Z" fill="#ffffff" opacity="0.95" />
+  <path d="M 41 130 C 44 135, 52 138, 59 135 C 62 133, 63 129, 61 126 L 115 62 L 111 58 L 57 122 C 54 125, 47 125, 43 123 Z" fill="url(#goldGrad)" />
+
+  <!-- Right stick -->
+  <path d="M 116 126 C 118 126, 120 128, 119 130 C 116 135, 108 138, 101 135 C 95 132, 95 125, 98 121 L 45 62 L 39 67 L 92 126 Z" fill="#ffffff" opacity="0.95" />
+  <path d="M 119 130 C 116 135, 108 138, 101 135 C 98 133, 97 129, 99 126 L 45 62 L 49 58 L 103 122 C 106 125, 113 125, 117 123 Z" fill="url(#goldGrad)" />
+
+  <!-- Center Ball -->
+  <circle cx="80" cy="94" r="10.5" fill="#ffffff" stroke="url(#goldGrad)" stroke-width="2.5" />
+  <circle cx="78" cy="91" r="3" fill="#ffffff" opacity="0.8" />
+  <!-- Ball dimples -->
+  <circle cx="80" cy="94" r="1.5" fill="#f59e0b" />
+  <circle cx="75.5" cy="93" r="1.2" fill="#d97706" opacity="0.7" />
+  <circle cx="84.5" cy="93" r="1.2" fill="#d97706" opacity="0.7" />
+  <circle cx="80" cy="89" r="1.2" fill="#d97706" opacity="0.7" />
+  <circle cx="80" cy="99" r="1.2" fill="#d97706" opacity="0.7" />
+
+  <!-- Bottom Banner: HOCKEY -->
+  <path d="M 32 144 Q 80 152 128 144 L 126 158 Q 80 166 34 158 Z" fill="#0b2a4a" stroke="url(#goldGrad)" stroke-width="1.5" />
+  <text x="80" y="156" text-anchor="middle" font-family="'Outfit', 'Barlow Condensed', sans-serif" font-weight="900" font-size="10.5" fill="#f59e0b" letter-spacing="2.2">HOCKEY</text>
+
+  <!-- Star accents -->
+  <polygon points="80,63 82,68 87,68 83,71 85,76 80,73 75,76 77,71 73,68 78,68" fill="url(#goldGrad)" />
+</svg>

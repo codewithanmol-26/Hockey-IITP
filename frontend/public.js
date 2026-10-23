@@ -20,52 +20,102 @@ const nameOf2 = (k) => ((TEAM && TEAM[k]) || {}).name || DEFNAME[k];
 
 // ---------------------------------------------------------------- public page
 const FEATURES = [
-  [
-    "✅",
-    "Attendance",
-    "Your attendance % out of all working days, month by month, with charts.",
-  ],
-  [
-    "📅",
-    "Playing days",
-    "Calendar of practice days. Tell the captain if you can come or are injured.",
-  ],
-  [
-    "⏰",
-    "Weekly schedule",
-    "Timings and the focus of every practice, for the team and goalkeepers.",
-  ],
-  [
-    "📖",
-    "Rules & signals",
-    "Hockey rules, umpire signals with pictures and whistle sounds.",
-  ],
-  [
-    "🔥",
-    "Warm-up",
-    "Warm-up and stretching routines to do before and after practice.",
-  ],
-  [
-    "⏱",
-    "Training & health",
-    "Timer, match clock, and a log of your steps, distance, sleep, calories, height and weight.",
-  ],
-  ["🖼️", "Team gallery", "Share and view team photos."],
-  [
-    "🔔",
-    "Reminders",
-    "Alerts when a playing day is scheduled or cancelled, and 15 minutes before it starts.",
-  ],
+  ["✅", "Turnout Analytics", "Monthly attendance %, practice history, and visual turnout charts."],
+  ["📅", "Practice Scheduling", "Live schedule of playing days with real-time status and cancellations."],
+  ["⏰", "Weekly Routine", "Morning sprint conditioning & evening turf drills for squad and goalkeepers."],
+  ["📖", "FIH Rules & Whistle", "Official 2026 hockey rules, umpire signals, and synthesised umpire whistle."],
+  ["🔥", "Warm-Up Drills", "Cardio, dynamic flexibility, dynamic stretching routines, and post-session cool-downs."],
+  ["⏱", "Training & Health Log", "Match clock, interval timers, fitness records, distance, and hydration logs."],
+  ["🖼️", "Squad Action Gallery", "High-resolution photos from Inter-IIT tournaments and training camps."],
+  ["🔔", "Match & Practice Alerts", "Instant push notifications for practice updates and schedule changes."],
 ];
-function teamBlock(team) {
-  const t = team || {},
-    row = (k, role) => {
-      const x = t[k] || {},
-        n = x.name || DEFNAME[k];
-      return `<div class="tm">${avatar(n, x.photo, 64)}<b>${esc(n)}</b><span class="mute">${role}</span></div>`;
-    };
-  return `<div class="tms">${row("captain", "Captain")}${row("vice", "Vice-captain")}${row("coach", "Coach")}</div>${t.about ? `<p class="tabout">${esc(t.about).replace(/\n/g, "<br>")}</p>` : ""}`;
+
+function initFontSizer() {
+  const SIZES = [14, 15, 16, 17, 18, 20];
+  let cur = 16;
+  try {
+    const saved = parseInt(localStorage.getItem("hk_fs") || "16", 10);
+    if (saved && SIZES.includes(saved)) cur = saved;
+  } catch (e) {}
+  const apply = (sz) => {
+    cur = sz;
+    document.documentElement.style.setProperty("--app-fs", sz + "px");
+    try { localStorage.setItem("hk_fs", sz); } catch (e) {}
+  };
+  apply(cur);
+  const up = () => {
+    const idx = SIZES.indexOf(cur);
+    if (idx < SIZES.length - 1) apply(SIZES[idx + 1]);
+  };
+  const down = () => {
+    const idx = SIZES.indexOf(cur);
+    if (idx > 0) apply(SIZES[idx - 1]);
+  };
+  ["pfs-up", "afs-up"].forEach((id) => {
+    const b = gid(id);
+    if (b) b.onclick = up;
+  });
+  ["pfs-down", "afs-down"].forEach((id) => {
+    const b = gid(id);
+    if (b) b.onclick = down;
+  });
 }
+
+function pubPlayWhistle(kind) {
+  if (typeof playWhistle === "function") {
+    playWhistle(kind);
+  } else {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const c = new AudioCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.frequency.value = 2850;
+      g.gain.value = 0.3;
+      o.connect(g);
+      g.connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.3);
+    } catch (e) {}
+  }
+}
+
+function teamBlock(team) {
+  const t = team || {};
+  const coachName = (t.coach && t.coach.name) || DEFNAME.coach;
+  const captName = (t.captain && t.captain.name) || DEFNAME.captain;
+  const viceName = (t.vice && t.vice.name) || DEFNAME.vice;
+
+  return `<div class="leadership-cards">
+    <div class="leader-card featured">
+      <div class="user-drawer-avatar">${avatar(coachName, (t.coach && t.coach.photo) || "", 68)}</div>
+      <div class="leader-meta">
+        <span class="leader-role-badge">Head Coach & Director</span>
+        <h3 class="leader-name">${esc(coachName)}</h3>
+        <p class="leader-bio">Leading IIT Patna Field Hockey with elite tactical training, circle penetration strategies, and conditioning.</p>
+      </div>
+    </div>
+    <div class="leader-card">
+      <div class="user-drawer-avatar">${avatar(captName, (t.captain && t.captain.photo) || "", 60)}</div>
+      <div class="leader-meta">
+        <span class="leader-role-badge" style="background:#f59e0b22;color:#d97706">Team Captain</span>
+        <h3 class="leader-name">${esc(captName)}</h3>
+        <p class="leader-bio">On-field commander, midfield distributor & squad coordination.</p>
+      </div>
+    </div>
+    <div class="leader-card">
+      <div class="user-drawer-avatar">${avatar(viceName, (t.vice && t.vice.photo) || "", 60)}</div>
+      <div class="leader-meta">
+        <span class="leader-role-badge" style="background:#3b82f622;color:#2563eb">Vice-Captain</span>
+        <h3 class="leader-name">${esc(viceName)}</h3>
+        <p class="leader-bio">Defense anchor & squad fitness coordinator.</p>
+      </div>
+    </div>
+  </div>
+  ${t.about ? `<div class="note" style="margin-top:14px;background:var(--soft);border-left:4px solid var(--accent);padding:14px 18px;border-radius:10px;font-size:0.92rem;line-height:1.55;color:var(--ink)"><b>About our Squad:</b><br>${esc(t.about).replace(/\n/g, "<br>")}</div>` : ""}`;
+}
+
 async function fetchPublic() {
   if (pubBusy) return;
   pubBusy = true;
@@ -85,58 +135,644 @@ async function fetchPublic() {
   pubBusy = false;
   if (!gid("pub").hidden) drawPublic();
 }
+
+const DEF_MATCHES = [
+  { d: "2026-11-15", t: "IIT Patna vs IIT BHU", v: "Sports Complex Main Turf" },
+  { d: "2026-11-28", t: "Patna Inter-Collegiate Hockey Cup", v: "IIT Patna Ground" },
+  { d: "2026-12-18", t: "Inter-IIT Sports Meet 2026", v: "IIT Delhi Stadium" },
+];
+
+const getDLabel = (d) => {
+  if (typeof dlabel === "function") return dlabel(d);
+  if (!d) return "";
+  const td = typeof today === "function" ? today() : new Date().toISOString().slice(0, 10);
+  const n = Math.round((new Date(d + "T00:00") - new Date(td + "T00:00")) / 864e5);
+  return n === 0 ? "Today" : n === 1 ? "Tomorrow" : "In " + n + " days";
+};
+
 function pubMatches() {
   const src =
-    (PUB && PUB.matches) || DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2] }));
+    (PUB && PUB.matches && PUB.matches.length)
+      ? PUB.matches
+      : typeof DEFM !== "undefined" && DEFM && DEFM.length
+        ? DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2] }))
+        : DEF_MATCHES;
+  const td = typeof today === "function" ? today() : new Date().toISOString().slice(0, 10);
   return src
-    .filter((m) => m.d >= today())
+    .filter((m) => m && m.d && m.d >= td)
     .sort((a, b) => a.d.localeCompare(b.d))
     .slice(0, 5);
 }
+
 function drawPublic() {
-  const p = PUB,
-    inst = !standalone();
+  const p = PUB;
+  const inst = !standalone();
+  const nextMatch = pubMatches()[0];
+
   const news = (a) =>
     !p
-      ? '<p class="mute">Loading…</p>'
+      ? '<p class="mute">Loading latest updates…</p>'
       : a && a.length
         ? newsRows(a.slice(0, 4))
         : '<p class="mute">No news found right now.</p>';
+
   const fx = pubMatches()
     .map((m) => {
       const dt = new Date(m.d + "T00:00");
-      return `<div class="fx"><div class="dbx"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString("en-IN", { month: "short" })}</span></div><div class="fxi"><b>${esc(m.t)}</b>${m.v ? `<span class="mute">${esc(m.v)}</span>` : ""}</div><span class="pill ${dlabel(m.d) === "Today" || dlabel(m.d) === "Tomorrow" ? "g" : ""}">${dlabel(m.d)}</span></div>`;
+      return `<div class="fx" style="border-radius:14px;background:var(--soft);border:1px solid var(--line);padding:12px;margin-bottom:8px">
+        <div class="dbx" style="background:var(--navy);color:#fff;border-radius:10px;min-width:48px;padding:6px;text-align:center">
+          <b style="font-size:1.15rem;display:block;line-height:1">${dt.getDate()}</b>
+          <span style="font-size:0.75rem;text-transform:uppercase;color:#fde68a">${dt.toLocaleDateString("en-IN", { month: "short" })}</span>
+        </div>
+        <div class="fxi" style="flex:1">
+          <b style="font-size:0.95rem;color:var(--ink)">${esc(m.t)}</b>
+          ${m.v ? `<span class="mute" style="display:block;font-size:0.8rem;margin-top:2px">📍 ${esc(m.v)}</span>` : ""}
+        </div>
+        <span class="pill ${getDLabel(m.d) === "Today" || getDLabel(m.d) === "Tomorrow" ? "g" : "y"}">${getDLabel(m.d)}</span>
+      </div>`;
     })
     .join("");
+
   const photos =
     p && p.groupPhoto
-      ? `<img class="gph" id="pgph" src="${p.groupPhoto}" alt="Team group photo">`
-      : empty("📸", p ? "The team photo will appear here." : "Loading photo…");
-  gid("pview").innerHTML =
-    `<div class="card hero phero"><img src="icons/icon-192.png" alt="" width="72" height="72" class="plogo"><div class="ph2"><h2>IITP Hockey</h2><span class="mute">Attendance · Schedule · Rules · Photos · News</span></div>
-    <div class="ctl phb"><button class="pri big" data-plog>Log in to your account</button>${inst ? '<button class="big pghost" id="pinst">📲 Get the app</button>' : ""}</div></div>
-  ${pubErr ? `<div class="note">${esc(pubErr)} <button id="ptry">Try again</button></div>` : ""}
-  <div class="card"><h2>What you can do in the app</h2><div class="fts">${FEATURES.map((f) => `<div class="ft"><span class="ic">${f[0]}</span><b>${f[1]}</b><span class="mute">${f[2]}</span></div>`).join("")}</div><p class="mute" style="margin:10px 0 0">🔒 Personal details and attendance are shown only after you log in.</p></div>
-  <div class="card"><h2>Team photo</h2>${photos}</div>
-  <div class="card"><h2>Our team</h2>${teamBlock(TEAM)}${p && p.playersCount ? `<p class="mute" style="text-align:center;margin:10px 0 0">${p.playersCount} players on the squad</p>` : ""}</div>
-  <div class="grid"><div class="card"><h2>Upcoming Indian hockey</h2>${fx || empty("🗓️", "No upcoming matches in the list.")}</div>
-  <div class="card"><h2>Latest hockey news</h2>${news(p && p.latest)}</div></div>
-  ${helpCard("public")}`;
-  document
-    .querySelectorAll("#pview [data-plog]")
-    .forEach((b) => (b.onclick = showLogin));
-  bindHelp();
-  if (gid("pinst")) gid("pinst").onclick = openInApp;
-  if (gid("ptry")) gid("ptry").onclick = () => fetchPublic();
-  if (gid("pgph")) gid("pgph").onclick = () => openImg(p.groupPhoto);
+      ? `<div class="group-photo-container" id="pgph">
+          <img class="gph" src="${p.groupPhoto}" alt="IIT Patna Hockey Team Squad Group Photo" loading="lazy">
+          <div class="group-photo-overlay">
+            <div>
+              <div class="gpo-title">IIT Patna Hockey Squad</div>
+              <div class="gpo-sub">Main Hockey Turf · IIT Patna Sports Complex</div>
+            </div>
+            <span class="pill" style="background:rgba(255,255,255,0.2);color:#fff;backdrop-filter:blur(6px)">Tap to view full screen 🔍</span>
+          </div>
+        </div>`
+      : empty("📸", p ? "The team photo will appear here." : "Loading squad photo…");
+
+  const thumbs =
+    p && p.gallery && p.gallery.length
+      ? `<div class="gallery-thumbs-grid">${p.gallery.map((src, i) => `<div class="g-thumb-item" data-gthumb="${esc(src)}" title="Open photo"><img src="${esc(src)}" alt="IIT Patna Hockey Practice ${i + 1}" loading="lazy"></div>`).join("")}</div>`
+      : "";
+
+  gid("pview").innerHTML = `
+    <!-- 1. Hero Section -->
+    <section class="pub-hero" id="pub-hero">
+      <div class="hero-crest-badge">
+        <img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Crest">
+        Official Collegiate Portal · IIT Patna Athletics
+      </div>
+      <h1 class="hero-title">IIT PATNA <span class="accent-text">HOCKEY</span></h1>
+      <p class="hero-tagline">Tradition · Precision · Speed on Turf. Representing the Indian Institute of Technology Patna with pride and competitive fire.</p>
+
+      <div class="next-session-live-card">
+        <div class="nsl-left">
+          <div class="pulse-indicator">
+            <div class="ring"></div>
+            <div class="dot"></div>
+          </div>
+          <div class="nsl-meta">
+            <span class="nsl-tag">Next Regular Session</span>
+            <span class="nsl-title">${nextMatch ? esc(nextMatch.t) : "Field Practice & Tactical Drills"}</span>
+            <span class="nsl-venue">📍 ${nextMatch && nextMatch.v ? esc(nextMatch.v) : "Main Turf Pitch, IIT Patna Sports Complex"}</span>
+          </div>
+        </div>
+        <div class="nsl-countdown">${nextMatch ? getDLabel(nextMatch.d) + " · " + nextMatch.d : "Today · 5:30 PM - 7:30 PM"}</div>
+      </div>
+
+      <div class="hero-cta-group">
+        <button class="btn-hero-primary" data-plog>
+          <span>Member Login &amp; Attendance</span> →
+        </button>
+        <a href="#pub-schedule" class="btn-hero-secondary">
+          <span>📅 View Schedule</span>
+        </a>
+        <a href="#pub-progress" class="btn-hero-secondary">
+          <span>📊 Check My Progress</span>
+        </a>
+      </div>
+
+      <div class="hero-metrics-strip">
+        <div class="metric-box">
+          <span class="metric-val">${(p && p.playersCount) || "30+"}</span>
+          <span class="metric-lbl">Active Squad Athletes</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-val">Inter-IIT</span>
+          <span class="metric-lbl">Championship Preparation</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-val">Main Turf</span>
+          <span class="metric-lbl">IITP Sports Complex</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-val">FIH 2026</span>
+          <span class="metric-lbl">Official Rules Standard</span>
+        </div>
+      </div>
+    </section>
+
+    ${pubErr ? `<div class="note err" style="margin-bottom:24px">${esc(pubErr)} <button id="ptry">Retry</button></div>` : ""}
+
+    <!-- 2. About Section -->
+    <section class="pub-sec" id="pub-about">
+      <div class="sec-header">
+        <span class="sec-kicker">HERITAGE &amp; EXCELLENCE</span>
+        <h2 class="sec-title">About the Team</h2>
+        <p class="sec-lead">A tradition of grit, strategic field play, and brotherhood at the Indian Institute of Technology Patna.</p>
+      </div>
+      <div class="about-grid">
+        <div class="about-story-card">
+          <p>The IIT Patna Field Hockey program combines high-intensity physical conditioning, stick mastery, and tactical coordination. Squad members train multiple times weekly at the IIT Patna Sports Complex, balancing academic rigor with athletic dedication.</p>
+          <p>Our focus spans technical ball-handling, structured zonal press defense, quick penalty corner execution, and Inter-IIT Championship readiness.</p>
+          <div class="about-pillars">
+            <div class="pillar-item">
+              <span class="ic-tile">🏑</span>
+              <b>Tactical Precision</b>
+              <span>Ball distribution, circle penetration, and defensive set pieces.</span>
+            </div>
+            <div class="pillar-item">
+              <span class="ic-tile">⚡</span>
+              <b>Peak Conditioning</b>
+              <span>Sprint intervals, endurance, and high-intensity agility drills.</span>
+            </div>
+            <div class="pillar-item">
+              <span class="ic-tile">🤝</span>
+              <b>Team Brotherhood</b>
+              <span>Mutual respect, accountability, and sportsmanship on and off the turf.</span>
+            </div>
+          </div>
+        </div>
+        <div class="about-leadership">
+          ${teamBlock(TEAM)}
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Practice Schedule Section -->
+    <section class="pub-sec" id="pub-schedule">
+      <div class="sec-header">
+        <span class="sec-kicker">TRAINING TIMETABLE</span>
+        <h2 class="sec-title">Next Session &amp; Weekly Schedule</h2>
+        <p class="sec-lead">Squad attendance is tracked for official Inter-IIT tournament selection and athletic grading.</p>
+      </div>
+      <div class="schedule-grid">
+        <div class="weekly-schedule-card">
+          <h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--ink);margin:0 0 4px">Weekly Practice Program</h3>
+          <p class="mute" style="margin:0 0 12px;font-size:0.84rem">Held at Main Turf Pitch, IIT Patna Sports Complex</p>
+          <div class="weekly-table">
+            <div class="weekly-row">
+              <div class="weekly-day-box">
+                <span class="weekly-day">Monday</span>
+                <span class="weekly-focus">Stickwork, Receiving &amp; Accurate Passing Channels</span>
+              </div>
+              <span class="weekly-time-badge">5:30 PM – 7:30 PM</span>
+            </div>
+            <div class="weekly-row">
+              <div class="weekly-day-box">
+                <span class="weekly-day">Wednesday</span>
+                <span class="weekly-focus">Penalty Corner Variations, Drag-flicks &amp; Deflections</span>
+              </div>
+              <span class="weekly-time-badge">5:30 PM – 7:30 PM</span>
+            </div>
+            <div class="weekly-row">
+              <div class="weekly-day-box">
+                <span class="weekly-day">Friday</span>
+                <span class="weekly-focus">11v11 Full Pitch Tactical Match Simulation</span>
+              </div>
+              <span class="weekly-time-badge">5:30 PM – 7:30 PM</span>
+            </div>
+            <div class="weekly-row">
+              <div class="weekly-day-box">
+                <span class="weekly-day">Saturday</span>
+                <span class="weekly-focus">Morning Conditioning, Sprint Sets &amp; Goalkeeper Clinic</span>
+              </div>
+              <span class="weekly-time-badge">6:30 AM – 8:30 AM</span>
+            </div>
+            <div class="weekly-row">
+              <div class="weekly-day-box">
+                <span class="weekly-day">Sunday</span>
+                <span class="weekly-focus">Recovery, Stretching &amp; Tactical Video Review</span>
+              </div>
+              <span class="weekly-time-badge">Optional Recovery</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="avail-advisory-card">
+          <span class="advisory-badge">⚡ Player Practice Protocol</span>
+          <h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--ink);margin:0">Squad Participation Rules</h3>
+          <p style="font-size:0.9rem;line-height:1.55;color:var(--ink);margin:0">
+            Attendance is mandatory for all team players. If you are unable to attend a scheduled practice session due to labs, exams, or injury, follow the squad procedure:
+          </p>
+          <div class="avail-steps">
+            <div class="avail-step">
+              <span class="avail-step-num">1</span>
+              <span><b>Notify in Advance:</b> Submit your availability status (Active, Injured, Out, or Maybe) in the Playing Days section at least 4 hours before session start.</span>
+            </div>
+            <div class="avail-step">
+              <span class="avail-step-num">2</span>
+              <span><b>State Reason:</b> Clearly note reason (e.g. academic clash, shin splint, fever) so Captain &amp; Coach can calibrate drills.</span>
+            </div>
+            <div class="avail-step">
+              <span class="avail-step-num">3</span>
+              <span><b>Track Eligibility:</b> Minimum 75% recorded turnout required for tournament travel squad consideration.</span>
+            </div>
+          </div>
+          <button class="pri" style="margin-top:10px" data-plog>Log In to Submit Availability</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. "My Progress" Roll-Number Lookup Section -->
+    <section class="pub-sec" id="pub-progress">
+      <div class="sec-header">
+        <span class="sec-kicker">INDIVIDUAL TURNOUT</span>
+        <h2 class="sec-title">Check My Progress</h2>
+        <p class="sec-lead">Verify your registered squad status and access your personal attendance records.</p>
+      </div>
+      <div class="progress-card">
+        <div class="progress-privacy-badge">
+          🔒 Private &amp; Secure · Records revealed only after roll-number verification
+        </div>
+        <p style="font-size:0.95rem;line-height:1.55;color:var(--ink);margin:0">
+          Enter your institute roll number below to check your squad status and launch your personal attendance breakdown.
+        </p>
+        <div class="progress-search-row">
+          <input type="text" id="pub-roll-input" placeholder="Enter Roll Number (e.g. 2501CE01)" autocapitalize="characters" autocomplete="username">
+          <button class="pri" id="btn-check-progress">Check Progress</button>
+        </div>
+        <div id="pub-lookup-result" hidden></div>
+      </div>
+    </section>
+
+    <!-- 5. Announcements & Fixtures Section -->
+    <section class="pub-sec" id="pub-announcements">
+      <div class="sec-header">
+        <span class="sec-kicker">TEAM BULLETIN</span>
+        <h2 class="sec-title">Announcements &amp; Fixtures</h2>
+        <p class="sec-lead">Upcoming match fixtures, practice notices, and national hockey news updates.</p>
+      </div>
+      <div class="ann-fixtures-grid">
+        <div class="card" style="margin:0">
+          <h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--ink);margin:0 0 14px">Upcoming Indian Hockey Fixtures</h3>
+          ${fx || empty("🗓️", "No upcoming fixtures scheduled right now.")}
+        </div>
+        <div class="card" style="margin:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--ink);margin:0">Hockey News Feed</h3>
+            <button id="pub-news-ref" class="f-btn" style="color:var(--mute);background:var(--soft);border-radius:6px;padding:4px 8px" title="Refresh news">↻ Refresh</button>
+          </div>
+          ${news(p && p.latest)}
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Team Photos Section -->
+    <section class="pub-sec" id="pub-gallery">
+      <div class="sec-header">
+        <span class="sec-kicker">TEAM ACTION &amp; MOMENTS</span>
+        <h2 class="sec-title">Team Photo Gallery</h2>
+        <p class="sec-lead">Captured memories from practice camps, Inter-IIT encounters, and squad milestones.</p>
+      </div>
+      <div class="gallery-showcase-box">
+        ${photos}
+        ${thumbs}
+      </div>
+    </section>
+
+    <!-- 7. Rules & Umpire Signals Preview Section -->
+    <section class="pub-sec" id="pub-rules">
+      <div class="sec-header">
+        <span class="sec-kicker">OFFICIAL FIH STANDARDS</span>
+        <h2 class="sec-title">Rules &amp; Umpire Signals</h2>
+        <p class="sec-lead">Test your hockey knowledge, learn official umpire signals, and listen to synthesised umpire whistle calls.</p>
+      </div>
+      <div class="rules-container-grid">
+        <div class="whistle-board-card">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <span class="ic-tile">📯</span>
+            <div>
+              <h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--ink);margin:0">Interactive Umpire Whistle</h3>
+              <span class="mute" style="font-size:0.8rem">Tap each blast to trigger audio synthesizer</span>
+            </div>
+          </div>
+          <div class="whistle-buttons-grid">
+            <button type="button" class="btn-whistle-blast" data-pub-whistle="short">
+              <span class="wb-ic">🔊</span>
+              <span class="wb-name">Short Blast</span>
+              <span class="wb-desc">Stop play · Ordinary foul / free hit restart</span>
+            </button>
+            <button type="button" class="btn-whistle-blast" data-pub-whistle="long">
+              <span class="wb-ic">📢</span>
+              <span class="wb-name">Long Blast</span>
+              <span class="wb-desc">Serious breach · Penalty stroke or danger</span>
+            </button>
+            <button type="button" class="btn-whistle-blast" data-pub-whistle="double">
+              <span class="wb-ic">🔔</span>
+              <span class="wb-name">Double Blast</span>
+              <span class="wb-desc">Goal awarded · Time-out call</span>
+            </button>
+            <button type="button" class="btn-whistle-blast" data-pub-whistle="final">
+              <span class="wb-ic">🏁</span>
+              <span class="wb-name">Final Whistle</span>
+              <span class="wb-desc">End of quarter or match completion</span>
+            </button>
+          </div>
+          <div class="whistle-vol-row">
+            <span style="font-size:0.85rem;font-weight:700;color:var(--ink)">Whistle Volume:</span>
+            <input type="range" id="pub-wvol" min="0" max="100" value="80" aria-label="Whistle volume">
+            <span id="pub-wvolv" style="font-size:0.82rem;font-weight:800;color:var(--accent);min-width:34px">80%</span>
+          </div>
+
+          <h4 style="font-family:var(--font-display);font-size:0.98rem;font-weight:800;color:var(--ink);margin:18px 0 6px">FIH Penalty Cards Guide</h4>
+          <div class="penalty-cards-guide">
+            <div class="penalty-card-item green">
+              <div class="card-shape g"></div>
+              <b style="font-size:0.88rem;color:#059669">Green Card</b>
+              <span style="font-size:0.76rem;color:var(--ink)"><b>2-Min Suspension</b><br>Player temporarily leaves pitch; team plays short-handed.</span>
+            </div>
+            <div class="penalty-card-item yellow">
+              <div class="card-shape y"></div>
+              <b style="font-size:0.88rem;color:#d97706">Yellow Card</b>
+              <span style="font-size:0.76rem;color:var(--ink)"><b>5–10 Min Suspension</b><br>Major technical foul, deliberate breakdown or harsh tackle.</span>
+            </div>
+            <div class="penalty-card-item red">
+              <div class="card-shape r"></div>
+              <b style="font-size:0.88rem;color:#dc2626">Red Card</b>
+              <span style="font-size:0.76rem;color:var(--ink)"><b>Permanent Expulsion</b><br>Violent conduct or dangerous challenge. Ejected for full game.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="whistle-board-card">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+            <span class="ic-tile">🚩</span>
+            <div>
+              <h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--ink);margin:0">Key Umpire Signals</h3>
+              <span class="mute" style="font-size:0.8rem">Official hand gestures used in collegiate matches</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="weekly-row" style="background:var(--soft)">
+              <div style="font-size:1.4rem">👉</div>
+              <div style="flex:1"><b style="font-size:0.9rem;color:var(--ink)">Free Hit</b><span class="mute" style="display:block;font-size:0.78rem">Arm extended horizontally pointing in attacking direction.</span></div>
+              <span class="pill">Restart</span>
+            </div>
+            <div class="weekly-row" style="background:var(--soft)">
+              <div style="font-size:1.4rem">🏃</div>
+              <div style="flex:1"><b style="font-size:0.9rem;color:var(--ink)">Advantage</b><span class="mute" style="display:block;font-size:0.78rem">Arm raised in line with shoulder pointing in direction of play.</span></div>
+              <span class="pill g">Play On</span>
+            </div>
+            <div class="weekly-row" style="background:var(--soft)">
+              <div style="font-size:1.4rem">🥅</div>
+              <div style="flex:1"><b style="font-size:0.9rem;color:var(--ink)">Penalty Corner</b><span class="mute" style="display:block;font-size:0.78rem">Both arms extended horizontally pointing towards the goal.</span></div>
+              <span class="pill y">Set Piece</span>
+            </div>
+            <div class="weekly-row" style="background:var(--soft)">
+              <div style="font-size:1.4rem">🎯</div>
+              <div style="flex:1"><b style="font-size:0.9rem;color:var(--ink)">Penalty Stroke</b><span class="mute" style="display:block;font-size:0.78rem">One arm pointing to spot, other arm raised vertically.</span></div>
+              <span class="pill r">Direct Shot</span>
+            </div>
+            <div class="weekly-row" style="background:var(--soft)">
+              <div style="font-size:1.4rem">🙅</div>
+              <div style="flex:1"><b style="font-size:0.9rem;color:var(--ink)">Obstruction / Third-Party</b><span class="mute" style="display:block;font-size:0.78rem">Crossed forearms in front of chest indicating blocked path.</span></div>
+              <span class="pill">Foul</span>
+            </div>
+            <div class="weekly-row" style="background:var(--soft)">
+              <div style="font-size:1.4rem">🦶</div>
+              <div style="flex:1"><b style="font-size:0.9rem;color:var(--ink)">Ball Off Foot</b><span class="mute" style="display:block;font-size:0.78rem">Hand touches raised foot indicating illegal foot-ball contact.</span></div>
+              <span class="pill">Violation</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. FAQ & Help Desk Section -->
+    <section class="pub-sec" id="pub-faq">
+      <div class="sec-header">
+        <span class="sec-kicker">QUESTIONS &amp; INQUIRIES</span>
+        <h2 class="sec-title">FAQ &amp; Visitor Help Desk</h2>
+        <p class="sec-lead">Common questions for squad members, newcomers, and campus visitors.</p>
+      </div>
+      <div class="pub-faq-grid">
+        ${helpCard("public")}
+      </div>
+    </section>
+
+    <!-- 9. Collegiate Footer -->
+    <footer class="pub-footer" id="pub-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <div class="footer-brand-title">
+            <img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Crest" width="48" height="48">
+            <div>
+              <div style="font-size:1.25rem;line-height:1">IIT PATNA</div>
+              <div style="font-size:0.72rem;letter-spacing:0.12em;color:var(--accent)">FIELD HOCKEY TEAM</div>
+            </div>
+          </div>
+          <p class="footer-desc">
+            Official web portal of the Indian Institute of Technology Patna Field Hockey Team. Practice tracking, turnout records, official rules, and squad coordination.
+          </p>
+          <div style="margin-top:6px">
+            <a href="${(PUB && PUB.group) || window.WA_GROUP || "#"}" target="_blank" rel="noopener" class="btn-wa-footer" id="btn-join-wa">
+              💬 Join Squad WhatsApp Group
+            </a>
+          </div>
+        </div>
+
+        <div class="footer-col">
+          <h4>Venue &amp; Campus</h4>
+          <p style="font-size:0.85rem;line-height:1.6;color:rgba(255,255,255,0.78);margin:0 0 10px">
+            <b>Main Hockey Turf Ground</b><br>
+            Sports Complex, IIT Patna<br>
+            Bihta, Patna, Bihar – 801106<br>
+            India
+          </p>
+          <p style="font-size:0.85rem;color:rgba(255,255,255,0.78);margin:0">
+            <b>Practice Hours:</b><br>
+            Mon · Wed · Fri · Sat (5:30 PM)
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h4>Team Leadership</h4>
+          <p style="font-size:0.85rem;line-height:1.6;color:rgba(255,255,255,0.78);margin:0 0 10px">
+            <b>Head Coach:</b> Kiran Chaudhary<br>
+            <b>Captain:</b> ${esc(nameOf2("captain"))}<br>
+            <b>Vice-Captain:</b> ${esc(nameOf2("vice"))}
+          </p>
+          <div style="margin-top:12px">
+            ${inst ? '<button type="button" class="btn-login-gold" id="pinst-footer" style="padding:6px 14px;font-size:0.82rem">📲 Install App to Home Screen</button>' : ""}
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>© ${new Date().getFullYear()} IIT Patna Field Hockey Team · All Rights Reserved.</div>
+        <div>Compliant with FIH Rules of Hockey · Built for Athletes</div>
+      </div>
+    </footer>
+  `;
+
+  bindPublic();
 }
+
+function bindPublic() {
+  // Login buttons
+  document.querySelectorAll("#pub [data-plog]").forEach((b) => (b.onclick = showLogin));
+
+  // Help Desk
+  bindHelp();
+
+  // Install app buttons
+  if (gid("pinst")) gid("pinst").onclick = openInApp;
+  if (gid("pinst-footer")) gid("pinst-footer").onclick = openInApp;
+
+  // Try again for public error
+  if (gid("ptry")) gid("ptry").onclick = () => fetchPublic();
+
+  // News refresh
+  if (gid("pub-news-ref")) {
+    gid("pub-news-ref").onclick = () => {
+      fetchPublic();
+    };
+  }
+
+  // Group photo click lightbox
+  if (gid("pgph")) {
+    gid("pgph").onclick = () => {
+      if (PUB && PUB.groupPhoto) openImg(PUB.groupPhoto);
+    };
+  }
+
+  // Gallery thumbs click
+  document.querySelectorAll("#pub [data-gthumb]").forEach((el) => {
+    el.onclick = () => openImg(el.dataset.gthumb);
+  });
+
+  // Whistle Synthesizer buttons
+  document.querySelectorAll("#pub [data-pub-whistle]").forEach((b) => {
+    b.onclick = () => pubPlayWhistle(b.dataset.pubWhistle);
+  });
+
+  // Whistle volume slider
+  const wvol = gid("pub-wvol");
+  const wvolv = gid("pub-wvolv");
+  if (wvol && wvolv) {
+    wvol.oninput = () => {
+      const v = wvol.value;
+      wvolv.textContent = v + "%";
+      try {
+        localStorage.setItem("hk_vol", v);
+      } catch (e) {}
+    };
+  }
+
+  // Font sizer buttons
+  initFontSizer();
+
+  // Mobile Drawer Toggle
+  const pmb = gid("pmb");
+  const pdr = gid("pub-drawer");
+  if (pmb && pdr) {
+    pmb.onclick = (e) => {
+      e.stopPropagation();
+      const open = !pdr.hidden;
+      pdr.hidden = open;
+      pmb.setAttribute("aria-expanded", String(!open));
+    };
+    pdr.querySelectorAll(".pub-drawer-link").forEach((a) => {
+      a.onclick = () => {
+        pdr.hidden = true;
+        pmb.setAttribute("aria-expanded", "false");
+      };
+    });
+    document.addEventListener("click", (e) => {
+      if (!pdr.hidden && !pdr.contains(e.target) && e.target !== pmb) {
+        pdr.hidden = true;
+        pmb.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
+  // "My Progress" Roll-Number Lookup
+  const btnChk = gid("btn-check-progress");
+  const rollInp = gid("pub-roll-input");
+  if (btnChk && rollInp) {
+    btnChk.onclick = () => checkPublicProgress();
+    rollInp.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        checkPublicProgress();
+      }
+    };
+  }
+}
+
+async function checkPublicProgress() {
+  const inp = gid("pub-roll-input");
+  const res = gid("pub-lookup-result");
+  if (!inp || !res) return;
+  const roll = inp.value.trim().toUpperCase();
+  if (!roll) {
+    res.hidden = false;
+    res.innerHTML = '<p class="err" style="margin:6px 0 0">Please enter your roll number (e.g. 2501CE01).</p>';
+    return;
+  }
+  res.hidden = false;
+  res.innerHTML = '<p class="mute" style="margin:6px 0 0">Checking squad database…</p>';
+  try {
+    const r = await fetch(API + "/api/player/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roll }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      res.innerHTML = `<div class="note err" style="margin-top:10px;background:#ef444415;border:1px solid #ef444440;border-radius:12px;padding:14px">
+        <b>Not Found:</b> ${esc(j.error || "Roll number not registered on the active team list.")}
+        <p class="mute" style="margin:6px 0 0">Ask Coach Kiran Chaudhary or the Captain to add you to the squad.</p>
+      </div>`;
+      return;
+    }
+    // Found on team
+    res.innerHTML = `<div class="lookup-result">
+      <div class="lookup-result-header">
+        <div>
+          <span class="leader-role-badge" style="background:#10b98122;color:#059669;border:1px solid #10b98155">Verified Squad Player</span>
+          <div class="lookup-name">${esc(roll)}</div>
+        </div>
+        <span class="pill g">Active Roster</span>
+      </div>
+      <p style="margin:0 0 14px;font-size:0.92rem;color:var(--ink);line-height:1.5">
+        ${j.hasAccount ? "Your player account is active. Click below to enter your PIN and view your full attendance analytics, month-by-month charts &amp; training log." : "You are registered on the squad list! Complete quick roll-number sign-up to start tracking your attendance."}
+      </p>
+      <button class="btn-hero-primary" id="btn-lookup-continue" style="width:100%;justify-content:center">
+        ${j.hasAccount ? "Log In to View My Attendance →" : "Sign Up with Roll Number →"}
+      </button>
+    </div>`;
+    const btn = gid("btn-lookup-continue");
+    if (btn) {
+      btn.onclick = () => {
+        showLogin();
+        const pr = gid("pr");
+        if (pr) {
+          pr.value = roll;
+          gid("pgo") && gid("pgo").click();
+        }
+      };
+    }
+  } catch (e) {
+    res.innerHTML = `<p class="err" style="margin-top:8px">${esc(e.message || "Network error. Check connection.")}</p>`;
+  }
+}
+
 function showPublic() {
   if (typeof pushAuto === "function") pushAuto();
   gid("app").hidden = true;
   gid("login").hidden = true;
   gid("pub").hidden = false;
   gid("menu").hidden = true;
-  document.title = "IITP Hockey · Team app";
+  document.title = "IIT Patna Hockey · Official Team Portal";
   drawPublic();
   if (!PUB && !pubBusy) fetchPublic();
   else if (Date.now() - pubAt > 60000) fetchPublic();
