@@ -4276,7 +4276,7 @@ html.chat-modal-open {
   background: var(--soft);
   border: 1px solid var(--line);
   border-radius: 16px;
-  margin-bottom: 9px;
+  margin-bottom: 0;
 }
 .welcome-avatar {
   width: 44px;

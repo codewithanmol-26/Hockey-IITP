@@ -65,7 +65,6 @@
           </div>
         </div>
         <div class="chat-header-actions">
-          <button type="button" class="chat-act-btn" id="chat-reset-btn" aria-label="Start new chat" title="Start new chat">↺</button>
           <button type="button" class="chat-act-btn chat-close-btn" id="chat-close" aria-label="Close Assistant" title="Close">✕</button>
         </div>
       </div>
@@ -265,7 +264,7 @@
     const prof = getUserContext();
     updateUserBadge(prof);
 
-    // 1. Reset messages with personalized greeting & interactive topic cards
+    // 1. Reset messages with simple personalized greeting
     const msgs = document.getElementById("chat-msgs");
     if (msgs) {
       msgs.innerHTML = "";
@@ -275,41 +274,6 @@
       const nameDisplay = prof.name && prof.name !== "Guest" ? prof.name : "there";
       const rolePill = prof.title ? `<span class="bubble-role-pill">${escapeHtml(prof.title)}</span>` : "";
 
-      let attendanceCard = `
-        <button type="button" class="topic-card" data-q="What are the basic rules and tactics of field hockey?">
-          <span class="topic-icon">🏑</span>
-          <span class="topic-info">
-            <span class="topic-name">Field Hockey Basics</span>
-            <span class="topic-hint">Gameplay, positions & tactics</span>
-          </span>
-          <span class="topic-arrow">›</span>
-        </button>
-      `;
-
-      if (prof.role === "player" || (prof.role === "admin" && prof.playerId) || prof.role === "captain" || prof.role === "vice") {
-        attendanceCard = `
-          <button type="button" class="topic-card" data-q="What is my attendance percentage and record?">
-            <span class="topic-icon">📊</span>
-            <span class="topic-info">
-              <span class="topic-name">My Attendance</span>
-              <span class="topic-hint">Check your practice attendance & %</span>
-            </span>
-            <span class="topic-arrow">›</span>
-          </button>
-        `;
-      } else if (prof.role === "admin") {
-        attendanceCard = `
-          <button type="button" class="topic-card" data-q="How many total team sessions have been conducted?">
-            <span class="topic-icon">📊</span>
-            <span class="topic-info">
-              <span class="topic-name">Team Attendance</span>
-              <span class="topic-hint">Total sessions conducted & stats</span>
-            </span>
-            <span class="topic-arrow">›</span>
-          </button>
-        `;
-      }
-
       botDiv.innerHTML = `
         <div class="msg-bubble welcome-bubble">
           <div class="welcome-header">
@@ -318,46 +282,11 @@
             </div>
             <div class="welcome-heading">
               <div class="welcome-title">Hi ${escapeHtml(nameDisplay)}! 👋 ${rolePill}</div>
-              <div class="welcome-sub">I'm your <b>Hockey AI Assistant</b>. Tap a topic below or ask anything!</div>
+              <div class="welcome-sub">Welcome to the official <b>IIT Patna Hockey Assistant</b>. How can I help you today?</div>
             </div>
-          </div>
-          <div class="welcome-grid">
-            <button type="button" class="topic-card" data-q="How should I plan my diet for hockey practice and matches?">
-              <span class="topic-icon">🥗</span>
-              <span class="topic-info">
-                <span class="topic-name">Diet & Nutrition</span>
-                <span class="topic-hint">Pre/post practice meal advice</span>
-              </span>
-              <span class="topic-arrow">›</span>
-            </button>
-            <button type="button" class="topic-card" data-q="When is the next practice scheduled?">
-              <span class="topic-icon">📅</span>
-              <span class="topic-info">
-                <span class="topic-name">Practice Schedule</span>
-                <span class="topic-hint">Dates, timings & venue</span>
-              </span>
-              <span class="topic-arrow">›</span>
-            </button>
-            <button type="button" class="topic-card" data-q="Explain the rules of penalty corner in field hockey">
-              <span class="topic-icon">⚡</span>
-              <span class="topic-info">
-                <span class="topic-name">Penalty Corner Rules</span>
-                <span class="topic-hint">Drills, pushes & scoring rules</span>
-              </span>
-              <span class="topic-arrow">›</span>
-            </button>
-            ${attendanceCard}
           </div>
         </div>
       `;
-
-      // Attach clicks to topic cards
-      botDiv.querySelectorAll(".topic-card").forEach((card) => {
-        card.onclick = () => {
-          const q = card.getAttribute("data-q");
-          if (q) sendMessage(q, { fromVoice: false });
-        };
-      });
 
       msgs.appendChild(botDiv);
     }
