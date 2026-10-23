@@ -2230,31 +2230,28 @@ function vStats() {
     ttl = admin
       ? "Team turnout per playing day"
       : "My attendance per playing day";
-    pts = (admin ? live : live.filter((d) => SS[d][me] !== undefined)).map(
-      (d) => {
-        const v = admin
-            ? P.filter((p) => SS[d][p.id] !== undefined).map((p) => SS[d][p.id])
-            : [SS[d][me]],
-          pr = v.filter(Boolean).length,
-          pct = v.length ? (pr * 100) / v.length : 0;
-        return {
-          l: d.slice(5),
-          pct,
-          tip:
-            fmt(d) +
-            ": " +
-            (admin ? pr + " present" : pr ? "Present" : "Absent"),
-        };
-      },
-    );
+    pts = live.map((d) => {
+      const v = admin
+          ? P.filter((p) => SS[d] && SS[d][p.id] !== undefined).map((p) => SS[d][p.id])
+          : [Boolean(SS[d] && SS[d][me])],
+        pr = v.filter(Boolean).length,
+        pct = v.length ? (pr * 100) / v.length : 0;
+      return {
+        l: d.slice(5),
+        pct,
+        tip:
+          fmt(d) +
+          ": " +
+          (admin ? pr + " present" : pr ? "Present" : "Absent"),
+      };
+    });
   }
   const sd = SS[selDate];
   let day = '<p class="mute">No hockey recorded on this date.</p>';
   if (!admin) {
-    day =
-      sd && sd[me] !== undefined
-        ? `<div class="row"><span>${fmt(selDate)}</span><span class="tag ${sd[me] ? "p" : "a"}">${sd[me] ? "Present" : "Absent"}</span></div>`
-        : '<p class="mute">No record for you on this date.</p>';
+    day = sd
+      ? `<div class="row"><span>${fmt(selDate)}</span><span class="tag ${sd[me] ? "p" : "a"}">${sd[me] ? "Present" : "Absent"}</span></div>`
+      : '<p class="mute">No hockey recorded on this date.</p>';
   } else if (sd) {
     const v = P.filter((p) => sd[p.id] !== undefined),
       pr = v.filter((p) => sd[p.id]).length;
@@ -2277,8 +2274,8 @@ function vStats() {
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
   <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selDate}"></div>${day}
-  <details class="dlist"><summary>Show all playing dates (${live.filter((d) => admin || SS[d][me] !== undefined).length})</summary><div class="chips">${live
-    .filter((d) => admin || SS[d][me] !== undefined)
+  <details class="dlist"><summary>Show all playing dates (${live.length})</summary><div class="chips">${live
+    .slice()
     .reverse()
     .map(
       (d) =>

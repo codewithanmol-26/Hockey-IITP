@@ -588,8 +588,7 @@ app.get(
       mine = all.players.find((x) => x.id === me);
     const sessions = {};
     for (const d in all.sessions)
-      sessions[d] =
-        all.sessions[d][me] !== undefined ? { [me]: all.sessions[d][me] } : {};
+      sessions[d] = { [me]: Boolean(all.sessions[d][me]) };
     const legacy = {};
     for (const m in all.legacy)
       legacy[m] = {
