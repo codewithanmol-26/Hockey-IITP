@@ -36,7 +36,7 @@
     fab.type = "button";
     fab.setAttribute("aria-label", "Open Hockey AI Assistant");
     fab.title = "Hockey AI Assistant (Drag to move)";
-    fab.innerHTML = `<img src="icons/bot-icon.png" alt="Hockey AI Assistant" class="fab-bot-img" width="40" height="40" /><span class="fab-badge">AI</span>`;
+    fab.innerHTML = `<img src="icons/bot-icon.png" alt="Hockey AI Assistant" class="fab-bot-img" width="48" height="48" draggable="false" /><span class="fab-badge">AI</span>`;
     document.body.appendChild(fab);
 
     // 2. Chat Dialog Modal with Drag Handle & Redesigned Header
@@ -108,7 +108,14 @@
 
     // Click outside dialog (on backdrop) to close
     dlg.addEventListener("click", (e) => {
-      if (e.target === dlg) {
+      if (e.target !== dlg) return;
+      if (Date.now() - lastOpenTime < 400) return; // Ignore ghost clicks right after opening
+      const rect = dlg.getBoundingClientRect();
+      const isInside = (
+        e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top && e.clientY <= rect.bottom
+      );
+      if (!isInside) {
         closeChat();
       }
     });
@@ -361,30 +368,36 @@
     badge.innerHTML = `👤 ${escapeHtml(prof.name || "Team Member")}`;
   }
 
+  let lastOpenTime = 0;
+
   function makeDraggable(fab) {
-    let isPointerDown = false;
-    let hasDragged = false;
+    let isTracking = false;
+    let isDragging = false;
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
+    let dragDistance = 0;
 
     // Restore saved position if valid
     try {
       const saved = JSON.parse(localStorage.getItem("hk_fab_pos") || "null");
       if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
-        const maxX = window.innerWidth - 44;
-        const maxY = window.innerHeight - 44;
-        const clampX = Math.max(8, Math.min(saved.x, maxX));
-        const clampY = Math.max(8, Math.min(saved.y, maxY));
-        fab.style.left = clampX + "px";
-        fab.style.top = clampY + "px";
-        fab.style.right = "auto";
-        fab.style.bottom = "auto";
+        const maxX = window.innerWidth - 56;
+        const maxY = window.innerHeight - 56;
+        if (saved.x >= 0 && saved.x <= maxX && saved.y >= 0 && saved.y <= maxY) {
+          fab.style.left = saved.x + "px";
+          fab.style.top = saved.y + "px";
+          fab.style.right = "auto";
+          fab.style.bottom = "auto";
+        } else {
+          localStorage.removeItem("hk_fab_pos");
+        }
       }
     } catch (_) {}
 
     fab.addEventListener("pointerdown", (e) => {
-      isPointerDown = true;
-      hasDragged = false;
+      isTracking = true;
+      isDragging = false;
+      dragDistance = 0;
       startX = e.clientX;
       startY = e.clientY;
 
@@ -398,16 +411,18 @@
     });
 
     fab.addEventListener("pointermove", (e) => {
-      if (!isPointerDown) return;
+      if (!isTracking) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
+      dragDistance = Math.hypot(dx, dy);
 
-      if (!hasDragged && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
-        hasDragged = true;
+      // Only enter drag mode if moved more than 12px (filters out touchscreen finger wobbles)
+      if (!isDragging && dragDistance > 12) {
+        isDragging = true;
         fab.classList.add("dragging");
       }
 
-      if (hasDragged) {
+      if (isDragging) {
         let newX = initialLeft + dx;
         let newY = initialTop + dy;
 
@@ -424,33 +439,40 @@
     });
 
     const onPointerEnd = (e) => {
-      if (!isPointerDown) return;
-      isPointerDown = false;
+      if (!isTracking) return;
+      isTracking = false;
       fab.classList.remove("dragging");
+
       try {
-        fab.releasePointerCapture(e.pointerId);
+        if (e.target && typeof e.target.releasePointerCapture === "function") {
+          e.target.releasePointerCapture(e.pointerId);
+        }
       } catch (_) {}
 
-      if (hasDragged) {
+      if (isDragging) {
         try {
           const rect = fab.getBoundingClientRect();
           localStorage.setItem("hk_fab_pos", JSON.stringify({ x: rect.left, y: rect.top }));
         } catch (_) {}
       } else {
+        // It was a tap / click! Open chat immediately
         openChat();
       }
     };
 
     fab.addEventListener("pointerup", onPointerEnd);
     fab.addEventListener("pointercancel", () => {
-      isPointerDown = false;
+      isTracking = false;
+      isDragging = false;
       fab.classList.remove("dragging");
     });
 
-    // Direct click fallback
+    // Native click fallback (in case pointer events were prevented or synthetic)
     fab.addEventListener("click", (e) => {
       e.preventDefault();
-      if (!hasDragged) openChat();
+      if (!isDragging) {
+        openChat();
+      }
     });
   }
 
@@ -459,6 +481,10 @@
   function openChat() {
     const dlg = document.getElementById("chatdlg");
     if (!dlg) return;
+
+    if (dlg.open) return; // Prevent double-trigger from pointerup + click
+
+    lastOpenTime = Date.now();
 
     // Reset inline motion styles so dialog opens cleanly
     dlg.style.transform = "";
@@ -476,9 +502,13 @@
     document.body.classList.add("chat-modal-open");
     document.documentElement.classList.add("chat-modal-open");
 
-    if (typeof dlg.showModal === "function") {
-      if (!dlg.open) dlg.showModal();
-    } else {
+    try {
+      if (typeof dlg.showModal === "function") {
+        dlg.showModal();
+      } else {
+        dlg.setAttribute("open", "");
+      }
+    } catch (_) {
       dlg.setAttribute("open", "");
     }
 
