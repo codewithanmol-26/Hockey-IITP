@@ -187,7 +187,7 @@ async function getRelevantRulesAndWarmup(query) {
 // Chat Execution
 // -------------------------------------------------------------
 
-async function chat({ message, user, history = [] }) {
+async function chat({ message, user, userProfile, history = [] }) {
   const client = getAiClient();
   if (!client) {
     throw new Error("Gemini AI is not configured. GEMINI_API_KEY is missing on the server.");
@@ -203,6 +203,7 @@ async function chat({ message, user, history = [] }) {
   const isAskingSchedule = /schedule|practice|timing|when|today|tomorrow|playing day|match/i.test(qLower);
   const isAskingRules = /rule|card|penalty|corner|stroke|foul|signal|umpire|warm|stretch|drill/i.test(qLower);
   const isAskingTeamStats = /how many days|total days|playing days|sessions|played|history|records|twice|november|january/i.test(qLower);
+  const isAskingDietOrFitness = /diet|nutrition|food|protein|carb|meal|eat|breakfast|lunch|dinner|calorie|weight|hydration|water|supplement|electrolyte|mess|hostel|recovery|stamina|fatigue/i.test(qLower);
 
   // Targeted grounding collection (Free-tier friendly & fast)
   const context = {};
@@ -211,12 +212,22 @@ async function chat({ message, user, history = [] }) {
     context.teamSessions = await getTeamSessionsSummary();
   }
 
-  if (isAskingSchedule || (!isAskingAttendance && !isAskingRules && !isAskingTeamStats)) {
+  if (isAskingSchedule || (!isAskingAttendance && !isAskingRules && !isAskingTeamStats && !isAskingDietOrFitness)) {
     context.schedules = await getRelevantSchedules();
   }
 
-  if (isAskingRules || (!isAskingAttendance && !isAskingSchedule && !isAskingTeamStats)) {
+  if (isAskingRules || (!isAskingAttendance && !isAskingSchedule && !isAskingTeamStats && !isAskingDietOrFitness)) {
     context.rulesAndDrills = await getRelevantRulesAndWarmup(query);
+  }
+
+  if (isAskingDietOrFitness) {
+    context.sportsNutritionGuidelines = {
+      focus: "Field Hockey Athletic Nutrition & Performance Recovery",
+      macronutrients: "High complex carbohydrates (glycogen replenishment for high-intensity repeat sprints), moderate lean protein (1.4-1.8g/kg body weight for muscular repair), healthy fats.",
+      timing: "Pre-practice meal 2-3 hours prior (carbs + light protein); pre-game snack 30-45 min prior (banana/dates/electrolytes); post-training recovery within 30-45 min (3:1 carb to protein ratio).",
+      hydration: "Start well hydrated; 150-250ml electrolyte/water sips during quarterly/practice breaks; rehydrate 1.25x fluid lost after turf sessions.",
+      campusHostelOptions: "Boiled eggs, sattu drink, bananas, curd/buttermilk, oats, peanut butter, roasted chana, paneer, mess dal & sprouted pulses."
+    };
   }
 
   if (isAskingAttendance) {
@@ -228,16 +239,48 @@ async function chat({ message, user, history = [] }) {
     }
   }
 
-  const prompt = `You are the official IIT Patna Hockey Team AI Assistant.
-Answer the user's question clearly, concisely, and helpfully in GitHub Markdown.
+  const roleDesc = userProfile
+    ? (userProfile.role === "admin"
+        ? (userProfile.adminType === "instructor" ? `Instructor (${userProfile.name})` : `Player Admin (${userProfile.name})`)
+        : userProfile.role === "player"
+          ? `Team Player (${userProfile.name}${userProfile.position ? ", Position: " + userProfile.position : ""}${userProfile.roll ? ", Roll: " + userProfile.roll : ""})`
+          : userProfile.role === "captain"
+            ? `Team Captain (${userProfile.name || "Captain"})`
+            : userProfile.role === "vice"
+              ? `Team Vice-Captain (${userProfile.name || "Vice-Captain"})`
+              : "Guest / Visitor (Not in team)")
+    : "Guest / Visitor (Not in team)";
 
-STRICT GROUNDING RULES:
-1. NEVER INVENT OR GUESS practice dates, times, venues, or attendance figures.
-2. If asked about schedules, use ONLY the schedules provided below. If none exist for a specific date, say so.
-3. If asked about team playing days or session count, use ONLY teamSessions below. Clarify that 80 sessions are recorded (3 in Nov 2025, 77 in 2026), and on 29 Jan 2026 the team played twice.
-4. If asked about individual player attendance, use ONLY the verified player attendance provided below. If the user is not logged in, tell them to log in.
-5. Players can only see their own attendance. Attendance of other players is confidential.
-6. For rules, explain standard FIH rules accurately.
+  const prompt = `You are the official IIT Patna Hockey Team AI Assistant.
+Answer the user's question clearly, concisely, warmly, and helpfully in GitHub Markdown.
+
+CURRENT USER IDENTITY & PROFILE:
+- Authenticated Status: ${userProfile && userProfile.role !== "guest" ? "Logged In Team Member" : "Guest / Public Visitor (Not in team)"}
+- Role & Title: ${roleDesc}
+${userProfile && userProfile.position ? `- Playing Position: ${userProfile.position}` : ""}
+${userProfile && userProfile.roll ? `- Student Roll Number: ${userProfile.roll}` : ""}
+
+PROFILE PERSONALIZATION:
+1. Always be conscious of who is asking:
+   - If Instructor: Address them respectfully as Instructor (e.g. "Instructor ${userProfile && userProfile.name ? userProfile.name : "Aryan"}"). You can assist with team session overviews, training load, drill ideas, and squad fitness.
+   - If Player: Address them by name. Personalize training, drills, tactical tips, and diet to their playing position (${userProfile && userProfile.position ? userProfile.position : "field player"}).
+   - If Guest / Not in team: Be welcoming and helpful with hockey rules, general training tips, and public schedules. If they ask about private team records or personal attendance, politely explain that attendance records are only visible to logged-in team players and instructors.
+
+TOPIC GUIDANCE:
+1. SPORTS NUTRITION, DIET & FITNESS:
+   - You ARE FULLY EMPOWERED and encouraged to provide rich, practical, evidence-based athletic diet plans, pre-match and post-practice nutrition, hydration, and recovery guidelines.
+   - Suggest collegiate & Indian hostel-friendly options (e.g. eggs, sattu, paneer, oats, chana, milk, bananas, campus mess foods) and tailor tips to their playing position:
+     * Forwards & Midfielders: High glycogen capacity, endurance, sustained energy, electrolyte replenishment.
+     * Defenders: Core strength, explosive power, muscle recovery protein.
+     * Goalkeepers: Lean mobility, reaction alertness, joint health.
+2. RULES & WARM-UP DRILLS:
+   - Explain FIH hockey rules, card penalties (Green = 2 min suspension, Yellow = 5-10 min suspension, Red = permanent ejection), penalty corners, shootouts, and umpire signals accurately.
+   - Share dynamic warm-ups and injury prevention routines.
+3. GROUNDING FOR SCHEDULES & ATTENDANCE:
+   - For IIT Patna Hockey specific data, strictly follow the verified Supabase data below:
+     * Total recorded team sessions is 80: 3 in Nov 2025 (2025-11-10, 2025-11-11, 2025-11-12) and 77 in 2026. On 2026-01-29 the team played twice.
+     * For upcoming practice days, refer ONLY to upcomingPlannedDays or weeklyPracticeTimings below. Never guess unannounced dates.
+     * For individual player attendance, use ONLY verified playerAttendance. If not logged in, tell them to log in. Players can only see their own attendance.
 
 VERIFIED GROUNDING DATA FROM SUPABASE:
 ${JSON.stringify(context, null, 2)}
@@ -291,7 +334,8 @@ ${query}`;
   return {
     reply: replyText,
     userRole: user ? user.role : "public",
-    playerId: user && user.role === "player" ? user.id : null
+    playerId: user && user.role === "player" ? user.id : null,
+    userProfile
   };
 }
 

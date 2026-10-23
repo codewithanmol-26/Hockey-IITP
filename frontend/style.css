@@ -4001,12 +4001,61 @@ nav .i .svgi {
   border-bottom: 1px solid var(--line);
   background: var(--soft);
   position: relative;
+  gap: 8px;
 }
-.chat-header-status {
-  margin-left: auto;
+.chat-dialog .chat-header-actions {
   display: flex;
   align-items: center;
-  padding-left: 8px;
+  gap: 5px;
+}
+.chat-tool-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  color: var(--ink);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.chat-tool-btn:hover {
+  background: var(--line);
+}
+.chat-tool-btn.on {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+.chat-dialog .chat-header .dx {
+  position: static;
+  margin-right: 0;
+  width: 28px;
+  height: 28px;
+  font-size: 0.95rem;
+}
+.chat-dialog .chat-header-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.chat-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chat-dialog #chat-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+  padding: 0;
+  white-space: nowrap;
 }
 .status-dot {
   width: 7px;
@@ -4015,32 +4064,58 @@ nav .i .svgi {
   background: #10b981;
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
   animation: pulseDot 2s infinite ease-in-out;
+  display: inline-block;
+  flex-shrink: 0;
 }
 @keyframes pulseDot {
   0%, 100% { transform: scale(0.9); opacity: 0.8; }
   50% { transform: scale(1.15); opacity: 1; }
 }
-.chat-dialog .chat-header .dx {
-  position: static;
-  margin-right: 8px;
-  width: 28px;
-  height: 28px;
-  font-size: 0.95rem;
-}
-.chat-dialog .chat-header-info {
+.chat-badge-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  margin-top: 1px;
 }
-.chat-dialog #chat-title {
-  margin: 0;
-  font-size: 0.92rem;
+.chat-user-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.64rem;
   font-weight: 700;
-  color: var(--ink);
-  padding: 0;
+  color: var(--brand);
+  background: rgba(11, 42, 74, 0.08);
+  padding: 1px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.chat-dialog .chat-sub {
-  font-size: 0.68rem;
+[data-theme="dark"] .chat-user-badge {
+  background: rgba(255, 255, 255, 0.12);
+  color: #93c5fd;
+}
+.chat-user-badge.guest {
   color: var(--mute);
+  background: rgba(100, 116, 139, 0.12);
+}
+.chat-user-badge.instructor {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.12);
+}
+[data-theme="dark"] .chat-user-badge.instructor {
+  color: #fcd34d;
+  background: rgba(217, 119, 6, 0.22);
+}
+.bubble-role-pill {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--line);
+  color: var(--ink);
+  margin-left: 4px;
+  vertical-align: middle;
 }
 .chat-body {
   flex: 1;
@@ -4059,6 +4134,51 @@ nav .i .svgi {
 }
 .chat-msg.bot {
   align-self: flex-start;
+  flex-direction: column;
+}
+.chat-msg.bot .bubble-speak-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 2px 4px;
+  opacity: 0.55;
+  margin-top: 2px;
+  align-self: flex-start;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  line-height: 1;
+}
+.chat-msg.bot .bubble-speak-btn:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+.chat-mic-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+}
+.chat-mic-btn:hover {
+  background: var(--line);
+}
+.chat-mic-btn.listening {
+  background: #ef4444 !important;
+  border-color: #dc2626 !important;
+  color: #fff !important;
+  animation: micPulse 1.2s infinite ease-in-out;
+}
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); transform: scale(1); }
+  50% { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0); transform: scale(1.06); }
 }
 .chat-msg .msg-bubble {
   padding: 7px 11px;

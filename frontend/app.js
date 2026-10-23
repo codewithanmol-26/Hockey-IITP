@@ -26,6 +26,21 @@ function avatar(name, photo, size, cls) {
     ? `<img class="avi ${cls || ""}" src="${photo}" alt="${esc(s)}" width="${size}" height="${size}" loading="lazy" decoding="async" style="width:${size}px;height:${size}px">`
     : `<span class="avi ${cls || ""}" role="img" aria-label="${esc(s)}" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px;background:${c}">${esc((s[0] || "?").toUpperCase())}</span>`;
 }
+function toast(msg) {
+  let t = document.getElementById("hk-toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "hk-toast";
+    t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,0.92);color:#fff;padding:10px 18px;border-radius:24px;font-size:0.88rem;font-weight:600;z-index:99999;box-shadow:0 8px 24px rgba(0,0,0,0.3);transition:opacity .25s ease;pointer-events:none;backdrop-filter:blur(6px);";
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = "1";
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => { t.style.opacity = "0"; }, 2800);
+}
+window.toast = toast;
+
 // choose a photo, centre-crop to a small square and give back a JPEG data URL
 function pickPhoto(cb) {
   const f = document.createElement("input");
@@ -1054,6 +1069,44 @@ function useData(d, force) {
     pushAuto();
   }
 }
+
+window.getHockeyUserContext = function() {
+  if (!token) {
+    return { role: "guest", title: "Guest / Visitor", name: "Guest" };
+  }
+  if (role === "admin") {
+    const isInst = !myKind || myKind === "instructor" || !MYPID;
+    return {
+      role: "admin",
+      adminType: isInst ? "instructor" : "player",
+      title: isInst ? "Instructor" : "Player (Admin)",
+      name: WHO || "Instructor",
+      id: ADMID,
+      playerId: MYPID
+    };
+  }
+  if (role === "captain" || role === "vice") {
+    return {
+      role: role,
+      kind: "player",
+      title: role === "captain" ? "Captain" : "Vice-Captain",
+      name: WHO || (role === "captain" ? "Captain" : "Vice-Captain"),
+      playerId: MYPID
+    };
+  }
+  if (role === "player") {
+    const mine = P && P[0] ? P[0] : null;
+    return {
+      role: "player",
+      title: "Player" + (mine && mine.position ? ` · ${mine.position}` : ""),
+      name: (mine && mine.name) || WHO || me,
+      roll: (mine && (mine.roll || mine.id)) || me,
+      position: (mine && mine.position) || "",
+      jersey: (mine && mine.jersey) || ""
+    };
+  }
+  return { role: "guest", title: "Guest / Visitor", name: "Guest" };
+};
 async function load(force) {
   if (!token) return;
   try {
@@ -2140,8 +2193,7 @@ function vTake() {
       });
       draftDate = null;
       await load();
-      if (confirm("Saved for " + fmt(takeDate) + ". Share the attendance now?"))
-        wa(attMsg(takeDate));
+      toast("Attendance saved for " + fmt(takeDate) + ".");
     });
   };
   if ($("wat")) $("wat").onclick = () => wa(attMsg(takeDate));

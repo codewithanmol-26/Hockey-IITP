@@ -2498,11 +2498,66 @@ app.post(
   "/api/chat",
   h(async (req, res) => {
     const user = await who(req);
-    if (user && (user.role === "captain" || user.role === "vice")) {
-      const customNamesDoc = await db.collection("config").doc("staffNames").get().catch(() => null);
-      const lk = (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {}).links || {};
-      user.playerId = lk[user.role] || (user.role === "captain" ? "2501CE01" : "2501MC44");
+    let userProfile = null;
+    if (user) {
+      if (user.role === "admin") {
+        const aDoc = await db.collection("admins").doc(user.id).get().catch(() => null);
+        const aData = aDoc && aDoc.exists ? aDoc.data() : {};
+        const isInstructor = aData.kind === "instructor" || (!aData.kind && !aData.playerId);
+        userProfile = {
+          role: "admin",
+          adminType: isInstructor ? "instructor" : "player",
+          title: isInstructor ? "Instructor" : "Player (Admin)",
+          name: aData.name || user.name || "Instructor",
+          id: user.id
+        };
+        if (aData.playerId) {
+          user.playerId = aData.playerId;
+          const plDoc = await db.collection("players").doc(aData.playerId).get().catch(() => null);
+          if (plDoc && plDoc.exists) {
+            userProfile.playerDetails = plDoc.data();
+            userProfile.position = plDoc.data().position || "";
+          }
+        }
+      } else if (user.role === "captain" || user.role === "vice") {
+        const customNamesDoc = await db.collection("config").doc("staffNames").get().catch(() => null);
+        const lk = (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {}).links || {};
+        const pId = lk[user.role] || (user.role === "captain" ? "2501CE01" : "2501MC44");
+        user.playerId = pId;
+        const plDoc = await db.collection("players").doc(pId).get().catch(() => null);
+        const plData = plDoc && plDoc.exists ? plDoc.data() : null;
+        userProfile = {
+          role: user.role,
+          title: user.role === "captain" ? "Captain" : "Vice-Captain",
+          name: (plData && plData.name) || (user.role === "captain" ? "Captain" : "Vice-Captain"),
+          playerId: pId,
+          position: plData ? plData.position : "",
+          playerDetails: plData
+        };
+      } else if (user.role === "player") {
+        const plDoc = await db.collection("players").doc(user.id).get().catch(() => null);
+        const plData = plDoc && plDoc.exists ? plDoc.data() : {};
+        userProfile = {
+          role: "player",
+          title: "Player" + (plData.position ? ` · ${plData.position}` : ""),
+          id: user.id,
+          roll: plData.roll || user.id,
+          name: plData.name || user.id,
+          position: plData.position || "",
+          jersey: plData.jersey || "",
+          batch: plData.batch || "",
+          dept: plData.dept || ""
+        };
+      }
+    } else {
+      userProfile = {
+        role: "guest",
+        title: "Guest / Visitor (Not in team)",
+        name: "Guest",
+        description: "Guest / Visitor (not currently signed in or not in team)"
+      };
     }
+
     const { message, history } = req.body || {};
     if (!message || typeof message !== "string" || !message.trim()) {
       return res.status(400).json({ error: "Message is required" });
@@ -2511,16 +2566,20 @@ app.post(
       const result = await chatbot.chat({
         message: message.trim(),
         user,
+        userProfile,
         history: Array.isArray(history) ? history : [],
       });
-      res.json(result);
+      res.json({
+        ...result,
+        userProfile
+      });
     } catch (e) {
       console.error("Chat error:", e.message);
       const isKeyErr = /API_KEY_INVALID|API key not valid|GEMINI_API_KEY is missing/i.test(e.message);
       const msg = isKeyErr
         ? "The AI assistant is waiting for a valid GEMINI_API_KEY in your server environment variables. Please verify your Gemini API key in Vercel or .env."
         : "The AI assistant is temporarily unavailable. Please try asking again in a moment.";
-      res.json({ reply: "⚠️ " + msg, isError: true });
+      res.json({ reply: "⚠️ " + msg, isError: true, userProfile });
     }
   }),
 );
