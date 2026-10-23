@@ -632,7 +632,7 @@ const phone = (v) =>
 const PRIVATE = ["contact", "email", "size", "jerseyName", "jerseyNo"];
 const str = (v, max = 80) => String(v == null ? "" : v).slice(0, max);
 const dateOk = (req, res, next) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(req.params.date)
+  /^\d{4}-\d{2}-\d{2}(?:[_-]\w+)?$/.test(req.params.date)
     ? next()
     : res.status(400).json({ error: "Bad date" });
 const done = (res) => {

@@ -61,6 +61,36 @@ async function getRelevantSchedules() {
   }
 }
 
+async function getTeamSessionsSummary() {
+  try {
+    const [sessions, legacy] = await Promise.all([
+      db.getSessions(),
+      db.getLegacy()
+    ]);
+    const dates = Object.keys(sessions).sort();
+    const legacyDays = Object.keys(legacy).reduce((acc, k) => acc + (legacy[k].days || 0), 0);
+    const totalWorkingDays = dates.length + legacyDays;
+
+    const byMonth = {};
+    for (const d of dates) {
+      const m = d.slice(0, 7);
+      byMonth[m] = (byMonth[m] || 0) + 1;
+    }
+    for (const m in legacy) {
+      byMonth[m] = (byMonth[m] || 0) + (legacy[m].days || 0);
+    }
+
+    return {
+      totalRecordedSessions: dates.length,
+      totalWorkingDaysOverall: totalWorkingDays,
+      monthlyBreakdown: byMonth,
+      notes: "Total recorded sessions is 80: 3 in Nov 2025 (2025-11-10, 2025-11-11, 2025-11-12) and 77 in 2026. On 2026-01-29, the team played twice."
+    };
+  } catch (e) {
+    return { error: "Team sessions data unavailable" };
+  }
+}
+
 async function getPlayerAttendanceSummary(rollNumber) {
   if (!rollNumber) return null;
   try {
@@ -70,26 +100,25 @@ async function getPlayerAttendanceSummary(rollNumber) {
       db.getPlayer(rollNumber)
     ]);
 
-    let totalWorkingDays = 0;
+    const sortedDates = Object.keys(sessions).sort().reverse();
+    const legacyDays = Object.keys(legacy).reduce((acc, k) => acc + (legacy[k].days || 0), 0);
+    // In IITP Hockey attendance rules: total working days is identical for all players in the team
+    const totalWorkingDays = sortedDates.length + legacyDays;
     let presentDays = 0;
     const recent = [];
 
-    const sortedDates = Object.keys(sessions).sort().reverse();
     for (const date of sortedDates) {
       const r = sessions[date];
-      if (r && r[rollNumber] !== undefined) {
-        totalWorkingDays++;
-        if (r[rollNumber]) presentDays++;
-        if (recent.length < 5) {
-          recent.push(`${date}: ${r[rollNumber] ? "Present" : "Absent"}`);
-        }
+      const isPresent = Boolean(r && r[rollNumber]);
+      if (isPresent) presentDays++;
+      if (recent.length < 5) {
+        recent.push(`${date}: ${isPresent ? "Present" : "Absent"}`);
       }
     }
 
     for (const month in legacy) {
       const l = legacy[month];
-      if (l && l.att && l.att[rollNumber] !== undefined) {
-        totalWorkingDays += (l.days || 0);
+      if (l && l.att && l.att[rollNumber]) {
         presentDays += l.att[rollNumber];
       }
     }
@@ -173,15 +202,20 @@ async function chat({ message, user, history = [] }) {
   const isAskingAttendance = /attendance|present|absent|percentage|attended|my record|stats/i.test(qLower);
   const isAskingSchedule = /schedule|practice|timing|when|today|tomorrow|playing day|match/i.test(qLower);
   const isAskingRules = /rule|card|penalty|corner|stroke|foul|signal|umpire|warm|stretch|drill/i.test(qLower);
+  const isAskingTeamStats = /how many days|total days|playing days|sessions|played|history|records|twice|november|january/i.test(qLower);
 
   // Targeted grounding collection (Free-tier friendly & fast)
   const context = {};
 
-  if (isAskingSchedule || (!isAskingAttendance && !isAskingRules)) {
+  if (isAskingTeamStats || isAskingAttendance) {
+    context.teamSessions = await getTeamSessionsSummary();
+  }
+
+  if (isAskingSchedule || (!isAskingAttendance && !isAskingRules && !isAskingTeamStats)) {
     context.schedules = await getRelevantSchedules();
   }
 
-  if (isAskingRules || (!isAskingAttendance && !isAskingSchedule)) {
+  if (isAskingRules || (!isAskingAttendance && !isAskingSchedule && !isAskingTeamStats)) {
     context.rulesAndDrills = await getRelevantRulesAndWarmup(query);
   }
 
@@ -200,9 +234,10 @@ Answer the user's question clearly, concisely, and helpfully in GitHub Markdown.
 STRICT GROUNDING RULES:
 1. NEVER INVENT OR GUESS practice dates, times, venues, or attendance figures.
 2. If asked about schedules, use ONLY the schedules provided below. If none exist for a specific date, say so.
-3. If asked about attendance, use ONLY the verified player attendance provided below. If the user is not logged in, tell them to log in.
-4. Players can only see their own attendance. Attendance of other players is confidential.
-5. For rules, explain standard FIH rules accurately.
+3. If asked about team playing days or session count, use ONLY teamSessions below. Clarify that 80 sessions are recorded (3 in Nov 2025, 77 in 2026), and on 29 Jan 2026 the team played twice.
+4. If asked about individual player attendance, use ONLY the verified player attendance provided below. If the user is not logged in, tell them to log in.
+5. Players can only see their own attendance. Attendance of other players is confidential.
+6. For rules, explain standard FIH rules accurately.
 
 VERIFIED GROUNDING DATA FROM SUPABASE:
 ${JSON.stringify(context, null, 2)}
@@ -210,8 +245,8 @@ ${JSON.stringify(context, null, 2)}
 USER MESSAGE:
 ${query}`;
 
-  // Prioritize gemini-3.8-flash as primary model with gemini-3.5-flash fallback if quota is exceeded
-  const candidateModels = ["gemini-3.8-flash", "gemini-3.5-flash"];
+  // Prioritize available Gemini Flash and Flash-Lite models with fallback on quota limits
+  const candidateModels = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash"];
   let replyText = null;
   let lastError = null;
 

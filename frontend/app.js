@@ -761,12 +761,21 @@ const esc = (s) =>
         c
       ],
   );
-const fmt = (d) =>
-  new Date(d + "T00:00").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+const fmt = (d) => {
+  const base = String(d || "").slice(0, 10);
+  const m = String(d || "").match(/[_-](\d+)$/);
+  const sfx = m ? ` (Session ${m[1]})` : "";
+  const dt = new Date(base + "T00:00");
+  return (
+    (isNaN(dt.getTime())
+      ? d
+      : dt.toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })) + sfx
+  );
+};
 const mfmt = (m) =>
   new Date(m + "-01T00:00").toLocaleDateString(undefined, {
     month: "long",
@@ -1528,13 +1537,22 @@ $("sba").onclick = async () => {
 // ---- WhatsApp sharing (opens WhatsApp with the text ready; the person picks the group and presses send) ----
 let GROUP = window.WA_GROUP || "";
 const wa = (t) => shareText(t); // opens the phone's share sheet (any app); on a computer it shows WhatsApp, Telegram, e-mail, SMS and copy
-const dlong = (d) =>
-  new Date(d + "T00:00").toLocaleDateString("en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+const dlong = (d) => {
+  const base = String(d || "").slice(0, 10);
+  const m = String(d || "").match(/[_-](\d+)$/);
+  const sfx = m ? ` (Session ${m[1]})` : "";
+  const dt = new Date(base + "T00:00");
+  return (
+    (isNaN(dt.getTime())
+      ? d
+      : dt.toLocaleDateString("en-IN", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })) + sfx
+  );
+};
 const DEFTPL =
   "🏑 *IITP Hockey: Practice*\n📅 {day}, {date}\n⏰ {time}\n📍 {venue}\n🎯 {session}\n📝 {note}\nReport on time!";
 function planMsg(d) {
@@ -1970,7 +1988,7 @@ function render() {
     };
   }
 }
-const dayIdx = (d) => (new Date(d + "T00:00").getDay() + 6) % 7;
+const dayIdx = (d) => (new Date(String(d || "").slice(0, 10) + "T00:00").getDay() + 6) % 7;
 
 let tkQ = "",
   tkUn = false;
@@ -2888,14 +2906,27 @@ function vPlan() {
   for (let n = 1; n <= nd; n++) {
     const d = planMon + "-" + String(n).padStart(2, "0"),
       p = PL[d],
-      st = p ? (p.status === "cancelled" ? "cx" : SS[d] ? "dn" : "pl") : "";
+      hasAtt = Boolean(SS[d] || Object.keys(SS).some((k) => k.startsWith(d))),
+      st = p ? (p.status === "cancelled" ? "cx" : (SS[d] || hasAtt) ? "dn" : "pl") : (hasAtt ? "dn" : "");
     cells.push(
-      `<button type="button" class="cd ${st} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}"><b>${n}</b>${p ? "<i></i>" + (p.status !== "cancelled" && tagMine(p.tags) ? '<u class="tdot" title="You are tagged"></u>' : "") : !p && d >= td && SCH.team[dayIdx(d)][3] ? '<i class="wk"></i>' : ""}</button>`,
+      `<button type="button" class="cd ${st} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}">${(SS[d] || hasAtt) && !p ? '<i class="dn"></i>' : ""}<b>${n}</b>${p ? "<i></i>" + (p.status !== "cancelled" && tagMine(p.tags) ? '<u class="tdot" title="You are tagged"></u>' : "") : !p && d >= td && SCH.team[dayIdx(d)][3] ? '<i class="wk"></i>' : ""}</button>`,
     );
   }
   const dayCard = (d) => {
     const p = PL[d];
+    const sKeys = Object.keys(SS).filter((k) => k === d || k.startsWith(d + "_") || k.startsWith(d + "-"));
     if (!p) {
+      if (sKeys.length > 0) {
+        const totalPres = sKeys.reduce(
+          (acc, k) =>
+            acc + Object.values(SS[k] || {}).filter(Boolean).length,
+          0,
+        );
+        const subTxt = sKeys.length > 1 ? ` (${sKeys.length} sessions played)` : "";
+        return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> <span class="pill g">Attendance recorded${subTxt}</span></p>
+        <p style="margin:6px 0 10px">🏑 <b>${sKeys.length} session${sKeys.length > 1 ? "s" : ""}</b> played · <b>${totalPres}</b> attendance marks recorded.</p>
+        ${admin ? `<div class="chips"><button data-a="take" data-d="${d}">View / Take attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button></div>` : ""}`;
+      }
       const w = SCH.team[dayIdx(d)];
       return `<p class="mute" style="margin:0 0 6px">No playing day is scheduled on ${dlong(d)}.</p>${w[3] ? `<p style="margin:0 0 10px">Weekly timetable: <b>${esc(w[1])}</b> · ⏰ ${esc(w[3])}</p>` : `<p class="mute" style="margin:0 0 10px">${esc(w[0])} is a rest day in the weekly timetable.</p>`}${admin ? `<div class="chips"><button class="pri" data-a="new">Schedule this day</button>${wkOpen().length ? `<button data-a="wk">Schedule the next 7 days</button>` : ""}</div>` : ""}`;
     }
