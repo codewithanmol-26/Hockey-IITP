@@ -3089,7 +3089,7 @@ const when = (t) =>
     : "";
 // ---- profile photo + shared helpers ----
 const photoBtns = (own, path, ph, extra) =>
-  `<div class="chips" style="justify-content:center">${extra || ""}${ph ? '<button data-ph="e">✏️ Edit photo</button>' : ""}<button data-ph="c">📷 ${ph ? "Upload new" : "Add photo"}</button>${ph ? '<button data-ph="x">Remove photo</button>' : ""}<button data-cv="e">🖼️ Edit background</button><button data-cv="c">Upload new</button><button data-cv="x" hidden>Remove cover</button></div>`;
+  `<div class="chips" style="justify-content:center">${extra || ""}<button data-ph="c">📷 ${ph ? "Upload new" : "Add photo"}</button>${ph ? '<button data-ph="x">Remove photo</button>' : ""}<button data-cv="c">🖼️ Upload cover</button><button data-cv="x" hidden>Remove cover</button></div>`;
 function bindCover(k, id) {
   document.querySelectorAll("[data-cv]").forEach(
     (b) =>
