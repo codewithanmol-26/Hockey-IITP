@@ -30,13 +30,13 @@
     const existingDlg = document.getElementById("chatdlg");
     if (existingDlg) existingDlg.remove();
 
-    // 1. Sleek Floating Action Icon Button (Compact 38px)
+    // 1. Sleek Floating Action Icon Button (Chatbot Robot Icon)
     const fab = document.createElement("button");
     fab.id = "chat-fab";
     fab.type = "button";
     fab.setAttribute("aria-label", "Open Hockey AI Assistant");
     fab.title = "Hockey AI Assistant (Drag to move)";
-    fab.innerHTML = `<span class="fab-icon">🏑</span><span class="fab-badge">AI</span>`;
+    fab.innerHTML = `<img src="icons/bot-icon.png" alt="Hockey AI Assistant" class="fab-bot-img" width="40" height="40" /><span class="fab-badge">AI</span>`;
     document.body.appendChild(fab);
 
     // 2. Chat Dialog Modal with Drag Handle & Redesigned Header
@@ -51,7 +51,7 @@
       <div class="chat-header" id="chat-header">
         <div class="chat-header-left">
           <div class="chat-bot-avatar">
-            <span class="avatar-icon">🏑</span>
+            <img src="icons/bot-icon.png" alt="Hockey AI" class="header-bot-img" width="36" height="36" />
             <span class="status-dot" title="AI active"></span>
           </div>
           <div class="chat-header-info">
@@ -313,7 +313,9 @@
       botDiv.innerHTML = `
         <div class="msg-bubble welcome-bubble">
           <div class="welcome-header">
-            <div class="welcome-avatar">🏑</div>
+            <div class="welcome-avatar">
+              <img src="icons/bot-icon.png" alt="Hockey AI" class="welcome-bot-img" width="44" height="44" />
+            </div>
             <div class="welcome-heading">
               <div class="welcome-title">Hi ${escapeHtml(nameDisplay)}! 👋 ${rolePill}</div>
               <div class="welcome-sub">I'm your <b>Hockey AI Assistant</b>. Tap a topic below or ask anything!</div>

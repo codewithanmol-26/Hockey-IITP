@@ -1,18 +1,19 @@
 // Makes the page installable and able to show alerts. Only the app files are cached; /api (the data) is never cached.
-const V = "hk-v55",
+const V = "hk-v56",
   SHELL = [
     "./",
     "index.html",
-    "style.css?v=55",
-    "app.js?v=55",
+    "style.css?v=56",
+    "app.js?v=56",
     "public.js",
     "extras.js",
     "help.js",
     "icons.js",
     "config.js",
-    "chat.js?v=55",
+    "chat.js?v=56",
     "manifest.json",
     "icons/icon-192.png",
+    "icons/bot-icon.png",
   ];
 self.addEventListener("install", (e) => {
   e.waitUntil(
