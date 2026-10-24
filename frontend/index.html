@@ -6,7 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>IIT Patna Hockey · Official Team Portal</title>
   <meta name="theme-color" content="#0b2a4a">
-  <meta name="description" content="Official web portal of the Indian Institute of Technology Patna Field Hockey Team. Practice schedules, player attendance, team roster, match rules, and team announcements.">
+  <meta name="description"
+    content="Official web portal of the Indian Institute of Technology Patna Field Hockey Team. Practice schedules, player attendance, team roster, match rules, and team announcements.">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/iitp-hockey-crest.svg">
   <link rel="alternate icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -16,12 +17,15 @@
   <meta name="apple-mobile-web-app-title" content="IITP Hockey">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta property="og:title" content="IIT Patna Hockey · Official Team Portal">
-  <meta property="og:description" content="Official portal for IIT Patna Field Hockey Team: live practice schedules, turnout analytics, team roster, and announcements.">
+  <meta property="og:description"
+    content="Official portal for IIT Patna Field Hockey Team: live practice schedules, turnout analytics, team roster, and announcements.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="icons/iitp-hockey-crest.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap"
+    rel="stylesheet">
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
   <link rel="preload" href="style.css?v=61" as="style">
   <link rel="stylesheet" href="style.css?v=61">
@@ -56,10 +60,13 @@
 
       <div class="pub-actions">
         <div class="text-sizer" role="group" aria-label="Text size controls">
-          <button type="button" id="pfs-down" class="f-btn" title="Decrease font size" aria-label="Decrease font size">A−</button>
-          <button type="button" id="pfs-up" class="f-btn" title="Increase font size" aria-label="Increase font size">A+</button>
+          <button type="button" id="pfs-down" class="f-btn" title="Decrease font size"
+            aria-label="Decrease font size">A−</button>
+          <button type="button" id="pfs-up" class="f-btn" title="Increase font size"
+            aria-label="Increase font size">A+</button>
         </div>
-        <button id="pthm" class="thb" type="button" aria-label="Toggle day / night mode" title="Toggle day / night mode"></button>
+        <button id="pthm" class="thb" type="button" aria-label="Toggle day / night mode"
+          title="Toggle day / night mode"></button>
         <button id="pli" class="btn-login-gold">Log in</button>
         <button type="button" id="pmb" class="pub-burger" aria-label="Toggle navigation menu" aria-expanded="false">
           <span class="pub-burger-bar"></span>
@@ -99,8 +106,8 @@
           id="t2">Captain / Admin</button></div>
 
       <form id="pf" autocomplete="off">
-        <label class="fl">Roll number<input id="pr" placeholder="e.g. 2501CE01" autocapitalize="characters"
-            autocomplete="username" required></label>
+        <label class="fl">Roll number<input id="pr" placeholder="e.g. 2501ME71" maxlength="8"
+            autocapitalize="characters" spellcheck="false" autocomplete="username" required></label>
         <div id="pa"></div>
         <p id="pe" class="err" role="alert"></p>
         <button class="pri big" id="pgo">Continue</button>
@@ -135,10 +142,13 @@
       </div>
       <div class="hb">
         <div class="text-sizer app-sizer" role="group" aria-label="Text size controls">
-          <button type="button" id="afs-down" class="f-btn" title="Decrease font size" aria-label="Decrease font size">A−</button>
-          <button type="button" id="afs-up" class="f-btn" title="Increase font size" aria-label="Increase font size">A+</button>
+          <button type="button" id="afs-down" class="f-btn" title="Decrease font size"
+            aria-label="Decrease font size">A−</button>
+          <button type="button" id="afs-up" class="f-btn" title="Increase font size"
+            aria-label="Increase font size">A+</button>
         </div>
-        <button id="thm" class="thb" type="button" aria-label="Toggle day / night mode" title="Toggle day / night mode"></button>
+        <button id="thm" class="thb" type="button" aria-label="Toggle day / night mode"
+          title="Toggle day / night mode"></button>
         <button id="hp" class="hi" aria-label="My profile and menu" title="My profile and menu"></button>
       </div>
     </header>
@@ -154,7 +164,8 @@
     <h2 id="sdlg-title">Add students</h2>
     <form id="sf">
       <p><input id="sn" placeholder="Name" maxlength="40" required></p>
-      <p><input id="sr" placeholder="Roll number" maxlength="12" autocapitalize="characters" required></p>
+      <p><input id="sr" placeholder="Roll number, e.g. 2501ME71" maxlength="8" pattern="[0-9]{4}[A-Za-z]{2}[0-9]{2}"
+          title="4 digits, 2 letters, 2 digits" autocapitalize="characters" required></p>
       <p><input id="sc" type="email" placeholder="E-mail (optional)" inputmode="email" maxlength="120"></p>
       <button class="pri">Add student</button>
     </form>
@@ -193,11 +204,15 @@
     <h2 id="codedlg-title">Change Login Code</h2>
     <p class="mute">Set a private code for yourself. You will use this code to log in as Captain or Vice-captain.</p>
     <form id="codeform" autocomplete="off">
-      <label class="fl">Current code<input id="curcode" type="password" placeholder="Current login code" required></label>
-      <label class="fl">New code<input id="newcode" type="password" placeholder="At least 4 characters" minlength="4" maxlength="30" required></label>
-      <label class="fl">Confirm new code<input id="newcode2" type="password" placeholder="Repeat new code" minlength="4" maxlength="30" required></label>
+      <label class="fl">Current code<input id="curcode" type="password" placeholder="Current login code"
+          required></label>
+      <label class="fl">New code<input id="newcode" type="password" placeholder="At least 4 characters" minlength="4"
+          maxlength="30" required></label>
+      <label class="fl">Confirm new code<input id="newcode2" type="password" placeholder="Repeat new code" minlength="4"
+          maxlength="30" required></label>
       <p id="codemsg" class="err" role="alert"></p>
-      <div class="ctl"><button type="submit" class="pri" id="codebtn">Save New Code</button><button type="button" id="codex">Cancel</button></div>
+      <div class="ctl"><button type="submit" class="pri" id="codebtn">Save New Code</button><button type="button"
+          id="codex">Cancel</button></div>
     </form>
   </dialog>
 

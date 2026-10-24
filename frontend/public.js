@@ -20,14 +20,46 @@ const nameOf2 = (k) => ((TEAM && TEAM[k]) || {}).name || DEFNAME[k];
 
 // ---------------------------------------------------------------- public page
 const FEATURES = [
-  ["✅", "Turnout Analytics", "Monthly attendance %, practice history, and visual turnout charts."],
-  ["📅", "Practice Scheduling", "Live schedule of playing days with real-time status and cancellations."],
-  ["⏰", "Weekly Routine", "Morning sprint conditioning & evening turf drills for squad and goalkeepers."],
-  ["📖", "FIH Rules & Whistle", "Official 2026 hockey rules, umpire signals, and synthesised umpire whistle."],
-  ["🔥", "Warm-Up Drills", "Cardio, dynamic flexibility, dynamic stretching routines, and post-session cool-downs."],
-  ["⏱", "Training & Health Log", "Match clock, interval timers, fitness records, distance, and hydration logs."],
-  ["🖼️", "Squad Action Gallery", "High-resolution photos from Inter-IIT tournaments and training camps."],
-  ["🔔", "Match & Practice Alerts", "Instant push notifications for practice updates and schedule changes."],
+  [
+    "✅",
+    "Turnout Analytics",
+    "Monthly attendance %, practice history, and visual turnout charts.",
+  ],
+  [
+    "📅",
+    "Practice Scheduling",
+    "Live schedule of playing days with real-time status and cancellations.",
+  ],
+  [
+    "⏰",
+    "Weekly Routine",
+    "Morning sprint conditioning & evening turf drills for squad and goalkeepers.",
+  ],
+  [
+    "📖",
+    "FIH Rules & Whistle",
+    "Official 2026 hockey rules, umpire signals, and synthesised umpire whistle.",
+  ],
+  [
+    "🔥",
+    "Warm-Up Drills",
+    "Cardio, dynamic flexibility, dynamic stretching routines, and post-session cool-downs.",
+  ],
+  [
+    "⏱",
+    "Training & Health Log",
+    "Match clock, interval timers, fitness records, distance, and hydration logs.",
+  ],
+  [
+    "🖼️",
+    "Squad Action Gallery",
+    "High-resolution photos from Inter-IIT tournaments and training camps.",
+  ],
+  [
+    "🔔",
+    "Match & Practice Alerts",
+    "Instant push notifications for practice updates and schedule changes.",
+  ],
 ];
 
 function initFontSizer() {
@@ -40,7 +72,9 @@ function initFontSizer() {
   const apply = (sz) => {
     cur = sz;
     document.documentElement.style.setProperty("--app-fs", sz + "px");
-    try { localStorage.setItem("hk_fs", sz); } catch (e) {}
+    try {
+      localStorage.setItem("hk_fs", sz);
+    } catch (e) {}
   };
   apply(cur);
   const up = () => {
@@ -138,26 +172,38 @@ async function fetchPublic() {
 
 const DEF_MATCHES = [
   { d: "2026-11-15", t: "IIT Patna vs IIT BHU", v: "Sports Complex Main Turf" },
-  { d: "2026-11-28", t: "Patna Inter-Collegiate Hockey Cup", v: "IIT Patna Ground" },
+  {
+    d: "2026-11-28",
+    t: "Patna Inter-Collegiate Hockey Cup",
+    v: "IIT Patna Ground",
+  },
   { d: "2026-12-18", t: "Inter-IIT Sports Meet 2026", v: "IIT Delhi Stadium" },
 ];
 
 const getDLabel = (d) => {
   if (typeof dlabel === "function") return dlabel(d);
   if (!d) return "";
-  const td = typeof today === "function" ? today() : new Date().toISOString().slice(0, 10);
-  const n = Math.round((new Date(d + "T00:00") - new Date(td + "T00:00")) / 864e5);
+  const td =
+    typeof today === "function"
+      ? today()
+      : new Date().toISOString().slice(0, 10);
+  const n = Math.round(
+    (new Date(d + "T00:00") - new Date(td + "T00:00")) / 864e5,
+  );
   return n === 0 ? "Today" : n === 1 ? "Tomorrow" : "In " + n + " days";
 };
 
 function pubMatches() {
   const src =
-    (PUB && PUB.matches && PUB.matches.length)
+    PUB && PUB.matches && PUB.matches.length
       ? PUB.matches
       : typeof DEFM !== "undefined" && DEFM && DEFM.length
         ? DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2] }))
         : DEF_MATCHES;
-  const td = typeof today === "function" ? today() : new Date().toISOString().slice(0, 10);
+  const td =
+    typeof today === "function"
+      ? today()
+      : new Date().toISOString().slice(0, 10);
   return src
     .filter((m) => m && m.d && m.d >= td)
     .sort((a, b) => a.d.localeCompare(b.d))
@@ -205,7 +251,10 @@ function drawPublic() {
             <span class="pill" style="background:rgba(255,255,255,0.2);color:#fff;backdrop-filter:blur(6px)">Tap to view full screen 🔍</span>
           </div>
         </div>`
-      : empty("📸", p ? "The team photo will appear here." : "Loading squad photo…");
+      : empty(
+          "📸",
+          p ? "The team photo will appear here." : "Loading squad photo…",
+        );
 
   const thumbs =
     p && p.gallery && p.gallery.length
@@ -396,7 +445,7 @@ function drawPublic() {
           Enter your institute roll number below to check your squad status and launch your personal attendance breakdown.
         </p>
         <div class="progress-search-row">
-          <input type="text" id="pub-roll-input" placeholder="Enter Roll Number (e.g. 2501CE01)" autocapitalize="characters" autocomplete="username">
+          <input type="text" id="pub-roll-input" placeholder="Enter Roll Number (e.g. 2501ME71)" maxlength="8" autocapitalize="characters" autocomplete="username">
           <button class="pri" id="btn-check-progress">Check Progress</button>
         </div>
         <div id="pub-lookup-result" hidden></div>
@@ -618,7 +667,9 @@ function drawPublic() {
 
 function bindPublic() {
   // Login buttons
-  document.querySelectorAll("#pub [data-plog]").forEach((b) => (b.onclick = showLogin));
+  document
+    .querySelectorAll("#pub [data-plog]")
+    .forEach((b) => (b.onclick = showLogin));
 
   // Help Desk
   bindHelp();
@@ -713,13 +764,15 @@ async function checkPublicProgress() {
   const res = gid("pub-lookup-result");
   if (!inp || !res) return;
   const roll = inp.value.trim().toUpperCase();
-  if (!roll) {
+  if (!/^\d{4}[A-Z]{2}\d{2}$/.test(roll)) {
     res.hidden = false;
-    res.innerHTML = '<p class="err" style="margin:6px 0 0">Please enter your roll number (e.g. 2501CE01).</p>';
+    res.innerHTML =
+      '<p class="err" style="margin:6px 0 0">Roll number must be 4 digits, 2 letters, then 2 digits, like 2501ME71.</p>';
     return;
   }
   res.hidden = false;
-  res.innerHTML = '<p class="mute" style="margin:6px 0 0">Checking squad database…</p>';
+  res.innerHTML =
+    '<p class="mute" style="margin:6px 0 0">Checking squad database…</p>';
   try {
     const r = await fetch(API + "/api/player/check", {
       method: "POST",
@@ -921,14 +974,14 @@ function myInfoCard() {
       .filter(Boolean)
       .join(" · ");
     return `<div class="card"><h2>My details</h2>
-    <div class="stats"><div><b>${a.pct}%</b>Attendance</div><div><b>${a.pr}/${a.t}</b>Days present</div><div><b>${mm.t ? mm.pct + "%" : "–"}</b>This month</div></div>
+    <div class="stats"><div><b>${a.pct}%</b>Attendance</div><div><b>${a.pr}/${a.t}</b>Sessions present</div><div><b>${mm.t ? mm.pct + "%" : "–"}</b>This month</div></div>
     ${role !== "player" ? kvp("Role", roleLabel()) : ""}${kvp("Roll number", esc(p.roll))}${kvp("Position", esc(p.position))}${kvp("Jersey", jersey)}${kvp("E-mail", p.email ? esc(p.email) : "")}${kvp("Joined", p.joined ? fmt(p.joined) : "")}
     <div class="chips"><button id="myp">👤 Open my profile</button><button id="mye">✏️ Edit details</button><button data-go="stats">📊 My attendance</button></div></div>`;
   }
   const st = stats("all").filter((x) => x.t),
     tp = st.reduce((a, x) => a + x.t, 0),
     tr = tp ? Math.round((st.reduce((a, x) => a + x.pr, 0) * 100) / tp) : 0;
-  return `<div class="card"><h2>My details</h2><div class="stats"><div><b>${P.length}</b>Players</div><div><b>${rdays("all")}</b>Working days</div><div><b>${tr}%</b>Team turnout</div></div>
+  return `<div class="card"><h2>My details</h2><div class="stats"><div><b>${P.length}</b>Players</div><div><b>${rdays("all")}</b>Playing days</div><div><b>${rsess("all")}</b>Sessions</div><div><b>${tr}%</b>Team turnout</div></div>
   ${kvp("Name", esc(WHO))}${kvp("Role", role === "captain" ? "Captain" : role === "vice" ? "Vice-captain" : "Admin")}${kvp("Access", role === "admin" ? "Attendance and team editing" : "Full: attendance, players, admins")}
   <div class="chips"><button id="myp">👤 Open my profile</button><button data-go="take">✅ Take attendance</button></div></div>`;
 }
@@ -946,7 +999,7 @@ function bindHome() {
   if (gid("myp")) gid("myp").onclick = openMyProfile;
   if (gid("mye"))
     gid("mye").onclick = () => {
-      const myId = role === "player" ? me : (MYPID || "");
+      const myId = role === "player" ? me : MYPID || "";
       const p = P.find((x) => x.id === myId);
       if (p) openEdit(p, true);
     };
@@ -1401,11 +1454,11 @@ function welcomeHero() {
       ds = dates().filter((d) => SS[d] && SS[d][lp.id] !== undefined);
     let st = 0;
     for (let i = ds.length - 1; i >= 0 && SS[ds[i]][lp.id]; i--) st++;
-    stat = `<div><b>${a.pct}%</b>Attendance</div><div><b>${a.pr}/${a.t}</b>Days present</div><div><b>${st}</b>Day streak</div>`;
+    stat = `<div><b>${a.pct}%</b>Attendance</div><div><b>${a.pr}/${a.t}</b>Sessions present</div><div><b>${st}</b>Day streak</div>`;
   } else {
     const q = stats("all").filter((x) => x.t),
       t = q.reduce((a, x) => a + x.t, 0);
-    stat = `<div><b>${P.length}</b>Players</div><div><b>${rdays("all")}</b>Working days</div><div><b>${t ? Math.round((q.reduce((a, x) => a + x.pr, 0) * 100) / t) : 0}%</b>Team turnout</div>`;
+    stat = `<div><b>${P.length}</b>Players</div><div><b>${rdays("all")}</b>Playing days</div><div><b>${rsess("all")}</b>Sessions</div><div><b>${t ? Math.round((q.reduce((a, x) => a + x.pr, 0) * 100) / t) : 0}%</b>Team turnout</div>`;
   }
   const day = Math.floor(Date.now() / 864e5);
   return `<div class="card hero wel" id="wel"><div class="wtop">${avatar(WHO, MYPH, 64)}<div class="wtx"><span class="wg">${g} 👋</span><h2>${first}</h2><span class="mute">${esc(sub)}</span></div></div>

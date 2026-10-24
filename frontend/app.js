@@ -31,13 +31,16 @@ function toast(msg) {
   if (!t) {
     t = document.createElement("div");
     t.id = "hk-toast";
-    t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,0.92);color:#fff;padding:10px 18px;border-radius:24px;font-size:0.88rem;font-weight:600;z-index:99999;box-shadow:0 8px 24px rgba(0,0,0,0.3);transition:opacity .25s ease;pointer-events:none;backdrop-filter:blur(6px);";
+    t.style.cssText =
+      "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,0.92);color:#fff;padding:10px 18px;border-radius:24px;font-size:0.88rem;font-weight:600;z-index:99999;box-shadow:0 8px 24px rgba(0,0,0,0.3);transition:opacity .25s ease;pointer-events:none;backdrop-filter:blur(6px);";
     document.body.appendChild(t);
   }
   t.textContent = msg;
   t.style.opacity = "1";
   clearTimeout(t._tm);
-  t._tm = setTimeout(() => { t.style.opacity = "0"; }, 2800);
+  t._tm = setTimeout(() => {
+    t.style.opacity = "0";
+  }, 2800);
 }
 window.toast = toast;
 
@@ -484,7 +487,7 @@ function reportText(sc, v) {
       .filter((d) => SS[d][v] !== undefined)
       .slice(0, 12)
       .map((d) => `${SS[d][v] ? "✅" : "❌"} ${dlong(d)}`);
-    return `🏑 *IITP Hockey: Attendance of ${pl.name}*\n${pl.roll ? "Roll no: " + pl.roll + "\n" : ""}📅 Till ${td}\n\n*Overall: ${a.pr}/${a.t} days (${a.pct}%)*\n${pbar(a.pct)}\n\n*Month by month*\n${ms.join("\n") || "-"}\n\n*Recent days*\n${rec.join("\n") || "-"}`;
+    return `🏑 *IITP Hockey: Attendance of ${pl.name}*\n${pl.roll ? "Roll no: " + pl.roll + "\n" : ""}📅 Till ${td}\n\n*Overall: ${a.pr}/${a.t} sessions (${a.pct}%)*\n${pbar(a.pct)}\n\n*Month by month*\n${ms.join("\n") || "-"}\n\n*Recent days*\n${rec.join("\n") || "-"}`;
   }
   const m = sc === "month" ? v : "all",
     st = stats(m)
@@ -506,7 +509,7 @@ function reportText(sc, v) {
           .join("\n");
   const medal = ["🥇", "🥈", "🥉"];
   return (
-    `🏑 *IITP Hockey: Attendance report*\n📅 ${m === "all" ? "Overall, till " + td : mfmt(m)}\n🗓 Playing days: ${rdays(m)}\n📈 Team turnout: ${tr}%\n\n` +
+    `🏑 *IITP Hockey: Attendance report*\n📅 ${m === "all" ? "Overall, till " + td : mfmt(m)}\n🗓 Playing days: ${rdays(m)} · Sessions: ${rsess(m)}\n📈 Team turnout: ${tr}%\n\n` +
     st
       .map(
         (x, i) =>
@@ -516,10 +519,10 @@ function reportText(sc, v) {
     dl
   );
 }
-// Percentage = days present / TOTAL WORKING (playing) DAYS. The total is the same for every player: a day the player
-// missed, or has no mark for, counts as absent. Present days never exceed the total.
+// Percentage = sessions present / TOTAL SESSIONS. The total is the same for every player: a session the player
+// missed, or has no mark for, counts as absent. Present sessions never exceed the total.
 function statsFor(p, m) {
-  const t = rdays(m);
+  const t = rsess(m);
   let pr = 0;
   for (const k in L) if (m === "all" || k === m) pr += L[k].att[p.id] || 0;
   for (const d in SS) if ((m === "all" || d.startsWith(m)) && SS[d][p.id]) pr++;
@@ -801,10 +804,26 @@ const months = () =>
   [
     ...new Set([...Object.keys(L), ...dates().map((d) => d.slice(0, 7))]),
   ].sort();
+// Sessions = every saved attendance record (a second session on the same day counts again).
+// Playing days = different calendar dates only, so 82 playing days can hold 83 sessions.
+const inMonth = (m) => (d) => m === "all" || d.startsWith(m);
+const rsess = (m) =>
+  (m === "all"
+    ? Object.keys(L).reduce((a, k) => a + L[k].days, 0)
+    : L[m]
+      ? L[m].days
+      : 0) + dates().filter(inMonth(m)).length;
 const rdays = (m) =>
-  m === "all"
-    ? Object.keys(L).reduce((a, k) => a + L[k].days, 0) + dates().length
-    : (L[m] ? L[m].days : 0) + dates().filter((d) => d.startsWith(m)).length;
+  (m === "all"
+    ? Object.keys(L).reduce((a, k) => a + L[k].days, 0)
+    : L[m]
+      ? L[m].days
+      : 0) +
+  new Set(
+    dates()
+      .filter(inMonth(m))
+      .map((d) => d.slice(0, 10)),
+  ).size;
 async function run(fn) {
   try {
     await fn();
@@ -1070,7 +1089,7 @@ function useData(d, force) {
   }
 }
 
-window.getHockeyUserContext = function() {
+window.getHockeyUserContext = function () {
   if (!token) {
     return { role: "guest", title: "Guest / Visitor", name: "Guest" };
   }
@@ -1082,7 +1101,7 @@ window.getHockeyUserContext = function() {
       title: isInst ? "Instructor" : "Player (Admin)",
       name: WHO || "Instructor",
       id: ADMID,
-      playerId: MYPID
+      playerId: MYPID,
     };
   }
   if (role === "captain" || role === "vice") {
@@ -1091,7 +1110,7 @@ window.getHockeyUserContext = function() {
       kind: "player",
       title: role === "captain" ? "Captain" : "Vice-Captain",
       name: WHO || (role === "captain" ? "Captain" : "Vice-Captain"),
-      playerId: MYPID
+      playerId: MYPID,
     };
   }
   if (role === "player") {
@@ -1102,7 +1121,7 @@ window.getHockeyUserContext = function() {
       name: (mine && mine.name) || WHO || me,
       roll: (mine && (mine.roll || mine.id)) || me,
       position: (mine && mine.position) || "",
-      jersey: (mine && mine.jersey) || ""
+      jersey: (mine && mine.jersey) || "",
     };
   }
   return { role: "guest", title: "Guest / Visitor", name: "Guest" };
@@ -1206,16 +1225,115 @@ function pCount(sec) {
   tick();
   pTimer = setInterval(tick, 1000);
 }
+// ---- security types: alphanumeric, numeric PIN or pattern (the pattern is sent as dot numbers, e.g. 0-1-2-5) ----
+let pType = "alnum";
+const CTYPES = [
+  ["alnum", "Alphanumeric"],
+  ["numeric", "Numeric"],
+  ["pattern", "Pattern"],
+];
+function codeInput(type, mode) {
+  const nw = mode === "new";
+  if (type === "pattern")
+    return `<div class="fl">${nw ? "Draw a pattern joining at least 4 dots" : "Draw your pattern"}<div class="pat" id="ppad"></div><button type="button" class="ghost2" id="pclr">Clear pattern</button></div><input id="pc" type="hidden">`;
+  if (type === "numeric")
+    return `<label class="fl">${nw ? "Choose your PIN (4 to 8 digits)" : "Your PIN"}<input id="pc" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="${nw ? "4 to 8 digits" : "Your PIN"}" autocomplete="${nw ? "new-password" : "current-password"}" required></label>`;
+  return `<label class="fl">${nw ? "Choose your unique code" : "Your code"}<input id="pc" type="password" placeholder="${nw ? "4 or more characters" : "Your unique code"}" maxlength="30" autocomplete="${nw ? "new-password" : "current-password"}" required></label>`;
+}
+function bindCode(type) {
+  if (type === "pattern") {
+    patternPad($("ppad"), (v) => {
+      $("pc").value = v;
+      $("pe").textContent =
+        v || !$("ppad").dataset.n ? "" : "Join at least 4 dots. Try again.";
+    });
+    $("pclr").onclick = () => {
+      $("ppad").clear();
+      $("pc").value = "";
+      $("pe").textContent = "";
+    };
+  } else if (type === "numeric")
+    $("pc").oninput = (e) =>
+      (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8));
+}
+function patternPad(el, onDone) {
+  const C = [16.67, 50, 83.33],
+    ctr = (i) => ({ x: C[i % 3], y: C[Math.floor(i / 3)] });
+  el.innerHTML =
+    '<svg class="pl" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points=""/></svg>' +
+    [...Array(9)].map(() => '<i class="pd"></i>').join("");
+  const dots = [...el.querySelectorAll(".pd")],
+    line = el.querySelector("polyline");
+  let seq = [],
+    down = false;
+  const pt = (e) => {
+    const r = el.getBoundingClientRect();
+    return {
+      x: ((e.clientX - r.left) / r.width) * 100,
+      y: ((e.clientY - r.top) / r.height) * 100,
+    };
+  };
+  const draw = (p) =>
+    line.setAttribute(
+      "points",
+      seq
+        .map(ctr)
+        .concat(p ? [p] : [])
+        .map((c) => c.x + "," + c.y)
+        .join(" "),
+    );
+  const add = (p) => {
+    for (let i = 0; i < 9; i++) {
+      const c = ctr(i);
+      if (!seq.includes(i) && Math.hypot(p.x - c.x, p.y - c.y) < 14) {
+        seq.push(i);
+        dots[i].classList.add("on");
+        break;
+      }
+    }
+  };
+  el.clear = () => {
+    seq = [];
+    dots.forEach((d) => d.classList.remove("on"));
+    draw();
+    el.dataset.n = "";
+  };
+  el.onpointerdown = (e) => {
+    e.preventDefault();
+    el.clear();
+    down = true;
+    el.setPointerCapture(e.pointerId);
+    const p = pt(e);
+    add(p);
+    draw(p);
+  };
+  el.onpointermove = (e) => {
+    if (!down) return;
+    const p = pt(e);
+    add(p);
+    draw(p);
+  };
+  el.onpointerup = el.onpointercancel = () => {
+    if (!down) return;
+    down = false;
+    draw();
+    el.dataset.n = seq.length;
+    onDone(seq.length >= 4 ? seq.join("-") : "");
+  };
+}
 function pForm(hasAcc, info) {
   clearInterval(pTimer);
   pInfo = info || {};
+  pType = "alnum";
   $("pgo").hidden = true;
   if (hasAcc) {
     pStep = "login";
     $("pa").innerHTML =
-      `<label class="fl">Your code<input id="pc" type="password" placeholder="Your unique code" autocomplete="current-password" required></label><button class="pri big" id="plg">Log in</button><p class="hint">Forgot your code? Ask the captain to press <b>Reset code</b> for you, then sign up again.</p>`;
+      codeInput(pInfo.codeType || "alnum", "login") +
+      `<button class="pri big" id="plg">Log in</button><p class="hint">Forgot your code? Ask the captain to press <b>Reset code</b> for you, then sign up again.</p>`;
     $("pe").textContent = "";
-    $("pc").focus();
+    bindCode(pInfo.codeType || "alnum");
+    if ($("pc") && $("pc").type !== "hidden") $("pc").focus();
     return;
   }
   pStep = "email";
@@ -1233,8 +1351,21 @@ function pOtp(sentTo, wait) {
   $("pa").innerHTML =
     `<p class="note">We sent a 6 digit code to <b>${esc(sentTo)}</b>. It works for 10 minutes. Look in spam or junk if you cannot see it.</p>
   <div class="fl">Code from the e-mail${sixBox("po")}</div>
-  <label class="fl">Choose your unique code<input id="pc" type="password" placeholder="4 or more characters" maxlength="30" autocomplete="new-password" required></label>
+  <div class="fl">Security type<div class="seg" id="pty">${CTYPES.map((t) => `<button type="button" data-t="${t[0]}" class="${t[0] === pType ? "on" : ""}">${t[1]}</button>`).join("")}</div></div>
+  <div id="pcw">${codeInput(pType, "new")}</div>
   <button class="pri big" id="plg">Create account &amp; log in</button><button type="button" id="presend" disabled>Send the code again</button>`;
+  bindCode(pType);
+  $("pty").onclick = (e) => {
+    const b = e.target.closest("button[data-t]");
+    if (!b) return;
+    pType = b.dataset.t;
+    $("pty")
+      .querySelectorAll("button")
+      .forEach((x) => x.classList.toggle("on", x === b));
+    $("pcw").innerHTML = codeInput(pType, "new");
+    $("pe").textContent = "";
+    bindCode(pType);
+  };
   $("presend").onclick = async () => {
     $("pe").textContent = "";
     $("presend").disabled = true;
@@ -1262,6 +1393,11 @@ $("pf").onsubmit = async (e) => {
   if (btn) btn.disabled = true;
   try {
     if (pStep === "roll") {
+      if (!/^\d{4}[A-Za-z]{2}\d{2}$/.test(roll)) {
+        $("pe").textContent =
+          "Roll number must be 4 digits, 2 letters, then 2 digits, like 2501ME71.";
+        return;
+      }
       const r = await api("/api/player/check", {
         method: "POST",
         body: { roll },
@@ -1283,6 +1419,13 @@ $("pf").onsubmit = async (e) => {
       $("pe").textContent = "Enter all 6 digits of the e-mailed code.";
       return;
     }
+    if (
+      (pStep === "login" ? pInfo.codeType : pType) === "pattern" &&
+      !$("pc").value
+    ) {
+      $("pe").textContent = "Draw a pattern joining at least 4 dots.";
+      return;
+    }
     const r =
       pStep === "login"
         ? await api("/api/player/login", {
@@ -1291,7 +1434,12 @@ $("pf").onsubmit = async (e) => {
           })
         : await api("/api/player/signup", {
             method: "POST",
-            body: { roll, otp: $("po").val(), code: $("pc").value },
+            body: {
+              roll,
+              otp: $("po").val(),
+              code: $("pc").value,
+              ctype: pType,
+            },
           });
     clearInterval(pTimer);
     saveToken(r.token);
@@ -1359,10 +1507,21 @@ function drawMenu() {
     return `<button class="mi ${o.on ? "on" : ""} ${o.cls || ""}" data-k="${menuActs.length - 1}"${o.sw !== undefined ? ' role="switch" aria-checked="' + o.sw + '"' : ""}><span class="i">${ic}</span><span class="t">${label}</span>${o.sw !== undefined ? `<span class="sw ${o.sw ? "on" : ""}"></span>` : ""}</button>`;
   };
 
-  const myId = role === "player" ? me : (MYPID || "");
+  const myId = role === "player" ? me : MYPID || "";
   const lp = myId ? P.find((x) => x.id === myId) : null;
-  const roleName = role === "captain" ? "Captain" : role === "vice" ? "Vice-captain" : role === "admin" ? "Admin" : "Player";
-  const userSub = lp ? [lp.position || "Hockey player", lp.roll].filter(Boolean).join(" · ") : (roleName === "Admin" ? "Team Administrator" : roleName);
+  const roleName =
+    role === "captain"
+      ? "Captain"
+      : role === "vice"
+        ? "Vice-captain"
+        : role === "admin"
+          ? "Admin"
+          : "Player";
+  const userSub = lp
+    ? [lp.position || "Hockey player", lp.roll].filter(Boolean).join(" · ")
+    : roleName === "Admin"
+      ? "Team Administrator"
+      : roleName;
 
   let h = `<div class="user-drawer-card">
     <div class="user-drawer-top">
@@ -1379,7 +1538,7 @@ function drawMenu() {
     </div>
     <div class="user-drawer-actions">
       <button type="button" class="btn-drawer-pri" id="btn-draw-prof">👤 View My Profile</button>
-      ${(role === "captain" || role === "vice") ? `<button type="button" class="btn-drawer-sec" id="btn-draw-code">🔑 Change Code</button>` : ""}
+      ${role === "captain" || role === "vice" ? `<button type="button" class="btn-drawer-sec" id="btn-draw-code">🔑 Change Code</button>` : ""}
     </div>
   </div>`;
 
@@ -1446,9 +1605,17 @@ function drawMenu() {
 
   // Wire profile card actions
   const profBtn = m.querySelector("#btn-draw-prof");
-  if (profBtn) profBtn.onclick = () => { m.hidden = true; openMyProfile(); };
+  if (profBtn)
+    profBtn.onclick = () => {
+      m.hidden = true;
+      openMyProfile();
+    };
   const codeBtn = m.querySelector("#btn-draw-code");
-  if (codeBtn) codeBtn.onclick = () => { m.hidden = true; openChangeCode(); };
+  if (codeBtn)
+    codeBtn.onclick = () => {
+      m.hidden = true;
+      openChangeCode();
+    };
 }
 
 function toggleProfileMenu(e) {
@@ -1465,7 +1632,11 @@ if ($("mb")) $("mb").onclick = toggleProfileMenu;
 $("hp").onclick = toggleProfileMenu;
 
 document.addEventListener("click", (e) => {
-  if (!e.composedPath().includes($("menu")) && !e.target.closest("#hp") && !e.target.closest(".mbtn"))
+  if (
+    !e.composedPath().includes($("menu")) &&
+    !e.target.closest("#hp") &&
+    !e.target.closest(".mbtn")
+  )
     $("menu").hidden = true;
 });
 document.addEventListener("keydown", (e) => {
@@ -1508,7 +1679,7 @@ if ($("codeform")) {
     try {
       const res = await api("/api/auth/change-code", {
         method: "POST",
-        body: { currentCode: cur, newCode: nw }
+        body: { currentCode: cur, newCode: nw },
       });
       msg.className = "ok";
       msg.textContent = res.message || "Code updated successfully!";
@@ -1520,7 +1691,8 @@ if ($("codeform")) {
       }, 1200);
     } catch (err) {
       msg.className = "err";
-      msg.textContent = err.message || "Failed to change code. Check current code.";
+      msg.textContent =
+        err.message || "Failed to change code. Check current code.";
       btn.disabled = false;
       btn.textContent = "Save New Code";
     }
@@ -1757,7 +1929,9 @@ function checkAlerts() {
       fired[key] = 1;
       notify(
         "🏑 Hockey in " + Math.max(1, Math.round(left / 60000)) + " min",
-        (SCH && SCH.team && SCH.team[dayIdx(d)] && SCH.team[dayIdx(d)][1] ? SCH.team[dayIdx(d)][1] : "Practice") +
+        (SCH && SCH.team && SCH.team[dayIdx(d)] && SCH.team[dayIdx(d)][1]
+          ? SCH.team[dayIdx(d)][1]
+          : "Practice") +
           (p.time ? " · " + p.time : "") +
           (p.venue ? " · " + p.venue : ""),
         key,
@@ -1861,8 +2035,14 @@ function pushAuto() {
         requestPushPermissionAndSubscribe();
       }
     };
-    window.addEventListener("click", onFirstTouch, { once: true, passive: true });
-    window.addEventListener("touchend", onFirstTouch, { once: true, passive: true });
+    window.addEventListener("click", onFirstTouch, {
+      once: true,
+      passive: true,
+    });
+    window.addEventListener("touchend", onFirstTouch, {
+      once: true,
+      passive: true,
+    });
   }
 }
 function pushDrop(tk) {
@@ -2041,7 +2221,8 @@ function render() {
     };
   }
 }
-const dayIdx = (d) => (new Date(String(d || "").slice(0, 10) + "T00:00").getDay() + 6) % 7;
+const dayIdx = (d) =>
+  (new Date(String(d || "").slice(0, 10) + "T00:00").getDay() + 6) % 7;
 
 let tkQ = "",
   tkUn = false;
@@ -2258,6 +2439,7 @@ function vStats() {
       .filter((x) => x.t && vis(x))
       .sort((a, b) => b.pct - a.pct),
     n = rdays(m),
+    ns = rsess(m),
     live = dates().filter((d) => m === "all" || d.startsWith(m));
   const tp = st.reduce((a, x) => a + x.t, 0),
     tr = tp ? Math.round((st.reduce((a, x) => a + x.pr, 0) * 100) / tp) : 0;
@@ -2284,7 +2466,9 @@ function vStats() {
       : "My attendance per playing day";
     pts = live.map((d) => {
       const v = admin
-          ? P.filter((p) => SS[d] && SS[d][p.id] !== undefined).map((p) => SS[d][p.id])
+          ? P.filter((p) => SS[d] && SS[d][p.id] !== undefined).map(
+              (p) => SS[d][p.id],
+            )
           : [Boolean(SS[d] && SS[d][me])],
         pr = v.filter(Boolean).length,
         pct = v.length ? (pr * 100) / v.length : 0;
@@ -2292,9 +2476,7 @@ function vStats() {
         l: d.slice(5),
         pct,
         tip:
-          fmt(d) +
-          ": " +
-          (admin ? pr + " present" : pr ? "Present" : "Absent"),
+          fmt(d) + ": " + (admin ? pr + " present" : pr ? "Present" : "Absent"),
       };
     });
   }
@@ -2318,14 +2500,14 @@ function vStats() {
   }
   $("view").innerHTML =
     `<div class="card"><h2>Attendance</h2><div class="ctl">${mSel("gm", gMonth, true)}</div>
-  <div class="stats"><div><b>${n}</b>Playing days</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
+  <div class="stats"><div><b>${n}</b>Playing days</div><div><b>${ns}</b>Sessions</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
   ${admin ? podium(st, medal) : tier ? `<div class="tier"><span>${tier[0]}</span><div><b>${tier[1]} level</b><br><span class="mute">Gold 90% or more · Silver 75% or more · Bronze 60% or more</span></div></div>` : ""}
-  <table><tr><th>Player</th><th class="n">Present</th><th class="n">Days</th><th>%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
-  <p class="mute">% = days present ÷ total working days (${n}). The total is the same for every player; a missed day counts as absent.</p>${L[m] ? '<p class="mute">Includes the imported register totals.</p>' : ""}
+  <table><tr><th>Player</th><th class="n">Present</th><th class="n">Sessions</th><th>%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
+  <p class="mute">% = sessions present ÷ total sessions (${ns}, over ${n} playing days). The total is the same for every player; a missed session counts as absent.</p>${L[m] ? '<p class="mute">Includes the imported register totals.</p>' : ""}
   <div class="chips"><button id="shr">⤴ Share report</button></div></div>
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
-  <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selDate}"></div>${day}
+  <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selDate}">${admin && sd ? '<button type="button" id="sdsh">⤴ Share this day</button>' : ""}</div>${day}
   <details class="dlist"><summary>Show all playing dates (${live.length})</summary><div class="chips">${live
     .slice()
     .reverse()
@@ -2346,6 +2528,8 @@ function vStats() {
         : { sc: "person", v: me },
     );
   bindProfLinks();
+  if ($("sdsh"))
+    $("sdsh").onclick = () => openReport({ sc: "date", v: selDate });
   $("sd").onchange = (e) => {
     if (e.target.value) {
       selDate = e.target.value;
@@ -2956,22 +3140,32 @@ function vPlan() {
     const d = planMon + "-" + String(n).padStart(2, "0"),
       p = PL[d],
       hasAtt = Boolean(SS[d] || Object.keys(SS).some((k) => k.startsWith(d))),
-      st = p ? (p.status === "cancelled" ? "cx" : (SS[d] || hasAtt) ? "dn" : "pl") : (hasAtt ? "dn" : "");
+      st = p
+        ? p.status === "cancelled"
+          ? "cx"
+          : SS[d] || hasAtt
+            ? "dn"
+            : "pl"
+        : hasAtt
+          ? "dn"
+          : "";
     cells.push(
       `<button type="button" class="cd ${st} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}">${(SS[d] || hasAtt) && !p ? '<i class="dn"></i>' : ""}<b>${n}</b>${p ? "<i></i>" + (p.status !== "cancelled" && tagMine(p.tags) ? '<u class="tdot" title="You are tagged"></u>' : "") : !p && d >= td && SCH.team[dayIdx(d)][3] ? '<i class="wk"></i>' : ""}</button>`,
     );
   }
   const dayCard = (d) => {
     const p = PL[d];
-    const sKeys = Object.keys(SS).filter((k) => k === d || k.startsWith(d + "_") || k.startsWith(d + "-"));
+    const sKeys = Object.keys(SS).filter(
+      (k) => k === d || k.startsWith(d + "_") || k.startsWith(d + "-"),
+    );
     if (!p) {
       if (sKeys.length > 0) {
         const totalPres = sKeys.reduce(
-          (acc, k) =>
-            acc + Object.values(SS[k] || {}).filter(Boolean).length,
+          (acc, k) => acc + Object.values(SS[k] || {}).filter(Boolean).length,
           0,
         );
-        const subTxt = sKeys.length > 1 ? ` (${sKeys.length} sessions played)` : "";
+        const subTxt =
+          sKeys.length > 1 ? ` (${sKeys.length} sessions played)` : "";
         return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> <span class="pill g">Attendance recorded${subTxt}</span></p>
         <p style="margin:6px 0 10px">🏑 <b>${sKeys.length} session${sKeys.length > 1 ? "s" : ""}</b> played · <b>${totalPres}</b> attendance marks recorded.</p>
         ${admin ? `<div class="chips"><button data-a="take" data-d="${d}">View / Take attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button></div>` : ""}`;
@@ -3256,7 +3450,7 @@ function rmList() {
     <label class="rck" data-stop><input type="checkbox" data-ck="${p.id}" ${on ? "checked" : ""} aria-label="Select ${esc(p.name)}"></label>${avatar(p.name, p.photo, 48)}
     <span class="pi"><b>${esc(p.name)}</b><small>${esc([p.roll, p.position].filter(Boolean).join(" · ")) || "&nbsp;"}</small>
     <small>${p.removedAt ? "Removed " + when(p.removedAt) + (p.removedBy ? " by " + esc(p.removedBy) : "") : "Removed"}</small>
-    <span class="bar" style="margin:5px 0 2px"><i style="width:${s.pct}%"></i></span><small>${s.t ? `Attended ${s.pr} of ${s.t} days (${s.pct}%)` : "No attendance recorded"}${p.joined ? " · joined " + esc(p.joined.slice(0, 10)) : ""}</small>
+    <span class="bar" style="margin:5px 0 2px"><i style="width:${s.pct}%"></i></span><small>${s.t ? `Attended ${s.pr} of ${s.t} sessions (${s.pct}%)` : "No attendance recorded"}${p.joined ? " · joined " + esc(p.joined.slice(0, 10)) : ""}</small>
     <span class="rca" data-stop><button class="pri" data-rs="${p.id}">↩ Restore</button><button data-re="${p.id}">✏️ Edit</button><button class="dng" data-rx="${p.id}" aria-label="Delete forever">🗑</button></span></span></div>`;
     })
     .join("")}</div>`;
@@ -3883,7 +4077,9 @@ function openImg(src, title = "") {
 
 // Global click handler: tap any avatar, group photo, referee signal, or profile cover to view in full mobile view
 document.addEventListener("click", (e) => {
-  const img = e.target.closest("img.avi, img.bigimg, img.sig, .pavw img, .gph img, #gpimg, #pgph, .cover.has");
+  const img = e.target.closest(
+    "img.avi, img.bigimg, img.sig, .pavw img, .gph img, #gpimg, #pgph, .cover.has",
+  );
   if (!img) return;
   if (e.target.closest(".full-mobile-lightbox")) return;
 
@@ -5641,7 +5837,7 @@ function avCounts(d) {
 function availBlock(d, compact) {
   if (!d || !PL[d] || PL[d].status === "cancelled") return "";
   let h = "";
-  const myId = role === "player" ? me : (MYPID || "");
+  const myId = role === "player" ? me : MYPID || "";
   if (myId) {
     const cur = ((AVL[d] || {})[myId] || {}).s || "";
     h += `<div class="avb"><div class="mute" style="margin:6px 0 4px">${compact ? "" : "<b>Your availability:</b> "}${cur ? "You marked: <b>" + avLabel(cur) + "</b>. Tap again to clear." : "Mark if you will be on the field."}</div>${avChips(d, myId, cur)}${reasonBox(d, myId, cur, ((AVL[d] || {})[myId] || {}).why)}</div>`;

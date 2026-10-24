@@ -109,6 +109,24 @@ const owner = (req, res, next) =>
         .json({ error: "Only the captain or vice-captain can do this" });
 const h = (fn) => (req, res, next) => fn(req, res).catch(next);
 
+// Security types a player can choose for their personal code. All are stored the same way (salted hash of the text).
+//  alnum   = letters and/or digits, 4 to 30 characters
+//  numeric = a PIN of 4 to 8 digits
+//  pattern = dots 0-8 of a 3x3 grid joined with "-", at least 4 different dots, e.g. 0-1-2-5
+const CODE_TYPES = ["alnum", "numeric", "pattern"];
+function codeProblem(type, c) {
+  if (type === "numeric")
+    return /^\d{4,8}$/.test(c) ? "" : "Your PIN must be 4 to 8 digits.";
+  if (type === "pattern") {
+    const ok =
+      /^[0-8](?:-[0-8]){3,8}$/.test(c) &&
+      new Set(c.split("-")).size === c.split("-").length;
+    return ok ? "" : "Draw a pattern that joins at least 4 different dots.";
+  }
+  return c.length >= 4 && c.length <= 30
+    ? ""
+    : "Your code must be 4 to 30 characters";
+}
 const hashCode = (code, salt) =>
   crypto.scryptSync(String(code), salt, 32).toString("hex");
 
@@ -235,6 +253,10 @@ const normRoll = (v) =>
     .toUpperCase()
     .replace(/[^A-Z0-9_-]/g, "")
     .slice(0, 12);
+// A roll number is 4 digits + 2 letters + 2 digits (e.g. 2501ME71). Small or capital letters are both accepted.
+const ROLL_RE = /^\d{4}[A-Z]{2}\d{2}$/;
+const ROLL_MSG =
+  "Roll number must be 4 digits, 2 letters, then 2 digits, like 2501ME71.";
 async function findPlayer(roll) {
   const r = normRoll(roll);
   if (!r) return null;
@@ -349,6 +371,8 @@ app.post(
   h(async (req, res) => {
     if (limited("chk" + req.ip, 20))
       return res.status(429).json({ error: "Too many tries" });
+    if (!ROLL_RE.test(normRoll((req.body || {}).roll)))
+      return res.status(400).json({ error: ROLL_MSG });
     const pl = await findPlayer((req.body || {}).roll);
     if (!pl)
       return res.status(404).json({
@@ -358,6 +382,7 @@ app.post(
     const acc = await db.collection("accounts").doc(pl.id).get();
     res.json({
       hasAccount: acc.exists,
+      codeType: acc.exists ? acc.data().type || "alnum" : "alnum",
       emailHint:
         !acc.exists && EMAIL_RE.test(pl.email || "") ? maskEmail(pl.email) : "",
       domain: SIGNUP_DOMAIN,
@@ -413,16 +438,7 @@ app.post(
           "Too many codes asked for this roll number. Try again in an hour.",
       });
     const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
-    await sendEmail(
-      email,
-      "Your Email verification code for IITP Hockey",
-      "Your sign-up code is " +
-        code +
-        ". It works for 10 minutes. If you did not ask for it, ignore this e-mail.",
-      '<div style="font-family:Arial,sans-serif;max-width:420px"><h2 style="margin:0 0 8px">IITP Hockey</h2><p>Your sign-up code is</p><p style="font-size:32px;letter-spacing:6px;font-weight:700;margin:8px 0">' +
-        code +
-        '</p><p style="color:#555">It works for 10 minutes. If you did not ask for it, ignore this e-mail.</p></div>',
-    );
+    // Save the code first. If the database is not ready nothing is e-mailed, and if the e-mail fails the old record is put back.
     await ref.set({
       h: otpHash(pl.id, email, code),
       email,
@@ -432,6 +448,22 @@ app.post(
       hs: hourStart,
       sends: sends + 1,
     });
+    try {
+      await sendEmail(
+        email,
+        "Your Email verification code for IITP Hockey",
+        "Your sign-up code is " +
+          code +
+          ". It works for 10 minutes. If you did not ask for it, ignore this e-mail.",
+        '<div style="font-family:Arial,sans-serif;max-width:420px"><h2 style="margin:0 0 8px">IITP Hockey</h2><p>Your sign-up code is</p><p style="font-size:32px;letter-spacing:6px;font-weight:700;margin:8px 0">' +
+          code +
+          '</p><p style="color:#555">It works for 10 minutes. If you did not ask for it, ignore this e-mail.</p></div>',
+      );
+    } catch (e) {
+      if (cur.exists) await ref.set(c).catch(() => {});
+      else await ref.delete().catch(() => {});
+      throw e;
+    }
     res.json({ ok: true, sentTo: maskEmail(email), wait: 60 });
   }),
 );
@@ -478,11 +510,12 @@ app.post(
         error:
           "This roll number is not on the team list. Ask the captain to add you.",
       });
-    const c = String(code || "");
-    if (c.length < 4 || c.length > 30)
-      return res
-        .status(400)
-        .json({ error: "Your code must be 4 to 30 characters" });
+    const c = String(code || ""),
+      ctype = CODE_TYPES.includes((req.body || {}).ctype)
+        ? req.body.ctype
+        : "alnum",
+      bad = codeProblem(ctype, c);
+    if (bad) return res.status(400).json({ error: bad });
     if ((await db.collection("accounts").doc(pl.id).get()).exists)
       return res.status(409).json({
         error:
@@ -512,7 +545,7 @@ app.post(
     await db
       .collection("accounts")
       .doc(pl.id)
-      .set({ salt, hash: hashCode(c, salt), created: Date.now() });
+      .set({ salt, hash: hashCode(c, salt), created: Date.now(), type: ctype });
     await db
       .collection("players")
       .doc(pl.id)
@@ -1138,9 +1171,15 @@ app.put(
     const b = req.body || {};
     if (!str(b.name).trim())
       return res.status(400).json({ error: "Name required" });
+    if (
+      b.roll !== undefined &&
+      String(b.roll).trim() &&
+      !ROLL_RE.test(normRoll(b.roll))
+    )
+      return res.status(400).json({ error: ROLL_MSG });
     const upd = {
       name: str(b.name, 40).trim(),
-      roll: str(b.roll, 12).trim(),
+      roll: normRoll(b.roll),
       position: str(b.position, 40).trim(),
       joined: /^\d{4}-\d{2}-\d{2}$/.test(b.joined || "") ? b.joined : "",
     };
@@ -1178,6 +1217,10 @@ async function addStudents(list) {
       name = str(s.name, 40).trim();
     if (!rid || !name) {
       skipped.push(name || s.roll || "(blank)");
+      continue;
+    }
+    if (!ROLL_RE.test(rid)) {
+      skipped.push(name + " (roll number must look like 2501ME71)");
       continue;
     }
     const extra = {}; // only non-empty private details
@@ -2670,6 +2713,17 @@ app.use((err, req, res, next) => {
       .json({ error: "That file is too large. Use a smaller photo." });
   if (err && err.type === "entity.parse.failed")
     return res.status(400).json({ error: "Bad request. Please try again." });
+  if (
+    code === "42703" ||
+    code === "42P01" ||
+    code === "PGRST204" ||
+    code === "PGRST205" ||
+    /column .* does not exist|schema cache|relation .* does not exist/i.test(m)
+  )
+    return res.status(500).json({
+      error:
+        "The database is not updated yet. The captain must run the SQL files in supabase/migrations (Supabase > SQL Editor), then try again.",
+    });
   if (code === 8 || /RESOURCE_EXHAUSTED|quota/i.test(m))
     return res.status(503).json({
       error:

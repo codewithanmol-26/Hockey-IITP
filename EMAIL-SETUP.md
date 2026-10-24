@@ -5,7 +5,7 @@ Replace `yourdomain.com` with your real domain everywhere below.
 
 ## 0. Run the database update (once)
 
-In Supabase > **SQL Editor**, run the file `supabase/migrations/20261024000000_fix_email_otps.sql` (and `20261023000001_sessions_date_text.sql` if you have not already). Without it the sign-up code cannot be saved.
+In Supabase > **SQL Editor**, run `supabase/migrations/20261024000000_fix_email_otps.sql` and `20261024000001_code_types.sql` (and `20261023000001_sessions_date_text.sql` if you have not already). Without it the sign-up code cannot be saved.
 
 ## 1. Add your domain in Resend
 

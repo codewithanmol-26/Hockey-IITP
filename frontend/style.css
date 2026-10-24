@@ -21,11 +21,14 @@
   --accent-glow: 0 0 20px rgba(245, 158, 11, 0.28);
   --soft: #f1f5f9;
   --sh: 0 2px 4px rgba(11, 42, 74, 0.06), 0 10px 24px rgba(11, 42, 74, 0.08);
-  --sh-lg: 0 10px 30px rgba(11, 42, 74, 0.14), 0 20px 50px rgba(11, 42, 74, 0.1);
+  --sh-lg:
+    0 10px 30px rgba(11, 42, 74, 0.14), 0 20px 50px rgba(11, 42, 74, 0.1);
   --nav-h: 64px;
   --app-fs: 16px;
-  --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display:
+    "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -77,7 +80,14 @@ body {
   font: 16px/1.55 var(--font-body);
   -webkit-tap-highlight-color: transparent;
 }
-h1, h2, h3, h4, .brand h1, .phero h2, .lg-card h1, .pub-brand-title {
+h1,
+h2,
+h3,
+h4,
+.brand h1,
+.phero h2,
+.lg-card h1,
+.pub-brand-title {
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -3208,7 +3218,10 @@ dialog {
   cursor: pointer;
   backdrop-filter: blur(4px);
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.18s ease, border-color 0.18s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .thb:hover {
   background: rgba(255, 255, 255, 0.28);
@@ -3726,7 +3739,9 @@ nav button .vh {
   cursor: pointer;
   backdrop-filter: blur(8px);
   z-index: 5;
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
   -webkit-tap-highlight-color: transparent;
 }
 .cover-edit-btn:hover {
@@ -3764,7 +3779,9 @@ nav button .vh {
   place-items: center;
   cursor: pointer;
   z-index: 5;
-  transition: transform 0.15s ease, filter 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 .photo-edit-badge:hover {
@@ -3970,7 +3987,9 @@ html.chat-modal-open {
   cursor: pointer;
   user-select: none;
   touch-action: none;
-  transition: transform 0.15s ease, filter 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
   filter: drop-shadow(0 4px 12px rgba(11, 42, 74, 0.4));
   -webkit-tap-highlight-color: transparent;
 }
@@ -4116,7 +4135,9 @@ html.chat-modal-open {
   height: 4px;
   border-radius: 3px;
   background: var(--line);
-  transition: background 0.15s ease, width 0.15s ease;
+  transition:
+    background 0.15s ease,
+    width 0.15s ease;
 }
 .chat-sheet-handle:hover .chat-drag-pill,
 .chat-dialog.chat-dragging .chat-drag-pill {
@@ -4269,7 +4290,10 @@ html.chat-modal-open {
   justify-content: center;
   font-size: 1rem;
   padding: 0;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
 }
 .chat-act-btn:hover {
   background: var(--line);
@@ -4314,14 +4338,20 @@ html.chat-modal-open {
   background: var(--card);
   color: var(--navy);
   border: 2px solid var(--accent);
-  box-shadow: 0 4px 18px rgba(11, 42, 74, 0.28), 0 0 0 2px rgba(245, 158, 11, 0.25);
+  box-shadow:
+    0 4px 18px rgba(11, 42, 74, 0.28),
+    0 0 0 2px rgba(245, 158, 11, 0.25);
   cursor: pointer;
   display: none;
   align-items: center;
   justify-content: center;
   z-index: 25;
   padding: 0;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.2s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
   opacity: 0;
   pointer-events: none;
 }
@@ -4329,7 +4359,9 @@ html.chat-modal-open {
   background: #0f2c4d;
   color: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.65), 0 0 12px rgba(245, 158, 11, 0.35);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.65),
+    0 0 12px rgba(245, 158, 11, 0.35);
 }
 .chat-scroll-down-btn.visible {
   display: flex !important;
@@ -4348,7 +4380,8 @@ html.chat-modal-open {
   transform: scale(0.94);
 }
 @keyframes chatBounceDown {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -4431,7 +4464,11 @@ html.chat-modal-open {
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease,
+    box-shadow 0.15s ease;
   user-select: none;
 }
 .topic-card:hover {
@@ -4473,7 +4510,9 @@ html.chat-modal-open {
   color: var(--mute);
   margin-left: auto;
   padding-right: 2px;
-  transition: transform 0.15s ease, color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    color 0.15s ease;
 }
 .topic-card:hover .topic-arrow {
   color: var(--brand);
@@ -4623,7 +4662,10 @@ html.chat-modal-open {
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
   flex-shrink: 0;
 }
 .chat-chips .chip:hover {
@@ -4651,7 +4693,9 @@ html.chat-modal-open {
   border-radius: 26px;
   padding: 4px 6px 4px 14px;
   gap: 6px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .chat-input-pill:focus-within {
   border-color: var(--brand);
@@ -4689,7 +4733,9 @@ html.chat-modal-open {
   font-size: 1.05rem !important;
   color: var(--ink) !important;
   padding: 0 !important;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
   box-shadow: none !important;
 }
 .chat-mic-btn:hover {
@@ -4702,8 +4748,15 @@ html.chat-modal-open {
   animation: micPulse 1.2s infinite ease-in-out;
 }
 @keyframes micPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); transform: scale(1); }
-  50% { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0); transform: scale(1.06); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(239, 68, 68, 0);
+    transform: scale(1.06);
+  }
 }
 
 .chat-send-btn {
@@ -4720,7 +4773,9 @@ html.chat-modal-open {
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
   box-shadow: 0 2px 6px rgba(11, 42, 74, 0.25) !important;
 }
 .chat-send-btn:hover {
@@ -4744,8 +4799,16 @@ html.chat-modal-open {
   animation-delay: 0.4s;
 }
 @keyframes chatDot {
-  0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
-  40% { opacity: 1; transform: scale(1.2); }
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
 }
 
 /* ==========================================================================
@@ -4801,7 +4864,11 @@ dialog.full-mobile-lightbox::backdrop {
   align-items: center;
   justify-content: space-between;
   padding: max(12px, env(safe-area-inset-top, 12px)) 16px 12px 16px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
   color: #fff;
   z-index: 10;
 }
@@ -4839,7 +4906,9 @@ dialog.full-mobile-lightbox::backdrop {
   cursor: pointer;
   backdrop-filter: blur(8px);
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s, transform 0.1s;
+  transition:
+    background 0.15s,
+    transform 0.1s;
 }
 
 .full-mobile-lightbox .lightbox-btn:hover {
@@ -4865,7 +4934,9 @@ dialog.full-mobile-lightbox::backdrop {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px max(12px, env(safe-area-inset-right, 12px)) max(18px, env(safe-area-inset-bottom, 18px)) max(12px, env(safe-area-inset-left, 12px));
+  padding: 10px max(12px, env(safe-area-inset-right, 12px))
+    max(18px, env(safe-area-inset-bottom, 18px))
+    max(12px, env(safe-area-inset-left, 12px));
   overflow: hidden;
   cursor: zoom-out;
   touch-action: pan-x pan-y pinch-zoom;
@@ -4990,7 +5061,9 @@ img.sig,
   font-weight: 600;
   padding: 8px 12px;
   border-radius: 8px;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 .pub-nav-link:hover {
   color: #ffffff;
@@ -5039,7 +5112,10 @@ img.sig,
   border: 1px solid #fde68a;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
-  transition: transform 0.12s, box-shadow 0.15s, filter 0.15s;
+  transition:
+    transform 0.12s,
+    box-shadow 0.15s,
+    filter 0.15s;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -5083,7 +5159,9 @@ img.sig,
   height: 2px;
   background: #ffffff;
   border-radius: 2px;
-  transition: transform 0.2s, opacity 0.2s;
+  transition:
+    transform 0.2s,
+    opacity 0.2s;
 }
 
 /* Mobile Drawer */
@@ -5145,9 +5223,21 @@ img.sig,
   position: relative;
   border-radius: 24px;
   background:
-    radial-gradient(circle at 85% 15%, rgba(245, 158, 11, 0.18), transparent 38%),
-    radial-gradient(circle at 10% 80%, rgba(20, 89, 217, 0.28), transparent 45%),
-    repeating-linear-gradient(120deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 32px),
+    radial-gradient(
+      circle at 85% 15%,
+      rgba(245, 158, 11, 0.18),
+      transparent 38%
+    ),
+    radial-gradient(
+      circle at 10% 80%,
+      rgba(20, 89, 217, 0.28),
+      transparent 45%
+    ),
+    repeating-linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.02) 0 2px,
+      transparent 2px 32px
+    ),
     linear-gradient(145deg, #051322 0%, #0b2a4a 55%, #103a64 100%);
   color: #ffffff;
   padding: 40px 32px 36px;
@@ -5255,8 +5345,14 @@ img.sig,
   animation: pulseRing 1.8s infinite ease-out;
 }
 @keyframes pulseRing {
-  0% { transform: scale(0.6); opacity: 1; }
-  100% { transform: scale(1.6); opacity: 0; }
+  0% {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
 }
 .nsl-meta {
   display: flex;
@@ -5310,7 +5406,10 @@ img.sig,
   border: 1px solid #fde68a;
   cursor: pointer;
   box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
-  transition: transform 0.12s, filter 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.12s,
+    filter 0.15s,
+    box-shadow 0.15s;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -5333,7 +5432,9 @@ img.sig,
   border: 1px solid rgba(255, 255, 255, 0.28);
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -5428,7 +5529,9 @@ img.sig,
   border: 1.5px solid var(--accent-border);
   flex-shrink: 0;
   font-size: 1.35rem;
-  transition: transform 0.15s, background 0.15s;
+  transition:
+    transform 0.15s,
+    background 0.15s;
 }
 .card:hover .ic-tile {
   transform: scale(1.06);
@@ -5614,7 +5717,11 @@ img.sig,
 
 /* Availability reminder card */
 .avail-advisory-card {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(11, 42, 74, 0.08));
+  background: linear-gradient(
+    135deg,
+    rgba(16, 185, 129, 0.08),
+    rgba(11, 42, 74, 0.08)
+  );
   border: 1px solid rgba(16, 185, 129, 0.3);
   border-radius: 20px;
   padding: 22px;
@@ -5935,9 +6042,15 @@ img.sig,
   border-radius: 4px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
-.card-shape.g { background: #10b981; }
-.card-shape.y { background: #f59e0b; }
-.card-shape.r { background: #ef4444; }
+.card-shape.g {
+  background: #10b981;
+}
+.card-shape.y {
+  background: #f59e0b;
+}
+.card-shape.r {
+  background: #ef4444;
+}
 
 /* ---------- Section 7: FAQs & Support ---------- */
 .pub-faq-grid {
@@ -6043,8 +6156,14 @@ img.sig,
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Accessibility: Respect reduced motion */
@@ -6059,5 +6178,53 @@ img.sig,
   }
 }
 
-
-
+/* pattern lock (player sign-up / login) */
+.pat {
+  position: relative;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  margin: 8px auto 4px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+.pat .pd {
+  place-self: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--mute);
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s,
+    background 0.12s;
+}
+.pat .pd.on {
+  background: var(--brand2);
+  transform: scale(1.2);
+  box-shadow: 0 0 0 9px rgba(20, 89, 217, 0.2);
+}
+.pat .pl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.pat polyline {
+  fill: none;
+  stroke: var(--brand2);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+#pclr {
+  display: block;
+  margin: 4px auto 0;
+}

@@ -111,6 +111,7 @@ function rowToDoc(col, row) {
         salt: row.salt,
         hash: row.hash,
         created: row.created_at,
+        type: row.code_type || "alnum",
       }),
     };
   }
@@ -273,12 +274,15 @@ function docToRow(col, id, data) {
     };
   }
   if (col === "accounts") {
-    return {
+    const row = {
       player_id: id,
       salt: data.salt,
       hash: data.hash,
       created_at: data.created || Date.now(),
     };
+    // only written for PIN / pattern, so plain alphanumeric accounts keep working before the SQL update is run
+    if (data.type && data.type !== "alnum") row.code_type = data.type;
+    return row;
   }
   if (col === "players") {
     const row = { id };
