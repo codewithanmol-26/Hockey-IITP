@@ -69,7 +69,15 @@
           <button type="button" class="chat-act-btn chat-close-btn" id="chat-close" aria-label="Close Assistant" title="Close">✕</button>
         </div>
       </div>
-      <div class="chat-body" id="chat-msgs" role="log" aria-live="polite"></div>
+      <div class="chat-body-container">
+        <div class="chat-body" id="chat-msgs" role="log" aria-live="polite"></div>
+        <button type="button" id="chat-scroll-bottom" class="chat-scroll-down-btn" aria-label="Go to bottom of answer" title="Go to bottom of answer">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <polyline points="19 12 12 19 5 12"></polyline>
+          </svg>
+        </button>
+      </div>
       <div class="chat-chips-wrap">
         <div class="chat-chips" id="chat-chips"></div>
       </div>
@@ -147,6 +155,9 @@
         }
       };
     }
+
+    // 8. Down arrow button for scrolling directly to bottom of answer
+    initScrollBottom();
 
     // Populate initial greeting and chips
     resetChat();
@@ -550,13 +561,58 @@
         dlg.removeAttribute("open");
       }
     }
+    const scrollBtn = document.getElementById("chat-scroll-bottom");
+    if (scrollBtn) scrollBtn.classList.remove("visible");
+
     const fab = document.getElementById("chat-fab");
     if (fab) fab.focus();
   }
 
-  function scrollToBottom() {
+  function scrollToBottom(smooth = false) {
     const msgs = document.getElementById("chat-msgs");
-    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    if (!msgs) return;
+    if (smooth && typeof msgs.scrollTo === "function") {
+      msgs.scrollTo({ top: msgs.scrollHeight, behavior: "smooth" });
+    } else {
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  }
+
+  function updateScrollBottomBtn() {
+    const btn = document.getElementById("chat-scroll-bottom");
+    const msgs = document.getElementById("chat-msgs");
+    if (!btn || !msgs) return;
+    const remaining = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight;
+    if (remaining > 35) {
+      btn.classList.add("visible");
+    } else {
+      btn.classList.remove("visible");
+    }
+  }
+
+  function showScrollBottomBtn() {
+    const btn = document.getElementById("chat-scroll-bottom");
+    const msgs = document.getElementById("chat-msgs");
+    if (!btn || !msgs) return;
+    const remaining = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight;
+    if (remaining > 15) {
+      btn.classList.add("visible");
+    } else {
+      btn.classList.remove("visible");
+    }
+  }
+
+  function initScrollBottom() {
+    const btn = document.getElementById("chat-scroll-bottom");
+    const msgs = document.getElementById("chat-msgs");
+    if (!btn || !msgs) return;
+
+    btn.onclick = () => {
+      scrollToBottom(true);
+      btn.classList.remove("visible");
+    };
+
+    msgs.addEventListener("scroll", updateScrollBottomBtn, { passive: true });
   }
 
   function escapeHtml(text) {
@@ -822,6 +878,15 @@
       const botReply = data.reply || data.error || "No response received.";
       const botDiv = document.createElement("div");
       botDiv.className = "chat-msg bot";
+
+      const hasLongText = botReply.length > 180 || botReply.includes("\n\n");
+      const downBtnHtml = hasLongText
+        ? `<button type="button" class="bubble-down-btn" aria-label="Go to bottom of answer" title="Go to bottom of answer">
+            <span class="down-icon">↓</span>
+            <span class="down-label">Bottom</span>
+          </button>`
+        : "";
+
       botDiv.innerHTML = `
         <div class="bot-msg-wrap">
           <div class="msg-bubble">${renderMarkdown(botReply)}</div>
@@ -830,6 +895,7 @@
               <span class="speak-icon">🔊</span>
               <span class="speak-label">Listen</span>
             </button>
+            ${downBtnHtml}
           </div>
         </div>
       `;
@@ -839,6 +905,15 @@
         speakBtn.onclick = () => speakText(botReply, speakBtn);
       }
 
+      const bubbleDownBtn = botDiv.querySelector(".bubble-down-btn");
+      if (bubbleDownBtn) {
+        bubbleDownBtn.onclick = () => {
+          scrollToBottom(true);
+          const scrollBtn = document.getElementById("chat-scroll-bottom");
+          if (scrollBtn) scrollBtn.classList.remove("visible");
+        };
+      }
+
       msgs.appendChild(botDiv);
 
       // If user spoke the question, read the answer aloud automatically
@@ -846,19 +921,33 @@
         speakText(botReply, speakBtn);
       }
 
+      // When chatbot gives answer:
+      // Position view smoothly at the start of the response, and display the down arrow button
+      // so clicking it takes the user directly to the bottom of the answer!
+      requestAnimationFrame(() => {
+        botDiv.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(() => {
+          showScrollBottomBtn();
+        }, 120);
+      });
+
     } catch (err) {
       if (typingDiv) typingDiv.remove();
       const errDiv = document.createElement("div");
       errDiv.className = "chat-msg bot err";
       errDiv.innerHTML = `<div class="msg-bubble">⚠️ <b>Could not reach assistant:</b> ${renderMarkdown(err.message)}</div>`;
       msgs.appendChild(errDiv);
+      scrollToBottom();
+      showScrollBottomBtn();
     } finally {
       if (sendBtn) sendBtn.disabled = false;
       if (input) {
         input.disabled = false;
         // Never auto-focus input: prevents virtual keyboard from abruptly popping open on mobile
       }
-      scrollToBottom();
+      setTimeout(() => {
+        showScrollBottomBtn();
+      }, 250);
     }
   }
 
