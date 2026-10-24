@@ -5200,6 +5200,7 @@ img.sig,
 .hero-title .accent-text {
   color: var(--accent);
   background: linear-gradient(120deg, #fbbf24, #f59e0b);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

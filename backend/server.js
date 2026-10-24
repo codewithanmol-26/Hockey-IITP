@@ -127,18 +127,27 @@ app.post(
     let payload = null;
 
     // Check custom codes from Supabase app_config first, then fallback to env
-    const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
-    const customCodes = customCodesDoc && customCodesDoc.exists ? (customCodesDoc.data() || {}) : {};
+    const customCodesDoc = await db
+      .collection("config")
+      .doc("custom_codes")
+      .get()
+      .catch(() => null);
+    const customCodes =
+      customCodesDoc && customCodesDoc.exists
+        ? customCodesDoc.data() || {}
+        : {};
 
     if (role === "captain") {
       if (customCodes.captain && customCodes.captain.hash) {
-        if (eq(hashCode(c, customCodes.captain.salt), customCodes.captain.hash)) payload = { role };
+        if (eq(hashCode(c, customCodes.captain.salt), customCodes.captain.hash))
+          payload = { role };
       } else if (eq(c, CAPTAIN_CODE)) {
         payload = { role };
       }
     } else if (role === "vice") {
       if (customCodes.vice && customCodes.vice.hash) {
-        if (eq(hashCode(c, customCodes.vice.salt), customCodes.vice.hash)) payload = { role };
+        if (eq(hashCode(c, customCodes.vice.salt), customCodes.vice.hash))
+          payload = { role };
       } else if (eq(c, VICE_CODE)) {
         payload = { role };
       }
@@ -178,12 +187,21 @@ app.post(
     const cur = String(currentCode || "").trim();
     const nw = String(newCode || "").trim();
     if (!nw || nw.length < 4 || nw.length > 30) {
-      return res.status(400).json({ error: "New code must be between 4 and 30 characters." });
+      return res
+        .status(400)
+        .json({ error: "New code must be between 4 and 30 characters." });
     }
 
     const role = req.user.role; // 'captain' or 'vice'
-    const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
-    const customCodes = customCodesDoc && customCodesDoc.exists ? (customCodesDoc.data() || {}) : {};
+    const customCodesDoc = await db
+      .collection("config")
+      .doc("custom_codes")
+      .get()
+      .catch(() => null);
+    const customCodes =
+      customCodesDoc && customCodesDoc.exists
+        ? customCodesDoc.data() || {}
+        : {};
 
     const expectedEnv = role === "captain" ? CAPTAIN_CODE : VICE_CODE;
     const currentCustom = customCodes[role];
@@ -203,7 +221,10 @@ app.post(
 
     await db.collection("config").doc("custom_codes").set(customCodes);
     bust();
-    res.json({ ok: true, message: `Your ${role === "captain" ? "Captain" : "Vice-captain"} code has been updated successfully!` });
+    res.json({
+      ok: true,
+      message: `Your ${role === "captain" ? "Captain" : "Vice-captain"} code has been updated successfully!`,
+    });
   }),
 );
 
@@ -303,6 +324,11 @@ async function sendEmail(to, subject, text, html) {
     throw new PublicError(
       503,
       "E-mail is limited until a domain is verified in Resend. The captain must verify a domain and set RESEND_FROM.",
+    );
+  if (/from/i.test(m) && /invalid|format|address/i.test(m))
+    throw new PublicError(
+      503,
+      "RESEND_FROM is not a valid sender. Use the form  Name <hockey@your-verified-domain.com>  and redeploy.",
     );
   if (r.status === 422 || r.status === 400)
     throw new PublicError(
@@ -656,7 +682,7 @@ app.put(
     const r = {};
     for (const [k, v] of Object.entries((req.body || {}).r || {}))
       if (typeof v === "boolean") r[k] = v;
-    await db.collection("sessions").doc(req.params.date).set(r);
+    await db.collection("sessions").doc(req.params.date).set({ r });
     done(res);
   }),
 );
@@ -729,7 +755,7 @@ app.post(
           keys: { p256dh: k.p256dh.slice(0, 200), auth: k.auth.slice(0, 100) },
         },
         role: u ? u.role : "player",
-        uid: u ? (u.id || u.role) : "anonymous",
+        uid: u ? u.id || u.role : "anonymous",
         at: Date.now(),
       });
     res.json({ ok: true });
@@ -1322,22 +1348,40 @@ app.put(
       await db.collection("players").doc(p.id).update({ photo: ph });
     else if (p.role === "admin") {
       await db.collection("admins").doc(p.id).update({ photo: ph });
-      const aDoc = await db.collection("admins").doc(p.id).get().catch(() => null);
+      const aDoc = await db
+        .collection("admins")
+        .doc(p.id)
+        .get()
+        .catch(() => null);
       const pid = aDoc && aDoc.exists ? aDoc.data().playerId : null;
       if (pid) {
-        await db.collection("players").doc(pid).update({ photo: ph }).catch(() => {});
+        await db
+          .collection("players")
+          .doc(pid)
+          .update({ photo: ph })
+          .catch(() => {});
       }
-    }
-    else {
+    } else {
       await db
         .collection("config")
         .doc("staff")
         .set({ [p.role]: ph }, { merge: true });
-      const customNamesDoc = await db.collection("config").doc("staffNames").get().catch(() => null);
-      const lk = (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {}).links || {};
-      const myPid = lk[p.role] || (p.role === "captain" ? "2501CE01" : "2501MC44");
+      const customNamesDoc = await db
+        .collection("config")
+        .doc("staffNames")
+        .get()
+        .catch(() => null);
+      const lk =
+        (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {})
+          .links || {};
+      const myPid =
+        lk[p.role] || (p.role === "captain" ? "2501CE01" : "2501MC44");
       if (myPid) {
-        await db.collection("players").doc(myPid).update({ photo: ph }).catch(() => {});
+        await db
+          .collection("players")
+          .doc(myPid)
+          .update({ photo: ph })
+          .catch(() => {});
       }
     }
     done(res);
@@ -2501,41 +2545,67 @@ app.post(
     let userProfile = null;
     if (user) {
       if (user.role === "admin") {
-        const aDoc = await db.collection("admins").doc(user.id).get().catch(() => null);
+        const aDoc = await db
+          .collection("admins")
+          .doc(user.id)
+          .get()
+          .catch(() => null);
         const aData = aDoc && aDoc.exists ? aDoc.data() : {};
-        const isInstructor = aData.kind === "instructor" || (!aData.kind && !aData.playerId);
+        const isInstructor =
+          aData.kind === "instructor" || (!aData.kind && !aData.playerId);
         userProfile = {
           role: "admin",
           adminType: isInstructor ? "instructor" : "player",
           title: isInstructor ? "Instructor" : "Player (Admin)",
           name: aData.name || user.name || "Instructor",
-          id: user.id
+          id: user.id,
         };
         if (aData.playerId) {
           user.playerId = aData.playerId;
-          const plDoc = await db.collection("players").doc(aData.playerId).get().catch(() => null);
+          const plDoc = await db
+            .collection("players")
+            .doc(aData.playerId)
+            .get()
+            .catch(() => null);
           if (plDoc && plDoc.exists) {
             userProfile.playerDetails = plDoc.data();
             userProfile.position = plDoc.data().position || "";
           }
         }
       } else if (user.role === "captain" || user.role === "vice") {
-        const customNamesDoc = await db.collection("config").doc("staffNames").get().catch(() => null);
-        const lk = (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {}).links || {};
-        const pId = lk[user.role] || (user.role === "captain" ? "2501CE01" : "2501MC44");
+        const customNamesDoc = await db
+          .collection("config")
+          .doc("staffNames")
+          .get()
+          .catch(() => null);
+        const lk =
+          (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {})
+            .links || {};
+        const pId =
+          lk[user.role] || (user.role === "captain" ? "2501CE01" : "2501MC44");
         user.playerId = pId;
-        const plDoc = await db.collection("players").doc(pId).get().catch(() => null);
+        const plDoc = await db
+          .collection("players")
+          .doc(pId)
+          .get()
+          .catch(() => null);
         const plData = plDoc && plDoc.exists ? plDoc.data() : null;
         userProfile = {
           role: user.role,
           title: user.role === "captain" ? "Captain" : "Vice-Captain",
-          name: (plData && plData.name) || (user.role === "captain" ? "Captain" : "Vice-Captain"),
+          name:
+            (plData && plData.name) ||
+            (user.role === "captain" ? "Captain" : "Vice-Captain"),
           playerId: pId,
           position: plData ? plData.position : "",
-          playerDetails: plData
+          playerDetails: plData,
         };
       } else if (user.role === "player") {
-        const plDoc = await db.collection("players").doc(user.id).get().catch(() => null);
+        const plDoc = await db
+          .collection("players")
+          .doc(user.id)
+          .get()
+          .catch(() => null);
         const plData = plDoc && plDoc.exists ? plDoc.data() : {};
         userProfile = {
           role: "player",
@@ -2546,7 +2616,7 @@ app.post(
           position: plData.position || "",
           jersey: plData.jersey || "",
           batch: plData.batch || "",
-          dept: plData.dept || ""
+          dept: plData.dept || "",
         };
       }
     } else {
@@ -2554,7 +2624,7 @@ app.post(
         role: "guest",
         title: "Guest / Visitor (Not in team)",
         name: "Guest",
-        description: "Guest / Visitor (not currently signed in or not in team)"
+        description: "Guest / Visitor (not currently signed in or not in team)",
       };
     }
 
@@ -2571,11 +2641,14 @@ app.post(
       });
       res.json({
         ...result,
-        userProfile
+        userProfile,
       });
     } catch (e) {
       console.error("Chat error:", e.message);
-      const isKeyErr = /API_KEY_INVALID|API key not valid|GEMINI_API_KEY is missing/i.test(e.message);
+      const isKeyErr =
+        /API_KEY_INVALID|API key not valid|GEMINI_API_KEY is missing/i.test(
+          e.message,
+        );
       const msg = isKeyErr
         ? "The AI assistant is waiting for a valid GEMINI_API_KEY in your server environment variables. Please verify your Gemini API key in Vercel or .env."
         : "The AI assistant is temporarily unavailable. Please try asking again in a moment.";
