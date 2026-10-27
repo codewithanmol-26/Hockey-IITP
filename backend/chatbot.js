@@ -97,7 +97,7 @@ async function getTeamSessionsSummary() {
       totalPlayingDays: totalPlayingDays,
       monthlyBreakdown: byMonth,
       notes:
-        `Total recorded sessions is ${totalSessions} across ${totalPlayingDays} playing days. Total playing days is 1 less than total sessions because on 29 Jan 2026 the team held 2 sessions (Session 1 and Session 2).`,
+        `Total recorded sessions is ${totalSessions} across ${totalPlayingDays} playing days. Total playing days is 1 less than total sessions because on 29 Jan 2026 the team held 2 sessions: Morning 6:30 AM (Session #13) and Evening 4:00 PM (Session #14).`,
     };
   } catch (e) {
     return { error: "Team sessions data unavailable" };

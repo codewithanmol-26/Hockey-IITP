@@ -2898,6 +2898,15 @@ function vStats() {
                 ).length;
                 const isAct = k === selDate;
                 const gText = gIdx ? `Session #${gIdx}` : `Session ${sNum}`;
+                const timeHint =
+                  dateBase(k) === "2026-01-29"
+                    ? sNum === 1
+                      ? "Morning (6:30 AM)"
+                      : "Evening (4:00 PM)"
+                    : "";
+                const labelTitle = timeHint
+                  ? `Session ${sNum} · ${timeHint} (${gText})`
+                  : `Session ${sNum} (${gText})`;
                 const subTxt = admin
                   ? totCount
                     ? `✔ ${prCount}/${totCount} present`
@@ -2909,7 +2918,7 @@ function vStats() {
                     : "Not recorded";
                 return `
                   <button type="button" class="btn-day-sess ${isAct ? "active pri" : ""}" data-sess-key="${k}">
-                    <b>Session ${sNum} ${gIdx ? `(${gText})` : ""}</b>
+                    <b>${labelTitle}</b>
                     <small>${subTxt}</small>
                   </button>
                 `;
