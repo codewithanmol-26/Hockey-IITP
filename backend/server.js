@@ -2420,7 +2420,7 @@ app.delete(
   }),
 );
 
-// ---- bug reports: anyone logged in can send one; the captain / vice-captain read, share, mark fixed or delete ----
+// ---- bug reports: anyone logged in can send one; forwarded directly to admin email codewithanmol404@gmail.com ----
 app.post(
   "/api/bugs",
   h(async (req, res) => {
@@ -2442,16 +2442,60 @@ app.post(
       return res.status(409).json({
         error: "Too many open reports. Ask the captain to clear old ones.",
       });
+
+    const reporterName = await nameOf(u);
+    const page = str(b.page, 40);
+    const info = str(b.info, 600);
+
     await db.collection("bugs").add({
       text,
-      page: str(b.page, 40),
-      info: str(b.info, 600),
+      page,
+      info,
       shot: b.shot || "",
-      by: await nameOf(u),
+      by: reporterName,
       role: u.role,
       at: Date.now(),
       status: "open",
     });
+
+    const escSafe = (s) =>
+      String(s ?? "").replace(
+        /[&<>"']/g,
+        (c) =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+            c
+          ],
+      );
+
+    try {
+      const emailHtml = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;line-height:1.6;color:#1e293b;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+          <div style="background:#0b2a4a;color:#ffffff;padding:16px 20px">
+            <h2 style="margin:0;font-size:18px">🐞 New Bug Report - IITP Hockey App</h2>
+          </div>
+          <div style="padding:20px;background:#ffffff">
+            <p style="margin:0 0 10px"><strong>Reported by:</strong> ${escSafe(reporterName)} (${escSafe(u.role)})</p>
+            ${page ? `<p style="margin:0 0 10px"><strong>Screen / Page:</strong> ${escSafe(page)}</p>` : ""}
+            <p style="margin:12px 0 6px"><strong>Description:</strong></p>
+            <div style="background:#f8fafc;border-left:4px solid #0b2a4a;padding:12px 14px;border-radius:4px;white-space:pre-wrap;font-size:14px">${escSafe(text)}</div>
+            ${info ? `<p style="margin:14px 0 4px"><strong>Client / Browser Details:</strong></p><pre style="background:#f1f5f9;padding:10px;border-radius:4px;font-size:12px;color:#475569;white-space:pre-wrap">${escSafe(info)}</pre>` : ""}
+            ${b.shot ? `<p style="margin:10px 0;color:#0b2a4a;font-weight:600">📸 Screenshot was attached with the report.</p>` : ""}
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0 10px">
+            <p style="margin:0;font-size:12px;color:#94a3b8">Received on ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</p>
+          </div>
+        </div>
+      `;
+
+      await sendEmail(
+        "codewithanmol404@gmail.com",
+        `[Bug Report] ${reporterName}: ${text.slice(0, 40)}`,
+        `New Bug Report from ${reporterName} (${u.role}):\n\nPage: ${page}\nDescription:\n${text}\n\nClient Info:\n${info}`,
+        emailHtml,
+      );
+    } catch (err) {
+      console.error("Failed to forward bug report email:", err.message);
+    }
+
     res.json({ ok: true });
   }),
 );

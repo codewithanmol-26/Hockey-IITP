@@ -893,7 +893,6 @@ const TABS = [
   ["warmup", "🔥", "Warm-up", "", ""],
   ["gallery", "🖼️", "Gallery", "", ""],
   ["train", "⌚", "Training & health", "", ""],
-  ["bugs", "🐞", "Bug reports", "o", ""],
   ["players", "👥", "Players", "a", ""],
   ["removed", "🗑️", "Removed students", "a", ""],
   ["admins", "🛡️", "Admins", "o", ""],
