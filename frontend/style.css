@@ -2481,6 +2481,91 @@ button.x {
   padding: 9px 14px;
   font-weight: 700;
 }
+/* Multi-session selector bar in Take Attendance */
+.session-tabs-bar {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.session-tabs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.session-tabs-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mute);
+}
+.btn-session-add {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--brand);
+  border: 1px dashed var(--brand);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-session-add:hover {
+  background: var(--brand);
+  color: #fff;
+}
+.session-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.btn-session-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 7px 14px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  min-height: 44px;
+  justify-content: center;
+}
+.btn-session-pill:hover {
+  border-color: var(--brand);
+  transform: translateY(-1px);
+}
+.btn-session-pill.active {
+  background: var(--brand);
+  color: #fff !important;
+  border-color: var(--brand);
+  box-shadow: 0 2px 8px rgba(11, 42, 74, 0.22);
+}
+.btn-session-pill.active .sess-pill-stat {
+  color: rgba(255, 255, 255, 0.85);
+}
+.sess-pill-num {
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+.sess-pill-stat {
+  font-size: 0.74rem;
+  color: var(--mute);
+  margin-top: 2px;
+}
+.btn-day-sess {
+  padding: 4px 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  border-radius: 8px;
+}
 .tkinfo {
   display: flex;
   align-items: center;

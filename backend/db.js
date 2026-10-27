@@ -73,10 +73,12 @@ function rowToDoc(col, row) {
     };
   }
   if (col === "sessions") {
-    return { id, data: () => ({ r: row.r || {} }) };
+    const r = row.r || {};
+    return { id, data: () => ({ r, ...r }) };
   }
   if (col === "avail") {
-    return { id, data: () => ({ r: row.r || {} }) };
+    const r = row.r || {};
+    return { id, data: () => ({ r, ...r }) };
   }
   if (col === "legacy") {
     return { id, data: () => ({ days: row.days, att: row.att || {} }) };
@@ -245,10 +247,18 @@ function docToRow(col, id, data) {
     };
   }
   if (col === "sessions") {
-    return { date: id, r: data.r || {}, updated_at: new Date().toISOString() };
+    const rData = data.r !== undefined ? data.r : data;
+    const cleanR = {};
+    if (rData && typeof rData === "object") {
+      for (const [k, v] of Object.entries(rData)) {
+        if (k !== "date" && k !== "updated_at") cleanR[k] = Boolean(v);
+      }
+    }
+    return { date: id, r: cleanR, updated_at: new Date().toISOString() };
   }
   if (col === "avail") {
-    return { date: id, r: data.r || {}, updated_at: new Date().toISOString() };
+    const rData = data.r !== undefined ? data.r : data;
+    return { date: id, r: rData || {}, updated_at: new Date().toISOString() };
   }
   if (col === "legacy") {
     return { month: id, days: data.days || 0, att: data.att || {} };
@@ -386,11 +396,23 @@ class DocumentReference {
   }
 
   async get() {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from(this.mapping.table)
       .select("*")
       .eq(this.mapping.pk, this.id)
       .maybeSingle();
+
+    if ((!data || error) && this.col === "sessions") {
+      const cfg = await supabase
+        .from("app_config")
+        .select("value")
+        .eq("key", "session:" + this.id)
+        .maybeSingle();
+      if (cfg && cfg.data && cfg.data.value) {
+        data = { date: this.id, r: cfg.data.value };
+        error = null;
+      }
+    }
 
     const exists = !error && data !== null;
     const doc = exists ? rowToDoc(this.col, data) : null;
@@ -407,11 +429,26 @@ class DocumentReference {
     const { error } = await supabase
       .from(this.mapping.table)
       .upsert(row, { onConflict: this.mapping.pk });
-    if (error) throw error;
+    if (error) {
+      if (this.col === "sessions" && (error.code === "22007" || String(error.message || "").includes("syntax for type date"))) {
+        const cfgError = await supabase.from("app_config").upsert(
+          { key: "session:" + this.id, value: row.r || {}, updated_at: new Date().toISOString() },
+          { onConflict: "key" }
+        );
+        if (cfgError.error) throw cfgError.error;
+        return true;
+      }
+      throw error;
+    }
     return true;
   }
 
   async update(data) {
+    if (this.col === "otps") {
+      const cur = await this.get();
+      const merged = { ...(cur.exists ? cur.data() : {}), ...data };
+      return this.set(merged);
+    }
     const row = docToRow(this.col, this.id, data);
     delete row[this.mapping.pk];
     const { error } = await supabase
@@ -427,7 +464,12 @@ class DocumentReference {
       .from(this.mapping.table)
       .delete()
       .eq(this.mapping.pk, this.id);
-    if (error) throw error;
+    if (this.col === "sessions") {
+      try {
+        await supabase.from("app_config").delete().eq("key", "session:" + this.id);
+      } catch (_) {}
+    }
+    if (error && error.code !== "22007") throw error;
     return true;
   }
 }
@@ -673,6 +715,12 @@ async function readAllFromSupabase() {
 
   (sessionsRes.data || []).forEach((s) => {
     out.sessions[s.date] = s.r || {};
+  });
+  (configRes.data || []).forEach((row) => {
+    if (row.key && row.key.startsWith("session:")) {
+      const sessKey = row.key.slice(8);
+      out.sessions[sessKey] = row.value || {};
+    }
   });
   (legacyRes.data || []).forEach((l) => {
     out.legacy[l.month] = { days: l.days, att: l.att || {} };

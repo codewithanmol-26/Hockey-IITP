@@ -779,10 +779,30 @@ const esc = (s) =>
         c
       ],
   );
-const fmt = (d) => {
-  const base = String(d || "").slice(0, 10);
+const dateBase = (d) => String(d || "").slice(0, 10);
+const sessionNum = (d) => {
   const m = String(d || "").match(/[_-](\d+)$/);
-  const sfx = m ? ` (Session ${m[1]})` : "";
+  return m ? parseInt(m[1], 10) : 1;
+};
+const sessionLabel = (d) => "Session " + sessionNum(d);
+const sessionsForDate = (b) => {
+  const base = dateBase(b);
+  const keys =
+    typeof SS !== "undefined" && SS
+      ? Object.keys(SS).filter(
+          (k) =>
+            k === base || k.startsWith(base + "_") || k.startsWith(base + "-"),
+        )
+      : [];
+  keys.sort((x, y) => sessionNum(x) - sessionNum(y));
+  return keys;
+};
+const fmt = (d) => {
+  const base = dateBase(d);
+  const num = sessionNum(d);
+  const multi =
+    typeof SS !== "undefined" && SS && sessionsForDate(base).length > 1;
+  const sfx = multi || num > 1 ? ` (Session ${num})` : "";
   const dt = new Date(base + "T00:00");
   return (
     (isNaN(dt.getTime())
@@ -822,7 +842,7 @@ const rdays = (m) =>
   new Set(
     dates()
       .filter(inMonth(m))
-      .map((d) => d.slice(0, 10)),
+      .map((d) => dateBase(d)),
   ).size;
 async function run(fn) {
   try {
@@ -1763,9 +1783,11 @@ $("sba").onclick = async () => {
 let GROUP = window.WA_GROUP || "";
 const wa = (t) => shareText(t); // opens the phone's share sheet (any app); on a computer it shows WhatsApp, Telegram, e-mail, SMS and copy
 const dlong = (d) => {
-  const base = String(d || "").slice(0, 10);
-  const m = String(d || "").match(/[_-](\d+)$/);
-  const sfx = m ? ` (Session ${m[1]})` : "";
+  const base = dateBase(d);
+  const num = sessionNum(d);
+  const multi =
+    typeof SS !== "undefined" && SS && sessionsForDate(base).length > 1;
+  const sfx = multi || num > 1 ? ` (Session ${num})` : "";
   const dt = new Date(base + "T00:00");
   return (
     (isNaN(dt.getTime())
@@ -2227,6 +2249,48 @@ const dayIdx = (d) =>
 let tkQ = "",
   tkUn = false;
 function vTake() {
+  const baseDate = dateBase(takeDate);
+  const existingSessions = sessionsForDate(baseDate);
+  const curSessNum = sessionNum(takeDate);
+  const maxNum = Math.max(1, ...existingSessions.map(sessionNum), curSessNum);
+  const nextNum = maxNum + 1;
+
+  const sessionPills = [];
+  if (!existingSessions.length) {
+    sessionPills.push({
+      key: baseDate,
+      num: 1,
+      label: "Session 1",
+      saved: false,
+      present: 0,
+      active: true,
+    });
+  } else {
+    existingSessions.forEach((k) => {
+      const num = sessionNum(k);
+      const sData = SS[k] || {};
+      const prCount = P.filter((p) => sData[p.id] === true).length;
+      sessionPills.push({
+        key: k,
+        num,
+        label: `Session ${num}`,
+        saved: true,
+        present: prCount,
+        active: k === takeDate,
+      });
+    });
+    if (!existingSessions.includes(takeDate)) {
+      sessionPills.push({
+        key: takeDate,
+        num: curSessNum,
+        label: `Session ${curSessNum}`,
+        saved: false,
+        present: 0,
+        active: true,
+      });
+    }
+  }
+
   const ex = SS[takeDate] || {};
   if (draftDate !== takeDate) {
     draft = { ...ex };
@@ -2234,13 +2298,13 @@ function vTake() {
     tkQ = "";
     tkUn = false;
   }
-  const el = P.filter((p) => !p.joined || p.joined <= takeDate),
-    pln = SCH.team[dayIdx(takeDate)];
-  const av = AVL[takeDate] || {},
+  const el = P.filter((p) => !p.joined || p.joined <= baseDate),
+    pln = SCH.team[dayIdx(baseDate)];
+  const av = AVL[baseDate] || {},
     prev = dates()
       .filter((d) => d < takeDate)
       .reverse(),
-    cx = PL[takeDate] && PL[takeDate].status === "cancelled";
+    cx = PL[baseDate] && PL[baseDate].status === "cancelled";
   const dots = (p) =>
     prev
       .filter((d) => SS[d][p.id] !== undefined)
@@ -2259,9 +2323,32 @@ function vTake() {
   const blocked = el.filter(
     (p) => av[p.id] && (av[p.id].s === "out" || av[p.id].s === "injured"),
   );
+  const delLabel =
+    existingSessions.length > 1
+      ? `Delete Session ${curSessNum}`
+      : `Delete this day`;
+
   $("view").innerHTML = `<div class="card"><h2>Take attendance</h2>
-  <div class="tkh"><button id="dprev" aria-label="Previous day">‹</button><input type="date" id="td" value="${takeDate}" aria-label="Date"><button id="dnext" aria-label="Next day">›</button><button id="dtoday">Today</button></div>
-  <div class="tkinfo"><span class="pill ${cx ? "r" : "g"}">${cx ? "Cancelled" : esc(pln[0])}</span><span class="mute">${cx ? "This playing day is cancelled" : pln[3] ? esc(pln[1]) + " · " + esc(pln[3]) : "Rest day on the schedule"}${SS[takeDate] ? " · already saved, saving again updates it" : ""}</span></div>
+  <div class="tkh"><button id="dprev" aria-label="Previous day">‹</button><input type="date" id="td" value="${baseDate}" aria-label="Date"><button id="dnext" aria-label="Next day">›</button><button id="dtoday">Today</button></div>
+  <div class="session-tabs-bar" role="tablist" aria-label="Sessions on this day">
+    <div class="session-tabs-header">
+      <span class="session-tabs-label">Sessions for ${fmt(baseDate)}:</span>
+      ${sessionPills.length < 4 ? `<button type="button" class="btn-session-add" id="btn-add-session">+ Add Session ${nextNum}</button>` : ""}
+    </div>
+    <div class="session-pills-row">
+      ${sessionPills
+        .map(
+          (sp) => `
+        <button type="button" class="btn-session-pill ${sp.active ? "active pri" : ""}" data-sess-key="${sp.key}">
+          <span class="sess-pill-num">${esc(sp.label)}</span>
+          <span class="sess-pill-stat">${sp.saved ? `✔ ${sp.present} present` : "✎ Unsaved"}</span>
+        </button>
+      `,
+        )
+        .join("")}
+    </div>
+  </div>
+  <div class="tkinfo"><span class="pill ${cx ? "r" : "g"}">${cx ? "Cancelled" : esc(pln[0])}</span><span class="mute">${cx ? "This playing day is cancelled" : pln[3] ? esc(pln[1]) + " · " + esc(pln[3]) : "Rest day on the schedule"}${SS[takeDate] ? ` · Session ${curSessNum} already saved, saving again updates it` : ` · Session ${curSessNum} (not saved yet)`}</span></div>
   <div class="tkq"><input id="tkq" type="search" placeholder="Search name or roll no" value="${esc(tkQ)}" aria-label="Search players"><button id="tkun" aria-pressed="${tkUn}" class="${tkUn ? "pri" : ""}">Unmarked only</button></div>
   <div class="chips" style="margin:6px 0 8px"><button id="allp">✔ All present</button><button id="alla">✘ All absent</button>${blocked.length ? `<button id="blk">Mark “can’t come / injured” absent (${blocked.length})</button>` : ""}<button id="clr">Clear</button></div>
   <div id="tkl">${
@@ -2275,8 +2362,8 @@ function vTake() {
       .join("") ||
     '<p class="mute">No players yet. Add students from the ⋮ menu.</p>'
   }<p id="tkn" class="mute" hidden>No players match.</p></div>
-  ${SS[takeDate] ? '<div class="chips"><button id="wat">⤴ Share</button><button class="dng" id="del">Delete this day</button></div>' : ""}</div>
-  <div class="tksv"><div class="tks"><div class="tkc"><b id="tkp" class="gp">0</b><small>Present</small></div><div class="tkc"><b id="tka" class="ga">0</b><small>Absent</small></div><div class="tkc"><b id="tkm">0</b><small>Left</small></div></div><div class="tkprog"><i id="tkpb"></i></div><button class="pri big" id="sv">Save attendance</button></div>`;
+  ${SS[takeDate] ? `<div class="chips"><button id="wat">⤴ Share</button><button class="dng" id="del">${delLabel}</button></div>` : ""}</div>
+  <div class="tksv"><div class="tks"><div class="tkc"><b id="tkp" class="gp">0</b><small>Present</small></div><div class="tkc"><b id="tka" class="ga">0</b><small>Absent</small></div><div class="tkc"><b id="tkm">0</b><small>Left</small></div></div><div class="tkprog"><i id="tkpb"></i></div><button class="pri big" id="sv">Save Session ${curSessNum} attendance</button></div>`;
   const upd = () => {
     const p = el.filter((x) => draft[x.id] === true).length,
       a = el.filter((x) => draft[x.id] === false).length;
@@ -2300,22 +2387,50 @@ function vTake() {
     });
     $("tkn").hidden = shown > 0 || !el.length;
   };
+
+  document.querySelectorAll(".btn-session-pill").forEach((b) => {
+    b.onclick = () => {
+      const k = b.dataset.sessKey;
+      if (k !== takeDate) {
+        takeDate = k;
+        vTake();
+      }
+    };
+  });
+  if ($("btn-add-session")) {
+    $("btn-add-session").onclick = () => {
+      takeDate = `${baseDate}_${nextNum}`;
+      draft = {};
+      draftDate = takeDate;
+      vTake();
+      toast(`Switched to Session ${nextNum}. Ready to record attendance.`);
+    };
+  }
+
   $("td").onchange = (e) => {
     if (e.target.value) {
-      takeDate = e.target.value;
+      const newBase = e.target.value;
+      const exS = sessionsForDate(newBase);
+      takeDate = exS.length ? exS[0] : newBase;
       vTake();
     }
   };
   $("dprev").onclick = () => {
-    takeDate = addDays(takeDate, -1);
+    const newBase = addDays(baseDate, -1);
+    const exS = sessionsForDate(newBase);
+    takeDate = exS.length ? exS[0] : newBase;
     vTake();
   };
   $("dnext").onclick = () => {
-    takeDate = addDays(takeDate, 1);
+    const newBase = addDays(baseDate, 1);
+    const exS = sessionsForDate(newBase);
+    takeDate = exS.length ? exS[0] : newBase;
     vTake();
   };
   $("dtoday").onclick = () => {
-    takeDate = today();
+    const newBase = today();
+    const exS = sessionsForDate(newBase);
+    takeDate = exS.length ? exS[0] : newBase;
     vTake();
   };
   document.querySelectorAll(".tog button").forEach(
@@ -2384,7 +2499,12 @@ function vTake() {
         run(async () => {
           await api("/api/sessions/" + takeDate, { method: "DELETE" });
           draftDate = null;
+          const remaining = sessionsForDate(baseDate).filter(
+            (k) => k !== takeDate,
+          );
+          takeDate = remaining.length ? remaining[0] : baseDate;
           await load();
+          toast("Attendance record deleted.");
         });
     };
   upd();
@@ -2402,8 +2522,18 @@ function mSel(id, cur, all) {
 function matrix(ds) {
   const ps = P.filter((p) => ds.some((d) => SS[d][p.id] !== undefined)),
     ms = [...new Set(ds.map((d) => d.slice(0, 7)))];
-  return `<details class="card"><summary><b>Day-wise table</b> <span class="mute">${ps.length} players × ${ds.length} days</span></summary><div class="mxw"><table class="mx"><tr><th class="sc"></th>${ms.map((m) => `<th colspan="${ds.filter((d) => d.startsWith(m)).length}" class="mh">${mfmt(m).replace(/ (\d\d)(\d\d)$/, " ’$2")}</th>`).join("")}<th></th></tr>
-  <tr><th class="sc">Player</th>${ds.map((d) => `<th title="${fmt(d)}">${+d.slice(8)}</th>`).join("")}<th>Total</th></tr>
+  return `<details class="card"><summary><b>Day-wise table</b> <span class="mute">${ps.length} players × ${ds.length} sessions</span></summary><div class="mxw"><table class="mx"><tr><th class="sc"></th>${ms.map((m) => `<th colspan="${ds.filter((d) => d.startsWith(m)).length}" class="mh">${mfmt(m).replace(/ (\d\d)(\d\d)$/, " ’$2")}</th>`).join("")}<th></th></tr>
+  <tr><th class="sc">Player</th>${ds
+    .map((d) => {
+      const dayNum = parseInt(d.slice(8, 10), 10);
+      const num = sessionNum(d);
+      const sfx =
+        num > 1
+          ? `<br><small style="font-size:9px;opacity:0.85">S${num}</small>`
+          : "";
+      return `<th title="${fmt(d)}">${dayNum}${sfx}</th>`;
+    })
+    .join("")}<th>Total</th></tr>
   ${ps
     .map((p) => {
       let pr = 0;
@@ -2480,6 +2610,8 @@ function vStats() {
       };
     });
   }
+  const selBase = dateBase(selDate);
+  const daySessions = sessionsForDate(selBase);
   const sd = SS[selDate];
   let day = '<p class="mute">No hockey recorded on this date.</p>';
   if (!admin) {
@@ -2498,6 +2630,15 @@ function vStats() {
         )
         .join("");
   }
+  const sessPickerHtml =
+    daySessions.length > 1
+      ? `<div class="chips" style="margin:8px 0 10px"><span class="mute" style="align-self:center;font-size:0.85rem">Sessions:</span>${daySessions
+          .map(
+            (k) =>
+              `<button type="button" class="btn-day-sess ${k === selDate ? "pri" : ""}" data-sess-key="${k}">${esc(sessionLabel(k))}</button>`,
+          )
+          .join("")}</div>`
+      : "";
   $("view").innerHTML =
     `<div class="card"><h2>Attendance</h2><div class="ctl">${mSel("gm", gMonth, true)}</div>
   <div class="stats"><div><b>${n}</b>Playing days</div><div><b>${ns}</b>Sessions</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
@@ -2507,7 +2648,7 @@ function vStats() {
   <div class="chips"><button id="shr">⤴ Share report</button></div></div>
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
-  <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selDate}">${admin && sd ? '<button type="button" id="sdsh">⤴ Share this day</button>' : ""}</div>${day}
+  <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selBase}">${admin && sd ? '<button type="button" id="sdsh">⤴ Share this session</button>' : ""}</div>${sessPickerHtml}${day}
   <details class="dlist"><summary>Show all playing dates (${live.length})</summary><div class="chips">${live
     .slice()
     .reverse()
@@ -2530,9 +2671,18 @@ function vStats() {
   bindProfLinks();
   if ($("sdsh"))
     $("sdsh").onclick = () => openReport({ sc: "date", v: selDate });
+  document.querySelectorAll(".btn-day-sess").forEach((b) => {
+    b.onclick = () => {
+      selDate = b.dataset.sessKey;
+      dsel = true;
+      vStats();
+    };
+  });
   $("sd").onchange = (e) => {
     if (e.target.value) {
-      selDate = e.target.value;
+      const newBase = e.target.value;
+      const exS = sessionsForDate(newBase);
+      selDate = exS.length ? exS[0] : newBase;
       dsel = true;
       vStats();
     }
@@ -5942,7 +6092,7 @@ function openAvail(d) {
 function openPlanEdit(d) {
   const p = PL[d] || {},
     dg = $("pdlg"),
-    locked = !!SS[d];
+    locked = Boolean(SS[d] || sessionsForDate(d).length > 0);
   dg.innerHTML = `<h2>Edit playing day</h2>
   <p><label class="lbl">Date</label><input type="date" id="ed_d" value="${d}" ${locked ? "disabled" : ""}>${locked ? '<span class="mute" style="display:block">Attendance is already saved for this day, so the date is locked.</span>' : ""}</p>
   <p><label class="lbl">Time</label><input id="ed_t" value="${esc(p.time || "")}" placeholder="e.g. 6:30–8:30 PM" maxlength="30"></p>
