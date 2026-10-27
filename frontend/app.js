@@ -2504,12 +2504,13 @@ function vTake() {
   } else {
     existingSessions.forEach((k) => {
       const num = sessionNum(k);
+      const gIdx = sessionGlobalIndex(k);
       const sData = SS[k] || {};
-      const prCount = P.filter((p) => sData[p.id] === true).length;
+      const prCount = (typeof allPs !== "undefined" ? allPs : P).filter((p) => sData[p.id] === true).length;
       sessionPills.push({
         key: k,
         num,
-        label: `Session ${num}`,
+        label: gIdx ? `Session ${num} (#${gIdx})` : `Session ${num}`,
         saved: true,
         present: prCount,
         active: k === takeDate,
@@ -2875,7 +2876,7 @@ function vStats() {
     daySessions.length > 1
       ? `<div class="day-sess-toggle-card">
           <div class="day-sess-toggle-head">
-            <span class="day-sess-badge">${daySessions.length} sessions on this day</span>
+            <span class="day-sess-badge">${daySessions.length} sessions on this day (${daySessions.map((k) => "Session #" + sessionGlobalIndex(k)).join(", ")})</span>
             <span class="mute">Showing: <b>${esc(sessionLabel(selDate))}</b> ${curGIdx ? `(Session #${curGIdx} overall)` : ""}</span>
           </div>
           <div class="day-sess-toggle-pills" role="tablist">
@@ -2937,7 +2938,15 @@ function vStats() {
     .reverse()
     .map((b) => {
       const isSel = selBase === b;
-      return `<button type="button" class="btn-date ${isSel ? "pri active" : ""}" data-d="${b}">${fmtDateOnly(b)}</button>`;
+      const sKeys = sessionsForDate(b);
+      const sNums = sKeys.map((k) => sessionGlobalIndex(k)).filter(Boolean);
+      const sText =
+        sNums.length > 1
+          ? ` (Sessions ${sNums.join(", ")})`
+          : sNums.length === 1
+            ? ` (Session ${sNums[0]})`
+            : "";
+      return `<button type="button" class="btn-date ${isSel ? "pri active" : ""}" data-d="${b}">${fmtDateOnly(b)}${sText}</button>`;
     })
     .join("")}</div></details></div>`;
   $("gm").onchange = (e) => {
@@ -3590,19 +3599,23 @@ function vPlan() {
   }
   const dayCard = (d) => {
     const p = PL[d];
-    const sKeys = Object.keys(SS).filter(
-      (k) => k === d || k.startsWith(d + "_") || k.startsWith(d + "-"),
-    );
+    const sKeys = sessionsForDate(d);
+    const sNums = sKeys.map((k) => sessionGlobalIndex(k)).filter(Boolean);
+    const sessText =
+      sNums.length > 1
+        ? `Sessions #${sNums.join(", #")}`
+        : sNums.length === 1
+          ? `Session #${sNums[0]}`
+          : "";
     if (!p) {
       if (sKeys.length > 0) {
         const totalPres = sKeys.reduce(
           (acc, k) => acc + Object.values(SS[k] || {}).filter(Boolean).length,
           0,
         );
-        const subTxt =
-          sKeys.length > 1 ? ` (${sKeys.length} sessions played)` : "";
+        const subTxt = sessText ? ` · ${sessText}` : "";
         return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> <span class="pill g">Attendance recorded${subTxt}</span></p>
-        <p style="margin:6px 0 10px">🏑 <b>${sKeys.length} session${sKeys.length > 1 ? "s" : ""}</b> played · <b>${totalPres}</b> attendance marks recorded.</p>
+        <p style="margin:6px 0 10px">🏑 <b>${sKeys.length} session${sKeys.length > 1 ? "s" : ""}</b> played${sessText ? ` (${sessText})` : ""} · <b>${totalPres}</b> attendance marks recorded.</p>
         ${admin ? `<div class="chips"><button data-a="take" data-d="${d}">View / Take attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button></div>` : ""}`;
       }
       const w = SCH.team[dayIdx(d)];
@@ -3610,7 +3623,7 @@ function vPlan() {
     }
     const c = p.status === "cancelled",
       r = SCH.team[dayIdx(d)];
-    return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> ${c ? '<span class="pill r">Cancelled</span>' : planLive(d) ? `<span class="pill g">${dlabel(d)}</span>` : d === td && !SS[d] ? '<span class="pill">Ended</span>' : ""} ${SS[d] ? '<span class="pill g">Attendance recorded</span>' : ""}</p>
+    return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> ${c ? '<span class="pill r">Cancelled</span>' : planLive(d) ? `<span class="pill g">${dlabel(d)}</span>` : d === td && !sKeys.length ? '<span class="pill">Ended</span>' : ""} ${sKeys.length ? `<span class="pill g">Attendance recorded${sessText ? " · " + sessText : ""}</span>` : ""}</p>
     <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p>${p.venue ? `<p style="margin:2px 0 0">📍 ${esc(p.venue)}</p>` : ""}<p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}${(p.tags || []).length ? `<p style="margin:6px 0 0">🏷️ ${tagChips(p.tags)}</p>` : ""}${tagMine(p.tags) && !c ? `<p class="note" style="margin:8px 0">📌 You are tagged for this playing day.</p>` : ""}
     ${planLive(d) && !c ? availBlock(d) : ""}
     ${admin ? `<div class="chips"><button data-a="ed" data-d="${d}">✏️ Edit</button><button data-a="take" data-d="${d}">Attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></div>` : ""}`;
