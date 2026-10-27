@@ -803,6 +803,16 @@ const sessionsForDate = (b) => {
   keys.sort((x, y) => sessionNum(x) - sessionNum(y));
   return keys;
 };
+const sessionGlobalIndex = (d) => {
+  const ds = dates();
+  const idx = ds.indexOf(d);
+  if (idx === -1) return null;
+  const legacyOffset =
+    typeof L !== "undefined" && L
+      ? Object.keys(L).reduce((a, k) => a + (L[k].days || 0), 0)
+      : 0;
+  return idx + 1 + legacyOffset;
+};
 const fmt = (d) => {
   const base = dateBase(d);
   const num = sessionNum(d);
@@ -2635,18 +2645,66 @@ function vStats() {
         )
         .join("");
   }
+  const allUniqueBases = [...new Set(live.map(dateBase))];
+  const multiDates = allUniqueBases.filter(
+    (b) => sessionsForDate(b).length > 1,
+  );
+  const multiNoticeHtml =
+    multiDates.length > 0
+      ? `<div class="multi-day-callout">
+        <span class="multi-callout-icon">⚡</span>
+        <div class="multi-callout-body">
+          <b>${multiDates.length} playing day${multiDates.length > 1 ? "s" : ""} had 2 sessions:</b>
+          <div class="chips" style="margin-top:6px">
+            ${multiDates
+              .map(
+                (b) =>
+                  `<button type="button" class="btn-multi-jump pri" data-jump="${b}">⚡ ${fmt(b)} (${sessionsForDate(b).length} sessions)</button>`,
+              )
+              .join("")}
+          </div>
+        </div>
+      </div>`
+      : "";
+
+  const curGIdx = sessionGlobalIndex(selDate);
+  const curSNum = sessionNum(selDate);
   const sessPickerHtml =
     daySessions.length > 1
-      ? `<div class="chips" style="margin:8px 0 10px"><span class="mute" style="align-self:center;font-size:0.85rem">Sessions:</span>${daySessions
-          .map(
-            (k) =>
-              `<button type="button" class="btn-day-sess ${k === selDate ? "pri" : ""}" data-sess-key="${k}">${esc(sessionLabel(k))}</button>`,
-          )
-          .join("")}</div>`
-      : "";
+      ? `<div class="day-sess-toggle-card">
+          <div class="day-sess-toggle-head">
+            <span class="day-sess-badge">⚡ 2 Sessions held on this day</span>
+            <span class="mute">Showing: <b>${esc(sessionLabel(selDate))}</b> ${curGIdx ? `(Session #${curGIdx} overall)` : ""}</span>
+          </div>
+          <div class="day-sess-toggle-pills" role="tablist">
+            ${daySessions
+              .map((k) => {
+                const sNum = sessionNum(k);
+                const gIdx = sessionGlobalIndex(k);
+                const sData = SS[k] || {};
+                const prCount = P.filter((p) => sData[p.id] === true).length;
+                const totCount = P.filter(
+                  (p) => sData[p.id] !== undefined,
+                ).length;
+                const isAct = k === selDate;
+                const gText = gIdx ? `Session #${gIdx}` : `Session ${sNum}`;
+                return `
+                  <button type="button" class="btn-day-sess ${isAct ? "active pri" : ""}" data-sess-key="${k}">
+                    <b>Session ${sNum} ${gIdx ? `(${gText})` : ""}</b>
+                    <small>${totCount ? `✔ ${prCount}/${totCount} present` : "Not recorded"}</small>
+                  </button>
+                `;
+              })
+              .join("")}
+          </div>
+        </div>`
+      : sd && curGIdx
+        ? `<div class="single-sess-tag"><span class="pill g">Session #${curGIdx}</span> <span class="mute">${fmt(selDate)}</span></div>`
+        : "";
+
   $("view").innerHTML =
     `<div class="card"><h2>Attendance</h2><div class="ctl">${mSel("gm", gMonth, true)}</div>
-  <div class="stats"><div><b>${ns}</b>Sessions</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
+  <div class="stats"><div><b>${n}</b>Playing days</div><div><b>${ns}</b>Sessions</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
   ${admin ? podium(st, medal) : tier ? `<div class="tier"><span>${tier[0]}</span><div><b>${tier[1]} level</b><br><span class="mute">Gold 90% or more · Silver 75% or more · Bronze 60% or more</span></div></div>` : ""}
   <table><tr><th>Player</th><th class="n">Present</th><th class="n">Sessions</th><th>%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
   <p class="mute">% = sessions present ÷ total sessions (${ns}). The total is the same for every player; a missed session counts as absent.</p>${L[m] ? '<p class="mute">Includes the imported register totals.</p>' : ""}
@@ -2654,13 +2712,18 @@ function vStats() {
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
   <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selBase}">${admin && sd ? '<button type="button" id="sdsh">⤴ Share this session</button>' : ""}</div>${sessPickerHtml}${day}
-  <details class="dlist"><summary>Show all playing dates (${live.length})</summary><div class="chips">${live
+  <details class="dlist"><summary>Show all playing dates (${live.length})</summary>${multiNoticeHtml}<div class="chips">${live
     .slice()
     .reverse()
-    .map(
-      (d) =>
-        `<button data-d="${d}" class="${d === selDate ? "pri" : ""}">${fmt(d)}</button>`,
-    )
+    .map((d) => {
+      const isMulti = sessionsForDate(dateBase(d)).length > 1;
+      const sNum = sessionNum(d);
+      const gIdx = sessionGlobalIndex(d);
+      const sLabel = isMulti
+        ? `${fmt(dateBase(d))} · Session ${sNum}${gIdx ? ` (#${gIdx})` : ""}`
+        : fmt(d);
+      return `<button data-d="${d}" class="${d === selDate ? "pri" : ""} ${isMulti ? "is-multi-day" : ""}">${sLabel}${isMulti ? ' <span class="badge-2x">2x</span>' : ""}</button>`;
+    })
     .join("")}</div></details></div>`;
   $("gm").onchange = (e) => {
     gMonth = e.target.value;
@@ -2679,6 +2742,15 @@ function vStats() {
   document.querySelectorAll(".btn-day-sess").forEach((b) => {
     b.onclick = () => {
       selDate = b.dataset.sessKey;
+      dsel = true;
+      vStats();
+    };
+  });
+  document.querySelectorAll(".btn-multi-jump").forEach((b) => {
+    b.onclick = () => {
+      const jumpBase = b.dataset.jump;
+      const exS = sessionsForDate(jumpBase);
+      selDate = exS.length ? exS[0] : jumpBase;
       dsel = true;
       vStats();
     };
