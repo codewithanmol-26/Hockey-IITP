@@ -830,6 +830,17 @@ const fmt = (d) => {
         })) + sfx
   );
 };
+const fmtDateOnly = (d) => {
+  const base = dateBase(d);
+  const dt = new Date(base + "T00:00");
+  return isNaN(dt.getTime())
+    ? d
+    : dt.toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+};
 const mfmt = (m) =>
   new Date(m + "-01T00:00").toLocaleDateString(undefined, {
     month: "long",
@@ -2855,27 +2866,7 @@ function vStats() {
         )
         .join("");
   }
-  const allUniqueBases = [...new Set(live.map(dateBase))];
-  const multiDates = allUniqueBases.filter(
-    (b) => sessionsForDate(b).length > 1,
-  );
-  const multiNoticeHtml =
-    multiDates.length > 0
-      ? `<div class="multi-day-callout">
-        <span class="multi-callout-icon">⚡</span>
-        <div class="multi-callout-body">
-          <b>${multiDates.length} playing day${multiDates.length > 1 ? "s" : ""} had 2 sessions:</b>
-          <div class="chips" style="margin-top:6px">
-            ${multiDates
-              .map(
-                (b) =>
-                  `<button type="button" class="btn-multi-jump pri" data-jump="${b}">⚡ ${fmt(b)} (${sessionsForDate(b).length} sessions)</button>`,
-              )
-              .join("")}
-          </div>
-        </div>
-      </div>`
-      : "";
+  const uniqueDates = [...new Set(live.map(dateBase))].sort();
 
   const curGIdx = sessionGlobalIndex(selDate);
   const curSNum = sessionNum(selDate);
@@ -2883,7 +2874,7 @@ function vStats() {
     daySessions.length > 1
       ? `<div class="day-sess-toggle-card">
           <div class="day-sess-toggle-head">
-            <span class="day-sess-badge">⚡ 2 Sessions held on this day</span>
+            <span class="day-sess-badge">${daySessions.length} sessions on this day</span>
             <span class="mute">Showing: <b>${esc(sessionLabel(selDate))}</b> ${curGIdx ? `(Session #${curGIdx} overall)` : ""}</span>
           </div>
           <div class="day-sess-toggle-pills" role="tablist">
@@ -2940,17 +2931,12 @@ function vStats() {
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
   <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selBase}">${admin && sd ? '<button type="button" id="sdsh">⤴ Share this session</button>' : ""}</div>${sessPickerHtml}${day}
-  <details class="dlist"><summary>Show all playing dates (${live.length})</summary>${multiNoticeHtml}<div class="chips">${live
+  <details class="dlist"><summary>Show all playing dates (${uniqueDates.length})</summary><div class="chips">${uniqueDates
     .slice()
     .reverse()
-    .map((d) => {
-      const isMulti = sessionsForDate(dateBase(d)).length > 1;
-      const sNum = sessionNum(d);
-      const gIdx = sessionGlobalIndex(d);
-      const sLabel = isMulti
-        ? `${fmt(dateBase(d))} · Session ${sNum}${gIdx ? ` (#${gIdx})` : ""}`
-        : fmt(d);
-      return `<button data-d="${d}" class="${d === selDate ? "pri" : ""} ${isMulti ? "is-multi-day" : ""}">${sLabel}${isMulti ? ' <span class="badge-2x">2x</span>' : ""}</button>`;
+    .map((b) => {
+      const isSel = selBase === b;
+      return `<button type="button" class="btn-date ${isSel ? "pri active" : ""}" data-d="${b}">${fmtDateOnly(b)}</button>`;
     })
     .join("")}</div></details></div>`;
   $("gm").onchange = (e) => {
@@ -2974,15 +2960,6 @@ function vStats() {
       vStats();
     };
   });
-  document.querySelectorAll(".btn-multi-jump").forEach((b) => {
-    b.onclick = () => {
-      const jumpBase = b.dataset.jump;
-      const exS = sessionsForDate(jumpBase);
-      selDate = exS.length ? exS[0] : jumpBase;
-      dsel = true;
-      vStats();
-    };
-  });
   $("sd").onchange = (e) => {
     if (e.target.value) {
       const newBase = e.target.value;
@@ -2995,7 +2972,9 @@ function vStats() {
   document.querySelectorAll(".chips button[data-d]").forEach(
     (b) =>
       (b.onclick = () => {
-        selDate = b.dataset.d;
+        const base = b.dataset.d;
+        const exS = sessionsForDate(base);
+        selDate = exS.length ? exS[0] : base;
         dsel = true;
         vStats();
       }),
