@@ -27,8 +27,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap"
     rel="stylesheet">
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
-  <link rel="preload" href="style.css?v=61" as="style">
-  <link rel="stylesheet" href="style.css?v=61">
+  <link rel="preload" href="style.css?v=62" as="style">
+  <link rel="stylesheet" href="style.css?v=62">
 </head>
 
 <body>
@@ -127,23 +127,26 @@
 
   <!-- 2. The app (home page and everything else), shown only after login -->
   <div id="app" hidden>
-    <header>
-      <button id="xb" class="hx" data-ic="back" aria-label="Back to Home" title="Back" hidden></button>
-      <div class="brand"><img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Hockey Crest" width="36" height="36">
-        <div>
-          <h1>IITP Hockey</h1><span id="who" class="who"></span>
+    <aside id="sidebar" class="app-sidebar" aria-label="Desktop Navigation"></aside>
+    <div class="app-content-area">
+      <header>
+        <button id="xb" class="hx" data-ic="back" aria-label="Back to Home" title="Back" hidden></button>
+        <div class="brand"><img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Hockey Crest" width="36" height="36">
+          <div>
+            <h1>IITP Hockey</h1><span id="who" class="who"></span>
+          </div>
         </div>
-      </div>
-      <div class="hb">
-        <button id="thm" class="thb" type="button" aria-label="Toggle day / night mode"
-          title="Toggle day / night mode"></button>
-        <button id="hp" class="hi" aria-label="My profile and menu" title="My profile and menu"></button>
-      </div>
-    </header>
-    <nav id="nav" aria-label="Main"></nav>
-    <main id="view"></main>
-    <div id="net" class="net" role="status" aria-live="polite" hidden><span id="netm"></span><button type="button"
-        id="netr">Retry</button></div>
+        <div class="hb">
+          <button id="thm" class="thb" type="button" aria-label="Toggle day / night mode"
+            title="Toggle day / night mode"></button>
+          <button id="hp" class="hi" aria-label="My profile and menu" title="My profile and menu"></button>
+        </div>
+      </header>
+      <nav id="nav" aria-label="Main"></nav>
+      <main id="view"></main>
+      <div id="net" class="net" role="status" aria-live="polite" hidden><span id="netm"></span><button type="button"
+          id="netr">Retry</button></div>
+    </div>
   </div>
 
   <div id="menu" hidden></div>
@@ -231,12 +234,12 @@
     })();
   </script>
   <script src="config.js"></script>
-  <script src="icons.js?v=61"></script>
-  <script src="public.js?v=61"></script>
+  <script src="icons.js?v=62"></script>
+  <script src="public.js?v=62"></script>
   <script src="extras.js"></script>
   <script src="help.js"></script>
-  <script src="app.js?v=61"></script>
-  <script src="chat.js?v=61"></script>
+  <script src="app.js?v=62"></script>
+  <script src="chat.js?v=62"></script>
 </body>
 
 </html>

@@ -385,56 +385,64 @@ nav button.on::after {
   background: var(--brand);
   margin-top: 2px;
 }
+/* ---------- Mobile Default Layout ---------- */
+.app-sidebar {
+  display: none !important;
+}
+.app-content-area {
+  display: contents;
+}
+
+/* ---------- Desktop / Windows Left-Side Navigation & Layout ---------- */
 @media (min-width: 900px) {
   :root {
     --nav-h: 0px;
   }
-  header {
-    padding-left: max(22px, calc((100vw - 1080px) / 2 + 14px));
-    padding-right: max(22px, calc((100vw - 1080px) / 2 + 14px));
-  }
-  nav {
-    position: static;
-    max-width: 1080px;
-    margin: 14px auto 0;
-    padding: 0 14px;
-    background: none;
-    border: 0;
-    box-shadow: none;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  nav button {
-    flex: none;
+  #app {
+    display: flex !important;
     flex-direction: row;
-    gap: 7px;
-    min-height: 0;
-    padding: 9px 16px;
-    font-size: 0.95rem;
-    border: 1px solid var(--line);
+    min-height: 100vh;
+    background: var(--bg);
+  }
+  .app-sidebar {
+    display: flex !important;
+    flex-direction: column;
+    width: 280px;
+    min-width: 280px;
+    max-width: 280px;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    left: 0;
     background: var(--card);
-    border-radius: 999px;
+    border-right: 1px solid var(--line);
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.04);
+    z-index: 40;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
   }
-  nav .i {
-    font-size: 1.05rem;
-    line-height: 1;
+  .app-content-area {
+    display: flex !important;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--bg);
   }
-  nav button.on {
-    background: var(--brand);
-    border-color: var(--brand);
-    color: #fff;
+  .app-content-area > header {
+    display: none !important;
   }
-  nav button.on .i {
-    transform: none;
+  .app-content-area > nav#nav {
+    display: none !important;
   }
-  nav button.on::after {
-    display: none;
-  }
-  nav button:hover:not(.on) {
-    background: var(--soft);
-  }
-  main {
-    padding: 18px 14px 40px;
+  main#view {
+    flex: 1;
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 28px 36px 60px;
+    box-sizing: border-box;
   }
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -442,6 +450,290 @@ nav button.on::after {
   .grid .span2 {
     grid-column: 1/-1;
   }
+}
+
+/* Desktop Sidebar Components */
+.sb-header {
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.sb-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sb-crest {
+  filter: drop-shadow(0 2px 6px rgba(11, 42, 74, 0.2));
+  flex-shrink: 0;
+}
+.sb-brand-info {
+  display: flex;
+  flex-direction: column;
+}
+.sb-brand-title {
+  font-family: var(--font-display);
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.sb-brand-sub {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--mute);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Sidebar Profile Card */
+.sb-profile-box {
+  padding: 14px 16px;
+  background: var(--soft);
+  border-bottom: 1px solid var(--line);
+}
+.sb-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sb-profile-card:hover {
+  border-color: var(--brand);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.sb-profile-avatar {
+  flex-shrink: 0;
+}
+.sb-profile-avatar .avi {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.sb-profile-meta {
+  flex: 1;
+  min-width: 0;
+}
+.sb-profile-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb-profile-role-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.sb-role-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--brand);
+  text-transform: capitalize;
+}
+.sb-role-badge.captain {
+  background: #fef3c7;
+  color: #b45309;
+}
+.sb-role-badge.vice {
+  background: #ecfdf5;
+  color: #047857;
+}
+.sb-role-badge.admin {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+.sb-roll-text {
+  font-size: 0.72rem;
+  color: var(--mute);
+  font-weight: 600;
+}
+.sb-profile-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.sb-btn-prof-action {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.sb-btn-prof-action:hover,
+.sb-btn-prof-action.active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+.sb-btn-prof-action.sec {
+  flex: 0 0 auto;
+}
+
+/* Sidebar Navigation Items */
+.sb-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sb-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sb-group-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--mute);
+  text-transform: uppercase;
+  padding: 4px 10px 6px;
+}
+.sb-nav-item,
+.sb-nav-tool {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  text-align: left;
+}
+.sb-nav-item:hover,
+.sb-nav-tool:hover {
+  background: var(--soft);
+  color: var(--brand);
+}
+.sb-nav-item.active {
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  color: var(--brand);
+  font-weight: 700;
+  border-color: color-mix(in srgb, var(--brand) 20%, transparent);
+}
+.sb-nav-item.active .sb-nav-icon {
+  transform: scale(1.12);
+}
+.sb-nav-indicator {
+  position: absolute;
+  right: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+.sb-nav-icon {
+  font-size: 1.12rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+.sb-nav-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb-nav-tool {
+  color: var(--mute);
+  font-size: 0.84rem;
+}
+.sb-nav-tool:hover {
+  color: var(--ink);
+}
+
+/* Sidebar Footer */
+.sb-footer {
+  padding: 12px 14px 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--card);
+}
+.sb-footer-buttons {
+  display: flex;
+  gap: 6px;
+}
+.sb-footer-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sb-footer-btn:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.sb-footer-btn-label {
+  white-space: nowrap;
+}
+.sb-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--a) 8%, transparent);
+  color: var(--a);
+  border: 1px solid color-mix(in srgb, var(--a) 25%, transparent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sb-logout-btn:hover {
+  background: var(--a);
+  color: #fff;
+  border-color: var(--a);
 }
 
 /* ---------- menu panel ---------- */

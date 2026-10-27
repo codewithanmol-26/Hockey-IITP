@@ -2190,6 +2190,214 @@ function icsDownload() {
   a.remove();
 }
 
+function doLogout() {
+  if (
+    confirm(
+      "Log out of this device?\n\nYou will need your roll number and code to log in again.",
+    )
+  ) {
+    logout();
+  }
+}
+
+function drawSidebar() {
+  const sb = $("sidebar");
+  if (!sb) return;
+  if (!loaded || !token) {
+    sb.innerHTML = "";
+    return;
+  }
+  const rn =
+    role === "captain"
+      ? "Captain"
+      : role === "vice"
+        ? "Vice-captain"
+        : role === "admin"
+          ? "Admin"
+          : "Player";
+
+  const allTabs = tabsFor();
+  const mainKeys = ["me", "take", "plan", "stats", "schedule"];
+  const mainTabs = allTabs.filter((t) => mainKeys.includes(t[0]));
+  const trainKeys = ["rules", "warmup", "gallery", "train"];
+  const trainTabs = allTabs.filter((t) => trainKeys.includes(t[0]));
+  const mgmtKeys = ["players", "removed", "admins", "helpbox"];
+  const mgmtTabs = allTabs.filter((t) => mgmtKeys.includes(t[0]));
+
+  const renderTabBtn = (t) => {
+    const isAct = t[0] === tab && !prof;
+    return `
+      <button type="button" class="sb-nav-item ${isAct ? "active" : ""}" data-st="${t[0]}" ${isAct ? 'aria-current="page"' : ""}>
+        <span class="sb-nav-icon">${eic(t[1])}</span>
+        <span class="sb-nav-label">${esc(t[2])}</span>
+        ${isAct ? '<span class="sb-nav-indicator"></span>' : ""}
+      </button>
+    `;
+  };
+
+  const dk =
+    document.documentElement.dataset.theme === "dark" ||
+    (!document.documentElement.dataset.theme &&
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      matchMedia("(prefers-color-scheme: dark)").matches);
+
+  sb.innerHTML = `
+    <div class="sb-header">
+      <div class="sb-brand">
+        <img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Crest" class="sb-crest" width="38" height="38">
+        <div class="sb-brand-info">
+          <div class="sb-brand-title">IITP Hockey</div>
+          <div class="sb-brand-sub">IIT PATNA ATHLETICS</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sb-profile-box">
+      <div class="sb-profile-card" id="sb-prof-click" title="Click to view full profile">
+        <div class="sb-profile-avatar">
+          ${avatar(WHO, MYPH, 46)}
+        </div>
+        <div class="sb-profile-meta">
+          <div class="sb-profile-name" title="${esc(WHO)}">${esc(WHO)}</div>
+          <div class="sb-profile-role-row">
+            <span class="sb-role-badge ${role}">${esc(rn)}</span>
+            ${me ? `<span class="sb-roll-text">${esc(me)}</span>` : ""}
+          </div>
+        </div>
+      </div>
+      <div class="sb-profile-actions">
+        <button type="button" class="sb-btn-prof-action pri ${prof ? "active" : ""}" id="sb-btn-view-prof">
+          <span>👤 View Profile</span>
+        </button>
+        ${
+          role === "captain" || role === "vice"
+            ? `<button type="button" class="sb-btn-prof-action sec" id="sb-btn-code">🔑 Code</button>`
+            : ""
+        }
+      </div>
+    </div>
+
+    <div class="sb-scroll-area">
+      <div class="sb-nav-group">
+        <div class="sb-group-title">MAIN NAVIGATION</div>
+        ${mainTabs.map(renderTabBtn).join("")}
+      </div>
+
+      <div class="sb-nav-group">
+        <div class="sb-group-title">HOCKEY &amp; TRAINING</div>
+        ${trainTabs.map(renderTabBtn).join("")}
+      </div>
+
+      ${
+        mgmtTabs.length
+          ? `<div class="sb-nav-group">
+              <div class="sb-group-title">TEAM MANAGEMENT</div>
+              ${mgmtTabs.map(renderTabBtn).join("")}
+            </div>`
+          : ""
+      }
+
+      ${
+        admin
+          ? `<div class="sb-nav-group">
+              <div class="sb-group-title">ADMIN TOOLS</div>
+              <button type="button" class="sb-nav-tool" id="sb-tool-add">
+                <span class="sb-nav-icon">➕</span>
+                <span class="sb-nav-label">Add Students</span>
+              </button>
+              <button type="button" class="sb-nav-tool" id="sb-tool-tpl">
+                <span class="sb-nav-icon">✉️</span>
+                <span class="sb-nav-label">Message Template</span>
+              </button>
+              <button type="button" class="sb-nav-tool" id="sb-tool-grp">
+                <span class="sb-nav-icon">🔗</span>
+                <span class="sb-nav-label">WhatsApp Group Link</span>
+              </button>
+              <button type="button" class="sb-nav-tool" id="sb-tool-photo">
+                <span class="sb-nav-icon">📷</span>
+                <span class="sb-nav-label">Change Squad Photo</span>
+              </button>
+              <button type="button" class="sb-nav-tool" id="sb-tool-fix">
+                <span class="sb-nav-icon">🏑</span>
+                <span class="sb-nav-label">Indian Hockey Fixtures</span>
+              </button>
+              ${
+                owner
+                  ? `<button type="button" class="sb-nav-tool" id="sb-tool-names">
+                      <span class="sb-nav-icon">🎖️</span>
+                      <span class="sb-nav-label">Staff Names</span>
+                    </button>`
+                  : ""
+              }
+            </div>`
+          : ""
+      }
+    </div>
+
+    <div class="sb-footer">
+      <div class="sb-footer-buttons">
+        <button type="button" class="sb-footer-btn" id="sb-thm" title="Toggle Day / Night mode">
+          <span class="sb-nav-icon">${dk ? "☀️" : "🌙"}</span>
+          <span class="sb-footer-btn-label">${dk ? "Day mode" : "Night mode"}</span>
+        </button>
+        <button type="button" class="sb-footer-btn" id="sb-cal" title="Add schedule to calendar">
+          <span class="sb-nav-icon">📅</span>
+          <span class="sb-footer-btn-label">Calendar</span>
+        </button>
+      </div>
+      <button type="button" class="sb-logout-btn" id="sb-logout">
+        <span>🚪</span>
+        <span>Log out</span>
+      </button>
+    </div>
+  `;
+
+  sb.querySelectorAll("[data-st]").forEach((btn) => {
+    btn.onclick = () => go(btn.dataset.st);
+  });
+
+  const pCard = sb.querySelector("#sb-prof-click");
+  if (pCard) pCard.onclick = () => openMyProfile();
+
+  const pBtn = sb.querySelector("#sb-btn-view-prof");
+  if (pBtn) pBtn.onclick = () => openMyProfile();
+
+  const cBtn = sb.querySelector("#sb-btn-code");
+  if (cBtn) cBtn.onclick = () => openChangeCode();
+
+  const tAdd = sb.querySelector("#sb-tool-add");
+  if (tAdd) tAdd.onclick = () => openAdd();
+
+  const tTpl = sb.querySelector("#sb-tool-tpl");
+  if (tTpl) tTpl.onclick = () => openTpl();
+
+  const tGrp = sb.querySelector("#sb-tool-grp");
+  if (tGrp) tGrp.onclick = () => openGroup();
+
+  const tPho = sb.querySelector("#sb-tool-photo");
+  if (tPho) tPho.onclick = () => pickFiles((f) => setGroupPhoto(f[0]));
+
+  const tFix = sb.querySelector("#sb-tool-fix");
+  if (tFix) tFix.onclick = () => openMatches();
+
+  const tNam = sb.querySelector("#sb-tool-names");
+  if (tNam) tNam.onclick = () => openNames();
+
+  const thmBtn = sb.querySelector("#sb-thm");
+  if (thmBtn)
+    thmBtn.onclick = () => {
+      if (typeof toggleTheme === "function") toggleTheme();
+      drawSidebar();
+    };
+
+  const calBtn = sb.querySelector("#sb-cal");
+  if (calBtn) calBtn.onclick = () => icsDownload();
+
+  const lgBtn = sb.querySelector("#sb-logout");
+  if (lgBtn) lgBtn.onclick = () => doLogout();
+}
+
 function render() {
   if (!token) return;
   const tl = tabsFor();
@@ -2216,6 +2424,7 @@ function render() {
   $("hp").innerHTML = loaded ? avatar(WHO, MYPH, 34) : "";
   $("xb").hidden = !(loaded && !err && !prof && !PRIMARY.includes(tab)); // ✕ on pages that were opened from the menu: goes back to Home
   if (!$("menu").hidden) drawMenu();
+  drawSidebar();
   if (err) {
     $("view").innerHTML =
       `<div class="card">${empty("📡", esc(err))}<div class="ctl" style="justify-content:center"><button class="pri" id="rt">Try again</button></div></div>`;
@@ -2227,6 +2436,7 @@ function render() {
     return;
   }
   if (prof) {
+    drawSidebar();
     vProfile();
     return;
   }
