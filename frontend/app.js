@@ -509,7 +509,7 @@ function reportText(sc, v) {
           .join("\n");
   const medal = ["🥇", "🥈", "🥉"];
   return (
-    `🏑 *IITP Hockey: Attendance report*\n📅 ${m === "all" ? "Overall, till " + td : mfmt(m)}\n🗓 Playing days: ${rdays(m)} · Sessions: ${rsess(m)}\n📈 Team turnout: ${tr}%\n\n` +
+    `🏑 *IITP Hockey: Attendance report*\n📅 ${m === "all" ? "Overall, till " + td : mfmt(m)}\n🏑 Total Sessions: ${rsess(m)}\n📈 Team turnout: ${tr}%\n\n` +
     st
       .map(
         (x, i) =>
@@ -781,7 +781,10 @@ const esc = (s) =>
   );
 const dateBase = (d) => String(d || "").slice(0, 10);
 const sessionNum = (d) => {
-  const m = String(d || "").match(/[_-](\d+)$/);
+  const str = String(d || "");
+  if (str.length <= 10) return 1;
+  const suffix = str.slice(10);
+  const m = suffix.match(/^[_-](\d+)/);
   return m ? parseInt(m[1], 10) : 1;
 };
 const sessionLabel = (d) => "Session " + sessionNum(d);
@@ -791,7 +794,10 @@ const sessionsForDate = (b) => {
     typeof SS !== "undefined" && SS
       ? Object.keys(SS).filter(
           (k) =>
-            k === base || k.startsWith(base + "_") || k.startsWith(base + "-"),
+            k === base ||
+            (k.startsWith(base) &&
+              k.length > 10 &&
+              /^[_-]\d+/.test(k.slice(10))),
         )
       : [];
   keys.sort((x, y) => sessionNum(x) - sessionNum(y));
@@ -2641,10 +2647,10 @@ function vStats() {
       : "";
   $("view").innerHTML =
     `<div class="card"><h2>Attendance</h2><div class="ctl">${mSel("gm", gMonth, true)}</div>
-  <div class="stats"><div><b>${n}</b>Playing days</div><div><b>${ns}</b>Sessions</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
+  <div class="stats"><div><b>${ns}</b>Sessions</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
   ${admin ? podium(st, medal) : tier ? `<div class="tier"><span>${tier[0]}</span><div><b>${tier[1]} level</b><br><span class="mute">Gold 90% or more · Silver 75% or more · Bronze 60% or more</span></div></div>` : ""}
   <table><tr><th>Player</th><th class="n">Present</th><th class="n">Sessions</th><th>%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
-  <p class="mute">% = sessions present ÷ total sessions (${ns}, over ${n} playing days). The total is the same for every player; a missed session counts as absent.</p>${L[m] ? '<p class="mute">Includes the imported register totals.</p>' : ""}
+  <p class="mute">% = sessions present ÷ total sessions (${ns}). The total is the same for every player; a missed session counts as absent.</p>${L[m] ? '<p class="mute">Includes the imported register totals.</p>' : ""}
   <div class="chips"><button id="shr">⤴ Share report</button></div></div>
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
@@ -3883,7 +3889,7 @@ function vProfile() {
     <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill g">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill g">🎖️ Vice-captain</span>' : ""}${ADM.some((a) => a.kind === "player" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill g">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
     ${canPh ? photoBtns(own, photoPath, p.photo, '<button class="pri" id="pedit">✏️ Edit profile</button>') : ""}
     ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
-    <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} playing days</p><div class="dots">${dots}</div></div>` : ""}</div></div>
+    <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} sessions</p><div class="dots">${dots}</div></div>` : ""}</div></div>
     <div class="card"><h2>Details</h2>${kv("Roll number", esc(p.roll))}${kv("Position", esc(p.position))}${kv("Joined", p.joined ? fmt(p.joined) : "")}
       ${kv("E-mail", p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : "")}${kv("Jersey", jersey)}
       ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}</div>` : ""}</div></div>`;
