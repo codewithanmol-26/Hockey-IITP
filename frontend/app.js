@@ -2813,6 +2813,7 @@ function vStats() {
     mine = st.find((x) => x.p.id === me),
     tier = !admin && mine ? tierMedal(mine.pct) : null;
   let pts, ttl;
+  const allPs = [...P, ...(typeof RM !== "undefined" && RM ? RM : [])];
   if (m === "all") {
     ttl = admin ? "Team turnout by month" : "My attendance by month";
     pts = months().map((k) => {
@@ -2828,11 +2829,11 @@ function vStats() {
     });
   } else {
     ttl = admin
-      ? "Team turnout per playing day"
-      : "My attendance per playing day";
+      ? "Team turnout per session"
+      : "My attendance per session";
     pts = live.map((d) => {
       const v = admin
-          ? P.filter((p) => SS[d] && SS[d][p.id] !== undefined).map(
+          ? allPs.filter((p) => SS[d] && SS[d][p.id] !== undefined).map(
               (p) => SS[d][p.id],
             )
           : [Boolean(SS[d] && SS[d][me])],
@@ -2855,14 +2856,14 @@ function vStats() {
       ? `<div class="row"><span>${fmt(selDate)}</span><span class="tag ${sd[me] ? "p" : "a"}">${sd[me] ? "Present" : "Absent"}</span></div>`
       : '<p class="mute">No hockey recorded on this date.</p>';
   } else if (sd) {
-    const v = P.filter((p) => sd[p.id] !== undefined),
+    const v = allPs.filter((p) => sd[p.id] !== undefined),
       pr = v.filter((p) => sd[p.id]).length;
     day =
       `<div class="stats"><div><b>${pr}</b>Present</div><div><b>${v.length - pr}</b>Absent</div><div><b>${v.length ? Math.round((pr * 100) / v.length) : 0}%</b>Turnout</div></div>` +
       v
         .map(
           (p) =>
-            `<div class="row"><span>${esc(p.name)}</span><span class="tag ${sd[p.id] ? "p" : "a"}">${sd[p.id] ? "Present" : "Absent"}</span></div>`,
+            `<div class="row"><span>${esc(p.name)}${p.removed ? ' <small class="mute">(Removed)</small>' : ""}</span><span class="tag ${sd[p.id] ? "p" : "a"}">${sd[p.id] ? "Present" : "Absent"}</span></div>`,
         )
         .join("");
   }
@@ -2883,8 +2884,8 @@ function vStats() {
                 const sNum = sessionNum(k);
                 const gIdx = sessionGlobalIndex(k);
                 const sData = SS[k] || {};
-                const prCount = P.filter((p) => sData[p.id] === true).length;
-                const totCount = P.filter(
+                const prCount = allPs.filter((p) => sData[p.id] === true).length;
+                const totCount = allPs.filter(
                   (p) => sData[p.id] !== undefined,
                 ).length;
                 const isAct = k === selDate;
