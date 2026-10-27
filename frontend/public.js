@@ -258,7 +258,7 @@ function drawPublic() {
 
   const thumbs =
     p && p.gallery && p.gallery.length
-      ? `<div class="gallery-thumbs-grid">${p.gallery.map((src, i) => `<div class="g-thumb-item" data-gthumb="${esc(src)}" title="Open photo"><img src="${esc(src)}" alt="IIT Patna Hockey Practice ${i + 1}" loading="lazy"></div>`).join("")}</div>`
+      ? `<div class="gallery-thumbs-grid">${p.gallery.map((src, i) => `<div class="g-thumb-item" data-gthumb="${esc(src)}" title="Open photo"><img src="${esc(src)}" alt="IIT Patna Hockey Team Photo ${i + 1}" loading="lazy"></div>`).join("")}</div>`
       : "";
 
   gid("pview").innerHTML = `
@@ -483,6 +483,7 @@ function drawPublic() {
       </div>
       <div class="gallery-showcase-box">
         ${photos}
+        ${thumbs}
       </div>
     </section>
 

@@ -4620,7 +4620,11 @@ const clearGroupPhoto = () => {
     });
 };
 function gphCard() {
+  if (!galLoaded && !galBusy && !galErr) loadGallery();
   const has = !!GPH.img;
+  const teamPhotos = (GAL || []).filter(
+    (g) => g.cat === "team photo" || g.cat === "team_photo",
+  );
   const body = has
     ? `<img class="gph" id="gpimg" src="${GPH.img}" alt="Team group photo">`
     : empty(
@@ -4631,10 +4635,26 @@ function gphCard() {
             ? "Add the team group photo."
             : "The team group photo will appear here.",
       );
+  const thumbs =
+    teamPhotos.length > 0
+      ? `<div style="margin-top:14px">
+          <div style="font-size:0.85rem;font-weight:700;color:var(--mute);margin-bottom:8px">📸 TEAM PHOTOS (${teamPhotos.length})</div>
+          <div class="chips" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px">
+            ${teamPhotos
+              .map(
+                (g) =>
+                  `<button type="button" class="btn-gthumb" data-g="${g.id}" style="border:0;background:none;padding:0;cursor:pointer;flex-shrink:0;border-radius:10px;overflow:hidden" title="${esc(g.desc || "Team photo")}">
+                    <img src="${g.thumb}" alt="${esc(g.desc || "Team photo")}" style="width:110px;height:82px;object-fit:cover;border-radius:10px;border:1px solid var(--line);display:block">
+                  </button>`,
+              )
+              .join("")}
+          </div>
+        </div>`
+      : "";
   const btns = admin
     ? `<div class="chips"><button id="gpset">📷 ${has ? "Change group photo" : "Add group photo"}</button>${has ? '<button id="gprm">Remove</button>' : ""}</div>`
     : "";
-  return `<div class="card"><h2>Team photo</h2>${body}${btns}</div>`;
+  return `<div class="card"><h2>Team photo</h2>${body}${thumbs}${btns}</div>`;
 }
 
 // ---------- Indian hockey: fixtures + news + history ----------
@@ -4824,6 +4844,9 @@ function vMe() {
     $("gpset").onclick = () => pickFiles((f) => setGroupPhoto(f[0]));
   if ($("gprm")) $("gprm").onclick = clearGroupPhoto;
   if ($("gpimg")) $("gpimg").onclick = () => openImg(GPH.img);
+  document
+    .querySelectorAll(".btn-gthumb[data-g]")
+    .forEach((b) => (b.onclick = () => openPhoto(b.dataset.g)));
   if ($("mxe")) $("mxe").onclick = openMatches;
   if ($("nwr"))
     $("nwr").onclick = () => {
@@ -4851,9 +4874,10 @@ async function loadGallery() {
   if (tab === "gallery" && !prof) render();
 }
 const GCATS = [
+  ["match", "🥅", "Match"],
   ["fitness", "🏋️", "Fitness"],
   ["practice", "🏑", "Practice"],
-  ["match", "🥅", "Match"],
+  ["team photo", "📸", "Team photo"],
 ];
 const gcLabel = (k) => {
   const c = GCATS.find((x) => x[0] === k);
@@ -4871,6 +4895,12 @@ function vGallery() {
         `<button type="button" role="tab" aria-selected="${c[0] === galCat}" class="${c[0] === galCat ? "pri" : ""}" data-gc="${c[0]}">${eic(c[1])} ${c[2]} <small>${cnt(c[0])}</small></button>`,
     )
     .join("");
+  const folderNote =
+    galCat === "team photo"
+      ? '<p class="mute" style="margin:8px 0 12px;font-size:0.86rem">🌟 <b>Team Photo Folder</b>: Photos added here are shown on the <b>Public landing page</b> and the <b>Home page</b>.</p>'
+      : galCat === "all"
+        ? '<p class="mute" style="margin:8px 0 12px;font-size:0.86rem">📁 4 folders: <b>Match</b>, <b>Fitness</b>, <b>Practice</b>, and <b>Team photo</b>. Only Team photos are displayed publicly.</p>'
+        : '<p class="mute" style="margin:8px 0 12px;font-size:0.86rem">🔒 Photos in this folder are private to team members only and are not shown publicly.</p>';
   const grid = list.length
     ? `<div class="gal">${list.map((g) => `<figure class="gf"><button class="gi" data-g="${g.id}" aria-label="Open photo${g.desc ? ": " + esc(g.desc) : ""}"><img src="${g.thumb}" alt="${esc(g.desc || "")}" loading="lazy"></button>${g.desc ? `<figcaption>${esc(g.desc)}</figcaption>` : ""}</figure>`).join("")}</div>`
     : empty(
@@ -4880,13 +4910,14 @@ function vGallery() {
             ? galCat === "all"
               ? "No photos yet. Add the first one!"
               : "No " +
-                gcLabel(galCat).split(" ")[1].toLowerCase() +
+                gcLabel(galCat).split(" ").slice(1).join(" ").toLowerCase() +
                 " photos yet."
             : "Loading…"),
       );
   $("view").innerHTML =
-    `<div class="card"><h2>Gallery</h2><p class="mute">Team photos in three sections. Everyone can add photos. Admins can delete any photo; you can edit or delete your own.</p>
-  <div class="chips gtabs" role="tablist" aria-label="Gallery sections">${tabs}</div>
+    `<div class="card"><h2>Gallery</h2><p class="mute">Team gallery organized into 4 folders. Everyone can add photos. Admins can delete any photo; you can edit or delete your own.</p>
+  <div class="chips gtabs" role="tablist" aria-label="Gallery folders">${tabs}</div>
+  ${folderNote}
   <div class="ctl"><button class="pri" id="gadd">📷 Add photos</button>${galErr ? '<button id="gtry">Try again</button>' : ""}</div><p id="gup" class="mute" role="status"></p>${grid}</div>`;
   $("gadd").onclick = openUpload;
   if ($("gtry"))
@@ -4908,7 +4939,7 @@ function vGallery() {
 }
 // section buttons used by both the upload and the edit window
 const catBtns = (cur, id) =>
-  `<div class="chips" id="${id}" role="radiogroup" aria-label="Section">${GCATS.map((c) => `<button type="button" role="radio" aria-checked="${c[0] === cur}" class="${c[0] === cur ? "pri" : ""}" data-pc="${c[0]}">${eic(c[1])} ${c[2]}</button>`).join("")}</div>`;
+  `<div class="chips" id="${id}" role="radiogroup" aria-label="Folder">${GCATS.map((c) => `<button type="button" role="radio" aria-checked="${c[0] === cur}" class="${c[0] === cur ? "pri" : ""}" data-pc="${c[0]}">${eic(c[1])} ${c[2]}</button>`).join("")}</div>`;
 function bindCats(id, get, set) {
   const box = $(id);
   box.querySelectorAll("[data-pc]").forEach(
@@ -4925,10 +4956,10 @@ function bindCats(id, get, set) {
 }
 function openUpload() {
   const d = ensureDlg("upddlg");
-  let cat = galCat === "all" ? "practice" : galCat;
-  d.innerHTML = `<h2>Add photos</h2><p class="mute" style="margin:0 0 6px">Which section?</p>${catBtns(cat, "upc")}
+  let cat = galCat === "all" ? "match" : galCat;
+  d.innerHTML = `<h2>Add photos</h2><p class="mute" style="margin:0 0 6px">Choose folder</p>${catBtns(cat, "upc")}
   <label class="fl">Short description (optional)<input id="upd" maxlength="120" placeholder="e.g. Penalty corner drill" autocomplete="off"></label>
-  <p class="mute" style="margin:0 0 8px">If you pick several photos, they all get this section and description. You can edit each one afterwards.</p>
+  <p class="mute" style="margin:0 0 8px">Choose folder: Match, Fitness, Practice, or Team photo. Only photos in "Team photo" are shown on the public landing page and home page.</p>
   <div class="ctl"><button class="pri" id="upgo">Choose photos</button><button id="upx">Cancel</button></div>`;
   bindCats(
     "upc",

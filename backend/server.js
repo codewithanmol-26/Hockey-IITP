@@ -1764,9 +1764,15 @@ async function nameOf(u) {
   );
 }
 const GAL_MAX = 200,
-  GAL_CATS = ["fitness", "practice", "match"];
-const galCat = (v) => (GAL_CATS.includes(v) ? v : "practice"),
-  galDesc = (v) => str(v, 120).replace(/\s+/g, " ").trim();
+  GAL_CATS = ["match", "fitness", "practice", "team photo"];
+const galCat = (v) => {
+  const norm = String(v || "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .trim();
+  return GAL_CATS.includes(norm) ? norm : "practice";
+};
+const galDesc = (v) => str(v, 120).replace(/\s+/g, " ").trim();
 app.get(
   "/api/gallery",
   h(async (req, res) => {
@@ -2044,14 +2050,19 @@ app.get(
     const [all, gb, gs] = await Promise.all([
       readAll(),
       db.collection("blobs").doc("groupPhoto").get(),
-      db.collection("gallery").orderBy("at", "desc").limit(8).get(),
+      db.collection("gallery").orderBy("at", "desc").limit(30).get(),
     ]);
+    const teamPhotos = gs.docs
+      .filter((d) => galCat(d.data().cat) === "team photo")
+      .map((d) => d.data().thumb)
+      .filter(Boolean)
+      .slice(0, 8);
     const out = {
       team: all.team,
       group: all.group || "",
       matches: all.matches,
       groupPhoto: gb.exists ? gb.data().img || "" : "",
-      gallery: gs.docs.map((d) => d.data().thumb).filter(Boolean),
+      gallery: teamPhotos,
       latest: [],
       upcoming: [],
       playersCount: all.players.filter((p) => !p.removed).length,
