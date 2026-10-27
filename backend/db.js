@@ -571,6 +571,25 @@ class CollectionReference {
       };
     });
 
+    if (this.col === "sessions") {
+      try {
+        const { data: cfgSessions } = await supabase
+          .from("app_config")
+          .select("key, value")
+          .like("key", "session:%");
+        (cfgSessions || []).forEach((row) => {
+          if (row.key && row.key.startsWith("session:")) {
+            const sid = row.key.slice(8);
+            docs.push({
+              id: sid,
+              data: () => ({ r: row.value || {}, ...(row.value || {}) }),
+              ref: this.doc(sid),
+            });
+          }
+        });
+      } catch (_) {}
+    }
+
     return {
       empty: docs.length === 0,
       size: docs.length,
@@ -798,14 +817,26 @@ async function getPlayer(id) {
 }
 
 async function getSessions() {
-  const { data, error } = await supabase
-    .from("sessions")
-    .select("date, r")
-    .order("date", { ascending: true });
-  if (error) throw error;
+  const [{ data: sData, error: sErr }, { data: cfgData }] =
+    await Promise.all([
+      supabase
+        .from("sessions")
+        .select("date, r")
+        .order("date", { ascending: true }),
+      supabase
+        .from("app_config")
+        .select("key, value")
+        .like("key", "session:%"),
+    ]);
+  if (sErr) throw sErr;
   const out = {};
-  (data || []).forEach((row) => {
+  (sData || []).forEach((row) => {
     out[row.date] = row.r || {};
+  });
+  (cfgData || []).forEach((row) => {
+    if (row.key && row.key.startsWith("session:")) {
+      out[row.key.slice(8)] = row.value || {};
+    }
   });
   return out;
 }

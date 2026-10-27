@@ -79,7 +79,9 @@ async function getTeamSessionsSummary() {
       (acc, k) => acc + (legacy[k].days || 0),
       0,
     );
-    const totalWorkingDays = dates.length + legacyDays;
+    const uniqueDates = new Set(dates.map((d) => d.slice(0, 10)));
+    const totalPlayingDays = uniqueDates.size + legacyDays;
+    const totalSessions = dates.length + legacyDays;
 
     const byMonth = {};
     for (const d of dates) {
@@ -91,11 +93,11 @@ async function getTeamSessionsSummary() {
     }
 
     return {
-      totalRecordedSessions: dates.length,
-      totalWorkingDaysOverall: totalWorkingDays,
+      totalRecordedSessions: totalSessions,
+      totalPlayingDays: totalPlayingDays,
       monthlyBreakdown: byMonth,
       notes:
-        "Total recorded sessions is 80: 3 in Nov 2025 (2025-11-10, 2025-11-11, 2025-11-12) and 77 in 2026. On 2026-01-29, the team played twice.",
+        `Total recorded sessions is ${totalSessions} across ${totalPlayingDays} playing days. Total playing days is 1 less than total sessions because on 29 Jan 2026 the team held 2 sessions (Session 1 and Session 2).`,
     };
   } catch (e) {
     return { error: "Team sessions data unavailable" };
@@ -334,7 +336,7 @@ TOPIC GUIDANCE:
    - Share dynamic warm-ups and injury prevention routines.
 3. GROUNDING FOR SCHEDULES & ATTENDANCE:
    - For IIT Patna Hockey specific data, strictly follow the verified Supabase data below:
-     * Total recorded team sessions is 80: 3 in Nov 2025 (2025-11-10, 2025-11-11, 2025-11-12) and 77 in 2026. On 2026-01-29 the team played twice.
+     * For total team sessions and playing days, refer strictly to teamSessions below. Clarify the total sessions count and total playing days, noting that playing days is 1 less than total sessions because on 29 Jan 2026 the team held 2 sessions.
      * For upcoming practice days, refer ONLY to upcomingPlannedDays or weeklyPracticeTimings below. Never guess unannounced dates.
      * For individual player attendance, use ONLY verified playerAttendance. If not logged in, tell them to log in. Players can only see their own attendance.
 

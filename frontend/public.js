@@ -478,12 +478,11 @@ function drawPublic() {
     <section class="pub-sec" id="pub-gallery">
       <div class="sec-header">
         <span class="sec-kicker">TEAM ACTION &amp; MOMENTS</span>
-        <h2 class="sec-title">Team Photo Gallery</h2>
+        <h2 class="sec-title">Team Photo</h2>
         <p class="sec-lead">Captured memories from practice camps, Inter-IIT encounters, and squad milestones.</p>
       </div>
       <div class="gallery-showcase-box">
         ${photos}
-        ${thumbs}
       </div>
     </section>
 

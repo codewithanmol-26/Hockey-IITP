@@ -2688,10 +2688,19 @@ function vStats() {
                 ).length;
                 const isAct = k === selDate;
                 const gText = gIdx ? `Session #${gIdx}` : `Session ${sNum}`;
+                const subTxt = admin
+                  ? totCount
+                    ? `✔ ${prCount}/${totCount} present`
+                    : "Not recorded"
+                  : sData[me] !== undefined
+                    ? sData[me]
+                      ? "✔ Present"
+                      : "✘ Absent"
+                    : "Not recorded";
                 return `
                   <button type="button" class="btn-day-sess ${isAct ? "active pri" : ""}" data-sess-key="${k}">
                     <b>Session ${sNum} ${gIdx ? `(${gText})` : ""}</b>
-                    <small>${totCount ? `✔ ${prCount}/${totCount} present` : "Not recorded"}</small>
+                    <small>${subTxt}</small>
                   </button>
                 `;
               })
