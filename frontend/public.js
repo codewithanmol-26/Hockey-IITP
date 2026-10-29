@@ -171,14 +171,45 @@ async function fetchPublic() {
 }
 
 const DEF_MATCHES = [
-  { d: "2026-11-15", t: "IIT Patna vs IIT BHU", v: "Sports Complex Main Turf" },
+  {
+    d: "2026-11-15",
+    t: "IIT Patna vs IIT BHU",
+    v: "Sports Complex Main Turf",
+    u: "https://www.hockeyindia.org/",
+  },
   {
     d: "2026-11-28",
     t: "Patna Inter-Collegiate Hockey Cup",
     v: "IIT Patna Ground",
+    u: "https://www.hockeyindia.org/",
   },
-  { d: "2026-12-18", t: "Inter-IIT Sports Meet 2026", v: "IIT Delhi Stadium" },
+  {
+    d: "2026-12-18",
+    t: "Inter-IIT Sports Meet 2026",
+    v: "IIT Delhi Stadium",
+    u: "https://www.interiit.com/",
+  },
 ];
+
+function matchUrl(m) {
+  if (m && m.u && /^https?:\/\//i.test(m.u)) return m.u;
+  const t = ((m && m.t) || "").toLowerCase();
+  const v = ((m && m.v) || "").toLowerCase();
+  if (t.includes("inter iit") || v.includes("inter iit") || t.includes("inter-iit")) {
+    return "https://www.interiit.com/";
+  }
+  if (
+    t.includes("new zealand") ||
+    t.includes("australia") ||
+    t.includes("olympic") ||
+    t.includes("pro league") ||
+    t.includes("world cup") ||
+    t.includes("fih")
+  ) {
+    return "https://www.fih.hockey/";
+  }
+  return "https://www.hockeyindia.org/";
+}
 
 const getDLabel = (d) => {
   if (typeof dlabel === "function") return dlabel(d);
@@ -198,7 +229,7 @@ function pubMatches() {
     PUB && PUB.matches && PUB.matches.length
       ? PUB.matches
       : typeof DEFM !== "undefined" && DEFM && DEFM.length
-        ? DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2] }))
+        ? DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2], u: x[3] }))
         : DEF_MATCHES;
   const td =
     typeof today === "function"
@@ -225,17 +256,21 @@ function drawPublic() {
   const fx = pubMatches()
     .map((m) => {
       const dt = new Date(m.d + "T00:00");
-      return `<div class="fx" style="border-radius:14px;background:var(--soft);border:1px solid var(--line);padding:12px;margin-bottom:8px">
+      const url = matchUrl(m);
+      return `<a class="fx fx-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="View details on official portal (opens in new tab)" style="border-radius:14px;background:var(--soft);border:1px solid var(--line);padding:12px;margin-bottom:8px;text-decoration:none">
         <div class="dbx" style="background:var(--navy);color:#fff;border-radius:10px;min-width:48px;padding:6px;text-align:center">
           <b style="font-size:1.15rem;display:block;line-height:1">${dt.getDate()}</b>
           <span style="font-size:0.75rem;text-transform:uppercase;color:#fde68a">${dt.toLocaleDateString("en-IN", { month: "short" })}</span>
         </div>
         <div class="fxi" style="flex:1">
-          <b style="font-size:0.95rem;color:var(--ink)">${esc(m.t)}</b>
+          <div style="display:flex;align-items:center;gap:6px">
+            <b class="fx-title" style="font-size:0.95rem;color:var(--ink)">${esc(m.t)}</b>
+            <span class="fx-arrow" style="font-size:0.85rem;color:var(--brand);font-weight:700">↗</span>
+          </div>
           ${m.v ? `<span class="mute" style="display:block;font-size:0.8rem;margin-top:2px">📍 ${esc(m.v)}</span>` : ""}
         </div>
         <span class="pill ${getDLabel(m.d) === "Today" || getDLabel(m.d) === "Tomorrow" ? "g" : "y"}">${getDLabel(m.d)}</span>
-      </div>`;
+      </a>`;
     })
     .join("");
 
@@ -461,7 +496,10 @@ function drawPublic() {
       </div>
       <div class="ann-fixtures-grid">
         <div class="card" style="margin:0">
-          <h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--ink);margin:0 0 14px">Upcoming Indian Hockey Fixtures</h3>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+            <h3 style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--ink);margin:0">Upcoming Indian Hockey Fixtures</h3>
+            <a href="https://www.hockeyindia.org/" target="_blank" rel="noopener noreferrer" style="font-size:0.82rem;font-weight:700;color:var(--brand);text-decoration:none;display:inline-flex;align-items:center;gap:4px">Official portal ↗</a>
+          </div>
           ${fx || empty("🗓️", "No upcoming fixtures scheduled right now.")}
         </div>
         <div class="card" style="margin:0">

@@ -4666,40 +4666,71 @@ const DEFM = [
     "2026-10-27",
     "India vs Bangladesh",
     "Hero Asian Champions Trophy · Jalandhar · 7:00 PM",
+    "https://www.hockeyindia.org/",
   ],
   [
     "2026-10-29",
     "India vs China",
     "Asian Champions Trophy · Jalandhar · 7:00 PM",
+    "https://www.hockeyindia.org/",
   ],
   [
     "2026-10-30",
     "India vs Japan",
     "Asian Champions Trophy · Jalandhar · 7:00 PM",
+    "https://www.hockeyindia.org/",
   ],
   [
     "2026-11-01",
     "India vs Malaysia",
     "Asian Champions Trophy · Jalandhar · 7:00 PM",
+    "https://www.hockeyindia.org/",
   ],
   [
     "2026-11-02",
     "India vs South Korea",
     "Asian Champions Trophy · Jalandhar · 7:00 PM",
+    "https://www.hockeyindia.org/",
   ],
-  ["2026-11-04", "Asian Champions Trophy semi-finals", "Mohali"],
-  ["2026-11-05", "Asian Champions Trophy final and medal matches", "Mohali"],
-  ["2026-11-19", "New Zealand vs India, Test series match 1", "Auckland"],
-  ["2026-11-21", "New Zealand vs India, Test series match 2", "Auckland"],
-  ["2026-11-22", "New Zealand vs India, Test series match 3", "Auckland"],
+  [
+    "2026-11-04",
+    "Asian Champions Trophy semi-finals",
+    "Mohali",
+    "https://www.hockeyindia.org/",
+  ],
+  [
+    "2026-11-05",
+    "Asian Champions Trophy final and medal matches",
+    "Mohali",
+    "https://www.hockeyindia.org/",
+  ],
+  [
+    "2026-11-19",
+    "New Zealand vs India, Test series match 1",
+    "Auckland",
+    "https://www.fih.hockey/",
+  ],
+  [
+    "2026-11-21",
+    "New Zealand vs India, Test series match 2",
+    "Auckland",
+    "https://www.fih.hockey/",
+  ],
+  [
+    "2026-11-22",
+    "New Zealand vs India, Test series match 3",
+    "Auckland",
+    "https://www.fih.hockey/",
+  ],
   [
     "2026-12-14",
     "59th Inter IIT Hockey Championship starts",
     "IIT Kharagpur · till 21 Dec",
+    "https://www.interiit.com/",
   ],
 ];
 const matchList = () =>
-  (MATCHES || DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2] })))
+  (MATCHES || DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2], u: x[3] })))
     .filter((m) => m.d >= today())
     .sort((a, b) => a.d.localeCompare(b.d));
 const HIST = [
@@ -4764,11 +4795,12 @@ function upCard() {
     .slice(0, 8)
     .map((m) => {
       const dt = new Date(m.d + "T00:00"),
-        dl = dlabel(m.d);
-      return `<div class="fx"><div class="dbx"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString("en-IN", { month: "short" })}</span></div><div class="fxi"><b>${esc(m.t)}</b>${m.v ? `<span class="mute">${esc(m.v)}</span>` : ""}</div><span class="pill ${dl === "Today" || dl === "Tomorrow" ? "g" : ""}">${dl}</span></div>`;
+        dl = dlabel(m.d),
+        url = typeof matchUrl === "function" ? matchUrl(m) : (m.u || "https://www.hockeyindia.org/");
+      return `<a class="fx fx-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="View details on official portal (opens in new tab)"><div class="dbx"><b>${dt.getDate()}</b><span>${dt.toLocaleDateString("en-IN", { month: "short" })}</span></div><div class="fxi"><div style="display:flex;align-items:center;gap:6px"><b class="fx-title">${esc(m.t)}</b><span class="fx-arrow" style="font-size:0.85rem;color:var(--brand);font-weight:700">↗</span></div>${m.v ? `<span class="mute">${esc(m.v)}</span>` : ""}</div><span class="pill ${dl === "Today" || dl === "Tomorrow" ? "g" : ""}">${dl}</span></a>`;
     })
     .join("");
-  return `<div class="card span2"><h2>Upcoming Indian hockey</h2>${rows || empty("🗓️", "No upcoming matches in the list.")}
+  return `<div class="card span2"><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px"><h2>Upcoming Indian hockey</h2><a href="https://www.hockeyindia.org/" target="_blank" rel="noopener noreferrer" class="lnk" style="font-size:0.85rem;font-weight:700;display:inline-flex;align-items:center;gap:4px">Hockey India Portal ↗</a></div>${rows || empty("🗓️", "No upcoming matches in the list.")}
   <h3 class="chh">Match news</h3>${newsBox((NEWS && NEWS.upcoming) || [], "No match news found right now.")}
   ${admin ? '<div class="chips"><button id="mxe">✏️ Edit fixtures</button></div>' : ""}</div>`;
 }
@@ -4780,11 +4812,11 @@ function histCard() {
 }
 function openMatches() {
   const d = ensureDlg("mxdlg"),
-    cur = (MATCHES || DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2] })))
+    cur = (MATCHES || DEFM.map((x) => ({ d: x[0], t: x[1], v: x[2], u: x[3] })))
       .slice()
       .sort((a, b) => a.d.localeCompare(b.d));
-  d.innerHTML = `<h2>Indian hockey fixtures</h2><p class="mute">One per line: <b>YYYY-MM-DD | Match | Place / time</b>. Matches whose date has passed are hidden automatically.</p>
-  <p><textarea id="mxt" rows="10" style="width:100%">${esc(cur.map((m) => [m.d, m.t, m.v].filter((x, i) => i < 2 || x).join(" | ")).join("\n"))}</textarea></p>
+  d.innerHTML = `<h2>Indian hockey fixtures</h2><p class="mute">One per line: <b>YYYY-MM-DD | Match | Place / time | URL (optional)</b>. Matches whose date has passed are hidden automatically.</p>
+  <p><textarea id="mxt" rows="10" style="width:100%">${esc(cur.map((m) => [m.d, m.t, m.v, m.u].filter((x, i) => i < 2 || x).join(" | ")).join("\n"))}</textarea></p>
   <div class="ctl"><button class="pri" id="mxs">Save</button><button id="mxr">Reset to default</button><button id="mxc">Cancel</button></div>`;
   $("mxc").onclick = () => d.close();
   $("mxr").onclick = () => {
@@ -4801,14 +4833,27 @@ function openMatches() {
       .value.split("\n")
       .map((x) => x.trim())
       .filter(Boolean)) {
-      const [dt, t, ...v] = ln.split("|").map((x) => x.trim());
+      const parts = ln.split("|").map((x) => x.trim());
+      const dt = parts[0];
+      const t = parts[1];
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dt || "") || !t)
         return alert(
           "Check this line:\n" +
             ln +
-            "\n\nUse: YYYY-MM-DD | Match | Place / time",
+            "\n\nUse: YYYY-MM-DD | Match | Place / time | URL (optional)",
         );
-      items.push({ d: dt, t, v: v.join(" | ") });
+      let v = "", u = "";
+      if (parts.length >= 4) {
+        u = parts[parts.length - 1];
+        v = parts.slice(2, -1).join(" | ");
+      } else if (parts.length === 3) {
+        if (/^https?:\/\//i.test(parts[2])) {
+          u = parts[2];
+        } else {
+          v = parts[2];
+        }
+      }
+      items.push({ d: dt, t, v, ...(u ? { u } : {}) });
     }
     run(async () => {
       await api("/api/matches", { method: "PUT", body: { items } });

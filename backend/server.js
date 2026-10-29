@@ -1898,6 +1898,7 @@ app.put(
         d: str((i || {}).d, 10),
         t: str((i || {}).t, 100).trim(),
         v: str((i || {}).v, 100).trim(),
+        u: str((i || {}).u, 250).trim(),
       }))
       .filter((i) => /^\d{4}-\d{2}-\d{2}$/.test(i.d) && i.t);
     await db.collection("config").doc("matches").set({ items });
