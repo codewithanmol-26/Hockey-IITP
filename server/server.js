@@ -195,22 +195,68 @@ app.post(
   }),
 );
 
-// Captain & Vice-captain can change their own login code anytime (stored securely in Supabase)
-app.post(
-  "/api/auth/change-code",
-  auth,
-  owner,
-  h(async (req, res) => {
-    const { currentCode, newCode } = req.body || {};
-    const cur = String(currentCode || "").trim();
-    const nw = String(newCode || "").trim();
-    if (!nw || nw.length < 4 || nw.length > 30) {
+// Anyone logged in (Player, Captain, Vice-captain, Admin) can change their own password/code anytime
+const handleChangeCode = async (req, res) => {
+  const u = await who(req);
+  if (!u) return res.status(401).json({ error: "Login required" });
+  if (limited("cc" + (u.role === "player" ? "p:" + u.id : u.role === "admin" ? "a:" + u.id : u.role), 6, 60000)) {
+    return res.status(429).json({ error: "Too many attempts. Wait a minute and try again." });
+  }
+
+  const { currentCode, newCode } = req.body || {};
+  const cur = String(currentCode || "").trim();
+  const nw = String(newCode || "").trim();
+
+  if (!nw || nw.length < 4 || nw.length > 30) {
+    return res
+      .status(400)
+      .json({ error: "New password/code must be between 4 and 30 characters." });
+  }
+  if (cur === nw) {
+    return res
+      .status(400)
+      .json({ error: "New password must be different from current password." });
+  }
+
+  // 1. Player password change
+  if (u.role === "player") {
+    const accRef = db.collection("accounts").doc(u.id);
+    const acc = await accRef.get();
+    if (!acc.exists) {
       return res
-        .status(400)
-        .json({ error: "New code must be between 4 and 30 characters." });
+        .status(404)
+        .json({ error: "No account found for this player. Ask the captain to reset your account." });
+    }
+    const accData = acc.data();
+    const ok = eq(hashCode(cur, accData.salt), accData.hash);
+    if (!ok) {
+      return res.status(401).json({ error: "Current password is incorrect." });
     }
 
-    const role = req.user.role; // 'captain' or 'vice'
+    let ctype = accData.type || "alnum";
+    if (ctype === "numeric" && !/^\d{4,8}$/.test(nw)) {
+      ctype = "alnum"; // allow upgrading from numeric PIN to full alphanumeric password
+    }
+    const bad = codeProblem(ctype, nw);
+    if (bad) return res.status(400).json({ error: bad });
+
+    const salt = crypto.randomBytes(16).toString("hex");
+    await accRef.set({
+      salt,
+      hash: hashCode(nw, salt),
+      created: accData.created || Date.now(),
+      type: ctype,
+    });
+    bust();
+    return res.json({
+      ok: true,
+      message: "Your password has been updated successfully!",
+    });
+  }
+
+  // 2. Captain or Vice-captain code change
+  if (u.role === "captain" || u.role === "vice") {
+    const role = u.role;
     const customCodesDoc = await db
       .collection("config")
       .doc("custom_codes")
@@ -239,12 +285,41 @@ app.post(
 
     await db.collection("config").doc("custom_codes").set(customCodes);
     bust();
-    res.json({
+    return res.json({
       ok: true,
       message: `Your ${role === "captain" ? "Captain" : "Vice-captain"} code has been updated successfully!`,
     });
-  }),
-);
+  }
+
+  // 3. Extra admin code change
+  if (u.role === "admin") {
+    const aDoc = await db.collection("admins").doc(u.id).get();
+    if (!aDoc.exists || aDoc.data().disabled) {
+      return res.status(401).json({ error: "Admin account not found or disabled." });
+    }
+    const ok = eq(hashCode(cur, aDoc.data().salt), aDoc.data().hash);
+    if (!ok) {
+      return res.status(401).json({ error: "Current code is incorrect." });
+    }
+
+    const salt = crypto.randomBytes(16).toString("hex");
+    await db.collection("admins").doc(u.id).update({
+      salt,
+      hash: hashCode(nw, salt),
+    });
+    bust();
+    return res.json({
+      ok: true,
+      message: "Your admin code has been updated successfully!",
+    });
+  }
+
+  return res.status(400).json({ error: "Cannot change password for this role." });
+};
+
+app.post("/api/auth/change-code", h(handleChangeCode));
+app.post("/api/player/change-password", h(handleChangeCode));
+app.post("/api/me/change-code", h(handleChangeCode));
 
 // ---- player accounts: roll number + personal code (first signup checked with an e-mail code) ----
 const normRoll = (v) =>

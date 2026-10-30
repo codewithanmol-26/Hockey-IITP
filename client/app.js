@@ -1661,7 +1661,7 @@ function drawMenu() {
     </div>
     <div class="user-drawer-actions">
       <button type="button" class="btn-drawer-pri" id="btn-draw-prof">👤 View My Profile</button>
-      ${role === "captain" || role === "vice" ? `<button type="button" class="btn-drawer-sec" id="btn-draw-code">🔑 Change Code</button>` : ""}
+      <button type="button" class="btn-drawer-sec" id="btn-draw-code">🔑 ${role === "player" ? "Change Password" : "Change Code"}</button>
     </div>
   </div>`;
 
@@ -1761,7 +1761,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") $("menu").hidden = true;
 });
 
-// ---- change login code (captain / vice-captain) ----
+// ---- change login password / code (player, captain, vice-captain, admin) ----
 function openChangeCode() {
   const dlg = $("codedlg");
   if (!dlg) return;
@@ -1770,7 +1770,56 @@ function openChangeCode() {
   $("newcode2").value = "";
   $("codemsg").textContent = "";
   $("codemsg").className = "err";
+
+  const isPl = role === "player";
+  const title = $("codedlg-title");
+  const sub = $("codedlg-sub");
+  const btn = $("codebtn");
+  const lCur = $("lbl-curcode");
+  const lNw = $("lbl-newcode");
+  const lNw2 = $("lbl-newcode2");
+
+  if (isPl) {
+    if (title) title.textContent = "Change Password";
+    if (sub)
+      sub.textContent =
+        "Set a new password for your account" +
+        (me ? " (" + me + ")" : "") +
+        ". You will use this password next time you log in.";
+    if (btn) btn.textContent = "Save New Password";
+    if (lCur) lCur.textContent = "Current password";
+    if (lNw) lNw.textContent = "New password";
+    if (lNw2) lNw2.textContent = "Confirm new password";
+    $("curcode").placeholder = "Current password";
+    $("newcode").placeholder = "New password (4–30 chars)";
+    $("newcode2").placeholder = "Repeat new password";
+  } else {
+    const rName =
+      role === "captain"
+        ? "Captain"
+        : role === "vice"
+          ? "Vice-captain"
+          : "Admin";
+    if (title) title.textContent = "Change " + rName + " Code";
+    if (sub)
+      sub.textContent =
+        "Set a private code for yourself. You will use this code to log in as " +
+        rName +
+        ".";
+    if (btn) btn.textContent = "Save New Code";
+    if (lCur) lCur.textContent = "Current code";
+    if (lNw) lNw.textContent = "New code";
+    if (lNw2) lNw2.textContent = "Confirm new code";
+    $("curcode").placeholder = "Current code";
+    $("newcode").placeholder = "New code (4–30 chars)";
+    $("newcode2").placeholder = "Repeat new code";
+  }
+
   dlg.showModal();
+  setTimeout(() => {
+    const c = $("curcode");
+    if (c) c.focus();
+  }, 100);
 }
 if ($("codex")) $("codex").onclick = () => $("codedlg").close();
 if ($("codeform")) {
@@ -1783,12 +1832,19 @@ if ($("codeform")) {
     msg.className = "err";
     msg.textContent = "";
 
+    const isPl = role === "player";
+    const term = isPl ? "password" : "code";
+
     if (nw.length < 4 || nw.length > 30) {
-      msg.textContent = "New code must be between 4 and 30 characters.";
+      msg.textContent = "New " + term + " must be between 4 and 30 characters.";
       return;
     }
     if (nw !== nw2) {
-      msg.textContent = "New codes do not match.";
+      msg.textContent = "New " + term + "s do not match.";
+      return;
+    }
+    if (cur === nw) {
+      msg.textContent = "New " + term + " must be different from current " + term + ".";
       return;
     }
     const btn = $("codebtn");
@@ -1800,19 +1856,19 @@ if ($("codeform")) {
         body: { currentCode: cur, newCode: nw },
       });
       msg.className = "ok";
-      msg.textContent = res.message || "Code updated successfully!";
+      msg.textContent = res.message || "Updated successfully!";
       setTimeout(() => {
         $("codedlg").close();
         btn.disabled = false;
-        btn.textContent = "Save New Code";
-        toast(res.message || "Code updated successfully!");
+        btn.textContent = isPl ? "Save New Password" : "Save New Code";
+        toast(res.message || (isPl ? "Password updated successfully!" : "Code updated successfully!"));
       }, 1200);
     } catch (err) {
       msg.className = "err";
       msg.textContent =
-        err.message || "Failed to change code. Check current code.";
+        err.message || ("Failed to change " + term + ". Check current " + term + ".");
       btn.disabled = false;
-      btn.textContent = "Save New Code";
+      btn.textContent = isPl ? "Save New Password" : "Save New Code";
     }
   };
 }
@@ -2357,11 +2413,9 @@ function drawSidebar() {
         <button type="button" class="sb-btn-prof-action pri ${prof ? "active" : ""}" id="sb-btn-view-prof">
           <span>👤 View Profile</span>
         </button>
-        ${
-          role === "captain" || role === "vice"
-            ? `<button type="button" class="sb-btn-prof-action sec" id="sb-btn-code">🔑 Code</button>`
-            : ""
-        }
+        <button type="button" class="sb-btn-prof-action sec" id="sb-btn-code" title="${role === "player" ? "Change your password" : "Change login code"}">
+          <span>🔑 ${role === "player" ? "Password" : "Code"}</span>
+        </button>
       </div>
     </div>
 
@@ -4749,14 +4803,17 @@ function vProfile() {
     h = `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
     <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill g">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill g">🎖️ Vice-captain</span>' : ""}${ADM.some((a) => a.kind === "player" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill g">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
-    ${canPh ? photoBtns(own, photoPath, p.photo, '<button class="pri" id="pedit">✏️ Edit profile</button>') : ""}
+    ${canPh ? photoBtns(own, photoPath, p.photo, `<button class="pri" id="pedit">✏️ Edit profile</button>${own ? '<button class="sec" id="pcode">🔑 Change password</button>' : ""}`) : ""}
     ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
     <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} sessions</p><div class="dots">${dots}</div></div>` : ""}</div></div>
     <div class="card"><h2>Details</h2>${kv("Roll number", esc(p.roll))}${kv("Position", esc(p.position))}${kv("Joined", p.joined ? fmt(p.joined) : "")}
       ${kv("E-mail", p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : "")}${kv("Jersey", jersey)}
-      ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}</div>` : ""}</div></div>`;
+      ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}</div>` : ""}
+      ${own ? `<div class="chips" style="margin-top:12px"><button type="button" class="sec" id="powncode">🔑 Change Password</button></div>` : ""}</div></div>`;
     $("view").innerHTML = h;
     if ($("pedit")) $("pedit").onclick = () => openEdit(p, own);
+    if ($("pcode")) $("pcode").onclick = () => openChangeCode();
+    if ($("powncode")) $("powncode").onclick = () => openChangeCode();
     bindCover("p", id);
     if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath, p.photo);
     if ($("prst"))
@@ -4848,7 +4905,8 @@ function vProfile() {
       acts = `${kv("Role", name)}${kv("Access", "Full: attendance, players, admins")}${own && owner ? `<div class="note" style="margin-top:10px">You are not linked to a player record yet. If you also play, link yourself to get the same profile as the other players. <div class="chips"><button class="pri" id="lkme">🔗 Link my player profile</button></div></div>` : ""}`;
     }
     $("view").innerHTML =
-      `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+      `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, own ? '<button class="sec" id="pcode">🔑 Change code</button>' : "") : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+    if ($("pcode")) $("pcode").onclick = () => openChangeCode();
     if ($("lkme")) $("lkme").onclick = openNames;
     if (k === "s") bindCover("s", id);
     if ($("apv"))
@@ -4909,9 +4967,15 @@ function openEdit(p, own) {
   }
   const f = (id, l, v, o = "") =>
     `<label class="fl">${l}<input id="ed-${id}" value="${esc(v || "")}" ${o}></label>`;
-  d.innerHTML = `<h2>${own ? "Edit my profile" : "Edit " + esc(p.name)}</h2>${f("n", "Name", p.name, 'maxlength="40"')}${own ? "" : f("r", "Roll number", p.roll, 'maxlength="12"')}${f("p", "Position", p.position, 'maxlength="40"')}${f("e", "E-mail", p.email, 'type="email" inputmode="email" maxlength="120"')}${f("jn", "Jersey name", p.jerseyName, 'maxlength="40"')}${f("jo", "Jersey number", p.jerseyNo, 'maxlength="4"')}${f("sz", "Jersey size", p.size, 'maxlength="6"')}${own ? "" : f("j", "Joined date", p.joined, 'type="date"')}
+  d.innerHTML = `<h2>${own ? "Edit my profile" : "Edit " + esc(p.name)}</h2>${f("n", "Name", p.name, 'maxlength="40"')}${own ? "" : f("r", "Roll number", p.roll, 'maxlength="12"')}${f("p", "Position", p.position, 'maxlength="40"')}${f("e", "E-mail", p.email, 'type="email" inputmode="email" maxlength="120"')}${f("jn", "Jersey name", p.jerseyName, 'maxlength="40"')}${f("jo", "Jersey number", p.jerseyNo, 'maxlength="4"')}${f("sz", "Jersey size", p.size, 'maxlength="6"')}${own ? "" : f("j", "Joined date", p.joined, 'type="date"')}${own ? `<div style="margin:14px 0 6px"><button type="button" class="sec full" id="ed-code">🔑 Change Password</button></div>` : ""}
   <div class="ctl"><button class="pri" id="eds">Save</button><button id="edc">Cancel</button></div>`;
   $("edc").onclick = () => d.close();
+  if ($("ed-code")) {
+    $("ed-code").onclick = () => {
+      d.close();
+      openChangeCode();
+    };
+  }
   $("eds").onclick = () => {
     const g = (i) => $("ed-" + i).value.trim();
     if (!g("n")) return alert("Name is required.");
