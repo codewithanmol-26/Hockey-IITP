@@ -906,6 +906,7 @@ let RL = [],
 // ---- all tabs. [id, icon, full name, who sees it (a = admins, o = captain/vice only), short name for the bar] ----
 const TABS = [
   ["me", "🏠", "Home", "", "Home"],
+  ["leaderboard", "🏆", "Leaderboard", "", "Leaderboard"],
   ["take", "✅", "Take attendance", "a", "Take"],
   ["plan", "📅", "Playing days", "", "Days"],
   ["stats", "📊", "Attendance", "", "Stats"],
@@ -919,7 +920,7 @@ const TABS = [
   ["admins", "🛡️", "Admins", "o", ""],
   ["helpbox", "💬", "Help messages", "a", ""],
 ];
-const PRIMARY = ["me", "take", "plan", "stats", "schedule"];
+const PRIMARY = ["me", "leaderboard", "take", "plan", "stats", "schedule"];
 const tabsFor = () =>
   TABS.filter(
     (t) => !t[3] || (t[3] === "a" && admin) || (t[3] === "o" && owner),
@@ -2228,7 +2229,7 @@ function drawSidebar() {
           : "Player";
 
   const allTabs = tabsFor();
-  const mainKeys = ["me", "take", "plan", "stats", "schedule"];
+  const mainKeys = ["me", "leaderboard", "take", "plan", "stats", "schedule"];
   const mainTabs = allTabs.filter((t) => mainKeys.includes(t[0]));
   const trainKeys = ["rules", "warmup", "gallery", "train"];
   const trainTabs = allTabs.filter((t) => trainKeys.includes(t[0]));
@@ -2455,6 +2456,7 @@ function render() {
     ({
       take: vTake,
       me: vMe,
+      leaderboard: vLeaderboard,
       plan: vPlan,
       stats: vStats,
       schedule: vSched,
@@ -3018,17 +3020,78 @@ function vSched() {
   const rows = SCH[sch],
     i = schDay,
     r = rows[i];
-  $("view").innerHTML = `<div class="card"><h2>Weekly practice schedule</h2>
-  <div class="seg2"><button class="${sch === "team" ? "on" : ""}" data-s="team">Team</button><button class="${sch === "gk" ? "on" : ""}" data-s="gk">Goalkeepers</button></div>
-  <div class="week">${rows.map((x, k) => `<button type="button" class="wd ${k === ti ? "today" : ""} ${k === i ? "sel" : ""} ${x[3] ? "" : "rest"}" data-w="${k}" aria-pressed="${k === i}" aria-label="${x[0]}"><b>${DAB[k]}</b><span>${x[3] ? "🏑" : "😴"}</span></button>`).join("")}</div>
-  <div class="dayc ${r[3] ? "" : "rest"} ${i === ti ? "today" : ""}">
-    <div class="dhead"><span class="dbadge">${DAB[i]}</span><span class="dm"><b>${esc(r[1])}</b><small>${r[3] ? "⏰ " + esc(r[3]) : "Rest day"}</small></span>${i === ti ? '<span class="pill g">Today</span>' : ""}</div>
-    <div class="db"><p>${esc(r[2])}</p>
-      <div class="kv"><span>Day</span><b>${r[0]}</b></div><div class="kv"><span>Timing</span><b>${r[3] ? esc(r[3]) : "No session"}</b></div><div class="kv"><span>Next date</span><b>${fmt(nextDateOf(i))}</b></div>
-      ${admin ? `<div class="edit"><label class="fl">Session name<input id="de-t" value="${esc(r[1])}" maxlength="60"></label><label class="fl">Details<input id="de-x" value="${esc(r[2])}" maxlength="200"></label><label class="fl">Timing, e.g. 6:30–8:30 PM (empty = rest day)<input id="de-m" value="${esc(r[3])}" maxlength="30"></label></div>` : ""}
-      <div class="chips"><button data-sh="1">⤴ Share this day</button>${admin ? `<button class="pri" data-sv="1">Save changes</button>${r[3] ? `<button data-nx="1">Schedule next ${r[0]}</button>` : ""}` : ""}</div></div></div>
-  <p class="mute">Tap a day above to see it. Report on time. Timings may shift closer to the tournament based on turf availability and the coach's call. Coach: ${esc(nameOf2("coach"))}.</p>
-  <div class="chips"><button id="wsch">⤴ Share whole week</button><button id="wcal">📅 Add to calendar</button></div></div>`;
+  $("view").innerHTML = `<div class="card sch-container">
+    <div class="sch-header-row">
+      <div>
+        <h2 style="margin:0 0 4px">Weekly practice schedule</h2>
+        <span class="mute" style="font-size:0.84rem">Interactive timetable &amp; drill breakdown for turf training</span>
+      </div>
+      <div class="seg2" style="margin:0">
+        <button class="${sch === "team" ? "on" : ""}" data-s="team">Team</button>
+        <button class="${sch === "gk" ? "on" : ""}" data-s="gk">Goalkeepers</button>
+      </div>
+    </div>
+    <div class="sch-body-grid">
+      <div class="sch-sidebar-pane">
+        <div class="week sch-week-pills">${rows
+          .map(
+            (x, k) =>
+              `<button type="button" class="wd ${k === ti ? "today" : ""} ${k === i ? "sel" : ""} ${x[3] ? "" : "rest"}" data-w="${k}" aria-pressed="${k === i}" aria-label="${x[0]}">
+            <b>${DAB[k]}</b>
+            <span>${x[3] ? "🏑" : "😴"}</span>
+            <small class="wd-timing">${x[3] ? esc(x[3].split("–")[0].trim()) : "Rest"}</small>
+          </button>`,
+          )
+          .join("")}</div>
+        <div class="sch-quick-actions">
+          <button id="wsch" class="sch-act-btn">⤴ Share whole week</button>
+          <button id="wcal" class="sch-act-btn">📅 Add to calendar</button>
+        </div>
+        <p class="mute sch-coach-note">Tap any day to view drills. Report on time. Coach: ${esc(nameOf2("coach"))}. Timings may shift closer to tournaments based on turf availability.</p>
+      </div>
+      <div class="sch-main-pane">
+        <div class="dayc ${r[3] ? "" : "rest"} ${i === ti ? "today" : ""}">
+          <div class="dhead">
+            <span class="dbadge">${DAB[i]}</span>
+            <span class="dm">
+              <b>${esc(r[1])}</b>
+              <small>${r[3] ? "⏰ " + esc(r[3]) : "Rest day"}</small>
+            </span>
+            ${i === ti ? '<span class="pill g">Today</span>' : ""}
+          </div>
+          <div class="db">
+            <p class="sch-day-desc">${esc(r[2])}</p>
+            <div class="sch-kv-grid">
+              <div class="kv"><span>Day</span><b>${r[0]}</b></div>
+              <div class="kv"><span>Timing</span><b>${r[3] ? esc(r[3]) : "No session"}</b></div>
+              <div class="kv"><span>Next date</span><b>${fmt(nextDateOf(i))}</b></div>
+            </div>
+            ${
+              admin
+                ? `<div class="edit sch-edit-box">
+                    <label class="fl">Session name<input id="de-t" value="${esc(r[1])}" maxlength="60"></label>
+                    <label class="fl">Details<input id="de-x" value="${esc(r[2])}" maxlength="200"></label>
+                    <label class="fl">Timing, e.g. 6:30–8:30 PM (empty = rest day)<input id="de-m" value="${esc(r[3])}" maxlength="30"></label>
+                  </div>`
+                : ""
+            }
+            <div class="chips" style="margin-top:12px">
+              <button data-sh="1">⤴ Share this day</button>
+              ${
+                admin
+                  ? `<button class="pri" data-sv="1">Save changes</button>${
+                      r[3]
+                        ? `<button data-nx="1">Schedule next ${r[0]}</button>`
+                        : ""
+                    }`
+                  : ""
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
   $("wsch").onclick = () => shareText(weekMsg(sch), "Weekly schedule");
   $("wcal").onclick = icsDownload;
   document.querySelectorAll("[data-s]").forEach(
@@ -3089,6 +3152,438 @@ function vSched() {
       });
     };
   });
+}
+
+// ---------- SQUAD LEADERBOARD (Physics Wallah / PW Style Gamification) ----------
+// More practice time = more points = top on the leaderboard!
+let lbData = null,
+  lbBusy = false,
+  lbErr = "",
+  lbScope = "all", // "all" | "month" | "streak"
+  lbPos = "all",
+  lbSearch = "",
+  lbHow = false;
+
+async function fetchLeaderboard(fresh) {
+  if (lbBusy) return;
+  lbBusy = true;
+  lbErr = "";
+  try {
+    lbData = await api("/api/leaderboard" + (fresh ? "?fresh=1" : ""));
+  } catch (e) {
+    lbErr = e.message || "Failed to load leaderboard data";
+  }
+  lbBusy = false;
+  if (tab === "leaderboard") vLeaderboard();
+  else if (tab === "me") {
+    const pc = $("home-lb-preview");
+    if (pc) pc.outerHTML = lbPreviewCard();
+  }
+}
+
+function vLeaderboard() {
+  if (!lbData && !lbBusy && !lbErr) {
+    fetchLeaderboard();
+  }
+  if (lbBusy && !lbData) {
+    $("view").innerHTML = `
+      <div class="card lb-container" style="text-align:center;padding:50px 20px">
+        <span style="font-size:2.8rem;display:inline-block;animation:lb-float 1.5s infinite">🏆</span>
+        <h3 style="margin:14px 0 6px;font-family:var(--font-display);font-size:1.25rem">Loading Squad Leaderboard…</h3>
+        <p class="mute" style="margin:0;font-size:0.9rem">Compiling turf practice hours, dedication points, and attendance streaks</p>
+      </div>`;
+    return;
+  }
+  if (lbErr && !lbData) {
+    $("view").innerHTML = `
+      <div class="card lb-container">
+        ${empty("⚠️", esc(lbErr))}
+        <div class="ctl" style="justify-content:center"><button class="pri" id="lb-retry">Retry</button></div>
+      </div>`;
+    const rBtn = $("lb-retry");
+    if (rBtn) rBtn.onclick = () => fetchLeaderboard(true);
+    return;
+  }
+
+  const rawList = (lbData && lbData.leaderboard) || [];
+
+  // Filter by position
+  let list = rawList.slice();
+  if (lbPos !== "all") {
+    list = list.filter((p) => {
+      const pos = (p.position || "").toLowerCase();
+      return pos.includes(lbPos.toLowerCase());
+    });
+  }
+
+  // Filter by search query
+  if (lbSearch.trim()) {
+    const q = lbSearch.trim().toLowerCase();
+    list = list.filter(
+      (p) =>
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.roll && p.roll.toLowerCase().includes(q)),
+    );
+  }
+
+  // Sort according to selected scope
+  if (lbScope === "month") {
+    list.sort(
+      (a, b) =>
+        b.monthPoints - a.monthPoints ||
+        b.monthHours - a.monthHours ||
+        b.monthSessions - a.monthSessions ||
+        a.name.localeCompare(b.name),
+    );
+  } else if (lbScope === "streak") {
+    list.sort(
+      (a, b) =>
+        b.streak - a.streak ||
+        b.maxStreak - a.maxStreak ||
+        b.points - a.points ||
+        a.name.localeCompare(b.name),
+    );
+  } else {
+    // "all"
+    list.sort(
+      (a, b) =>
+        b.points - a.points ||
+        b.hours - a.hours ||
+        b.totalSessions - a.totalSessions ||
+        a.name.localeCompare(b.name),
+    );
+  }
+
+  // Assign scope-specific ranks
+  list.forEach((p, idx) => {
+    p.displayRank = idx + 1;
+  });
+
+  // Find current user's entry
+  const myEntry = rawList.find((p) => p.isMe);
+  const myRank = myEntry
+    ? list.findIndex((p) => p.id === myEntry.id) + 1
+    : 0;
+
+  // Split podium (top 3) vs rest (#4 onwards)
+  const podium = list.slice(0, 3);
+  const rest = list.slice(3);
+
+  const monthName = new Date().toLocaleDateString("en-IN", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const renderPodiumStep = (p, stepNum) => {
+    if (!p) {
+      return `
+        <div class="lb-podium-slot lb-slot-${stepNum}">
+          <div class="lb-pedestal">
+            <span class="lb-pedestal-rank">${stepNum}</span>
+            <span class="lb-pedestal-title">${stepNum === 1 ? "CHAMPION" : stepNum === 2 ? "2ND" : "3RD"}</span>
+          </div>
+        </div>`;
+    }
+    const laurel = stepNum === 1 ? "🥇" : stepNum === 2 ? "🥈" : "🥉";
+    const pts = lbScope === "month" ? p.monthPoints : p.points;
+    const hrs = lbScope === "month" ? p.monthHours : p.hours;
+    const sess = lbScope === "month" ? p.monthSessions : p.totalSessions;
+    const avSize = stepNum === 1 ? 64 : 52;
+
+    return `
+      <div class="lb-podium-slot lb-slot-${stepNum}">
+        <div class="lb-slot-avatar-wrap">
+          ${stepNum === 1 ? '<span class="lb-slot-crown">👑</span>' : ""}
+          ${avatar(p.name, p.photo, avSize)}
+          <span class="lb-slot-laurel">${laurel}</span>
+        </div>
+        <div class="lb-slot-name" title="${esc(p.name)}">${esc(p.name)}</div>
+        <div class="lb-slot-roll">${esc(p.roll || p.id)}</div>
+        <div class="lb-slot-badge-chips">
+          <span class="lb-slot-pts-chip">⭐ ${pts.toLocaleString()} XP</span>
+          <span class="lb-slot-hrs-chip">⏱️ ${hrs} hrs · ${sess} sess</span>
+          ${p.streak >= 2 ? `<span class="pill" style="font-size:0.68rem;padding:1px 6px;background:#fee2e2;color:#991b1b">🔥 ${p.streak} streak</span>` : ""}
+        </div>
+        <div class="lb-pedestal">
+          <span class="lb-pedestal-rank">${stepNum}</span>
+          <span class="lb-pedestal-title">${stepNum === 1 ? "CHAMPION" : stepNum === 2 ? "2ND PLACE" : "3RD PLACE"}</span>
+        </div>
+      </div>
+    `;
+  };
+
+  const renderRow = (p) => {
+    const pts = lbScope === "month" ? p.monthPoints : p.points;
+    const hrs = lbScope === "month" ? p.monthHours : p.hours;
+    const sess = lbScope === "month" ? p.monthSessions : p.totalSessions;
+
+    return `
+      <div class="lb-row ${p.isMe ? "is-me" : ""}">
+        <div class="lb-row-rank">#${p.displayRank}</div>
+        <div class="lb-row-avatar">
+          ${avatar(p.name, p.photo, 40)}
+        </div>
+        <div class="lb-row-info">
+          <div class="lb-row-name">
+            <span>${esc(p.name)}</span>
+            ${p.isMe ? '<span class="pill" style="font-size:0.68rem;background:var(--brand);color:#fff;padding:1px 6px">You</span>' : ""}
+          </div>
+          <div class="lb-row-meta">
+            <span style="font-family:monospace">${esc(p.roll || p.id)}</span>
+            <span>·</span>
+            <span>${esc(p.position || "Player")}</span>
+            <span>·</span>
+            <span class="mute">${p.rate || 0}% att</span>
+          </div>
+        </div>
+        <div class="lb-row-stats">
+          <span class="lb-chip hrs" title="Total Practice Hours">⏱️ ${hrs} hrs</span>
+          <span class="lb-chip pts" title="Leaderboard Points">⭐ ${pts.toLocaleString()} XP</span>
+          ${p.streak >= 2 ? `<span class="lb-chip strk" title="Active Attendance Streak">🔥 ${p.streak}</span>` : ""}
+        </div>
+      </div>
+    `;
+  };
+
+  $("view").innerHTML = `
+    <div class="lb-container">
+      <!-- 1. Hero Header -->
+      <div class="lb-hero">
+        <div class="lb-hero-header">
+          <div class="lb-hero-title-group">
+            <span class="lb-trophy-icon">🏆</span>
+            <div>
+              <h2 class="lb-hero-title">IITP Hockey Leaderboard</h2>
+              <p class="lb-hero-sub">The Wall of Dedication · Practice More, Give More Time, Earn Points &amp; Climb the Board!</p>
+            </div>
+          </div>
+          <button type="button" id="lb-btn-how" class="f-btn" style="background:rgba(255,255,255,0.18);color:#fff;border-radius:10px;padding:6px 14px;font-size:0.82rem;font-weight:700;backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.25)">
+            ${lbHow ? "✕ Hide Rules" : "ℹ️ How Points Work"}
+          </button>
+        </div>
+        <div class="lb-hero-stats">
+          <span class="lb-hero-stat-pill"><b>${lbData.totalSessions || 86}</b> Total Sessions</span>
+          <span class="lb-hero-stat-pill"><b>${Math.round((lbData.totalSessions || 86) * 2)} hrs</b> Turf Practice</span>
+          <span class="lb-hero-stat-pill"><b>${lbData.totalPlayers || 31}</b> Active Players</span>
+          <span class="lb-hero-stat-pill"><b>${lbScope === "month" ? monthName : lbScope === "streak" ? "Streaks" : "All-Time"}</b> Board</span>
+        </div>
+      </div>
+
+      <!-- 2. "How Points Work" Collapsible Card (PW Gamification Explainer) -->
+      ${
+        lbHow
+          ? `
+        <div class="lb-rules-card">
+          <div class="lb-rules-title">
+            <span>⚡ Physics Wallah Style Gamification: How Points Are Earned</span>
+          </div>
+          <div class="lb-rules-grid">
+            <div class="lb-rule-item">
+              <b>⏱️ Time on Field (2 hrs/session)</b>
+              <span>Every turf practice session attended earns <b>100 Points</b> (50 base attendance + 25 pts per full hour on turf).</span>
+            </div>
+            <div class="lb-rule-item">
+              <b>🔥 Consistency Streak Bonus</b>
+              <span>Attend 3+ consecutive sessions for <b>+60 Bonus XP</b>; maintain a 5+ streak for <b>+150 Bonus XP</b>!</span>
+            </div>
+            <div class="lb-rule-item">
+              <b>⚡ Monthly Sprint</b>
+              <span>Switch to "This Month" to see the active monthly race. Fresh chance for any dedicated player to reach #1!</span>
+            </div>
+            <div class="lb-rule-item">
+              <b>🥇 The Top 3 Podium</b>
+              <span>The top 3 dedicated players with the highest practice scores stand on the Gold, Silver, and Bronze pedestals!</span>
+            </div>
+          </div>
+        </div>
+      `
+          : ""
+      }
+
+      <!-- 3. "My Standing" Card (Pinned at the Top) -->
+      ${
+        myEntry
+          ? `
+        <div class="lb-my-card">
+          <div class="lb-my-info">
+            <div class="lb-my-rank-badge">
+              <span class="lb-my-rank-num">#${myRank > 0 ? myRank : myEntry.rank}</span>
+              <span class="lb-my-rank-label">Rank</span>
+            </div>
+            <div class="lb-my-details">
+              <div class="lb-my-name">
+                <span>${esc(myEntry.name)}</span>
+                <span class="pill" style="font-size:0.75rem;background:var(--brand);color:#fff">You</span>
+              </div>
+              <div class="lb-my-sub">
+                ${esc(myEntry.roll || myEntry.id)} · ${esc(myEntry.position || "Player")} · 
+                <b>Top ${Math.max(1, Math.round(((myRank || myEntry.rank) / (lbData.totalPlayers || 31)) * 100))}%</b> of squad
+              </div>
+            </div>
+          </div>
+          <div class="lb-my-stats-group">
+            <div class="lb-my-stat-item">
+              <span class="lb-my-stat-val gold">${(lbScope === "month" ? myEntry.monthPoints : myEntry.points).toLocaleString()} XP</span>
+              <span class="lb-my-stat-label">Total Points</span>
+            </div>
+            <div class="lb-my-stat-item">
+              <span class="lb-my-stat-val">${lbScope === "month" ? myEntry.monthHours : myEntry.hours} hrs</span>
+              <span class="lb-my-stat-label">Time Dedicated</span>
+            </div>
+            <div class="lb-my-stat-item">
+              <span class="lb-my-stat-val">${lbScope === "month" ? myEntry.monthSessions : myEntry.totalSessions}</span>
+              <span class="lb-my-stat-label">Sessions</span>
+            </div>
+            <div class="lb-my-stat-item">
+              <span class="lb-my-stat-val" style="color:#ef4444">🔥 ${myEntry.streak}</span>
+              <span class="lb-my-stat-label">Streak</span>
+            </div>
+          </div>
+        </div>
+      `
+          : `
+        <div class="lb-my-card" style="border-color:var(--line);background:var(--card)">
+          <div class="lb-my-info">
+            <span style="font-size:1.8rem">🛡️</span>
+            <div>
+              <div class="lb-my-name" style="font-size:1rem">Viewing as Staff / Admin</div>
+              <div class="lb-my-sub">Full squad training performance, dedicated hours, and consistency rankings.</div>
+            </div>
+          </div>
+          <button id="lb-refresh-btn" class="f-btn" style="border-radius:10px;padding:6px 12px;background:var(--soft);border:1px solid var(--line);font-size:0.82rem;font-weight:700">↻ Refresh Board</button>
+        </div>
+      `
+      }
+
+      <!-- 4. Controls Card (Tabs & Search/Filter) -->
+      <div class="lb-controls-card">
+        <div class="lb-scope-tabs">
+          <button type="button" class="lb-scope-btn ${lbScope === "all" ? "active" : ""}" data-lbs="all">🏆 All-Time Titans</button>
+          <button type="button" class="lb-scope-btn ${lbScope === "month" ? "active" : ""}" data-lbs="month">⚡ This Month (${monthName.split(" ")[0]})</button>
+          <button type="button" class="lb-scope-btn ${lbScope === "streak" ? "active" : ""}" data-lbs="streak">🔥 Streak Champions</button>
+        </div>
+        <div class="lb-filter-row">
+          <input type="text" id="lb-search" class="lb-search-input" placeholder="🔍 Search player name or roll number..." value="${esc(lbSearch)}">
+          <select id="lb-pos" class="lb-pos-select">
+            <option value="all" ${lbPos === "all" ? "selected" : ""}>All Positions</option>
+            <option value="Forward" ${lbPos === "Forward" ? "selected" : ""}>Forwards</option>
+            <option value="Midfielder" ${lbPos === "Midfielder" ? "selected" : ""}>Midfielders</option>
+            <option value="Defender" ${lbPos === "Defender" ? "selected" : ""}>Defenders</option>
+            <option value="Goalkeeper" ${lbPos === "Goalkeeper" ? "selected" : ""}>Goalkeepers</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 5. The Top 3 Podium (PW Signature Gamification) -->
+      ${
+        list.length >= 1 && !lbSearch.trim() && lbPos === "all"
+          ? `
+        <div class="lb-podium-card">
+          <div class="lb-podium-title">
+            <span>🎖️ TOP 3 DEDICATED PLAYERS · PODIUM</span>
+          </div>
+          <div class="lb-podium">
+            ${renderPodiumStep(podium[1], 2)}
+            ${renderPodiumStep(podium[0], 1)}
+            ${renderPodiumStep(podium[2], 3)}
+          </div>
+        </div>
+      `
+          : ""
+      }
+
+      <!-- 6. Full Rankings List -->
+      <div class="lb-list-card">
+        <div class="lb-list-header">
+          <h3>${!lbSearch.trim() && lbPos === "all" ? "Squad Rankings (#4 downwards)" : "Rankings Results"}</h3>
+          <span class="lb-list-count">${!lbSearch.trim() && lbPos === "all" ? rest.length : list.length} players</span>
+        </div>
+        <div class="lb-list">
+          ${
+            (!lbSearch.trim() && lbPos === "all" ? rest : list)
+              .map(renderRow)
+              .join("") ||
+            empty("🔍", "No players match your search filter.")
+          }
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Bind Events
+  const howBtn = $("lb-btn-how");
+  if (howBtn) {
+    howBtn.onclick = () => {
+      lbHow = !lbHow;
+      vLeaderboard();
+    };
+  }
+
+  const refBtn = $("lb-refresh-btn");
+  if (refBtn) {
+    refBtn.onclick = () => fetchLeaderboard(true);
+  }
+
+  document.querySelectorAll("[data-lbs]").forEach((b) => {
+    b.onclick = () => {
+      lbScope = b.dataset.lbs;
+      vLeaderboard();
+    };
+  });
+
+  const searchInput = $("lb-search");
+  if (searchInput) {
+    searchInput.oninput = (e) => {
+      lbSearch = e.target.value;
+      vLeaderboard();
+    };
+  }
+
+  const posSelect = $("lb-pos");
+  if (posSelect) {
+    posSelect.onchange = (e) => {
+      lbPos = e.target.value;
+      vLeaderboard();
+    };
+  }
+}
+
+function lbPreviewCard() {
+  const top = (lbData && lbData.leaderboard) || [];
+  const top3 = top.slice(0, 3);
+  if (!top3.length) {
+    return `<div id="home-lb-preview" class="card" style="margin-bottom:14px;cursor:pointer" onclick="go('leaderboard')">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h2 style="margin:0;display:flex;align-items:center;gap:8px">🏆 Squad Leaderboard</h2>
+        <span class="pill" style="font-size:0.78rem;background:var(--brand);color:#fff">Open Leaderboard ↗</span>
+      </div>
+      <p class="mute" style="margin:6px 0 0;font-size:0.86rem">Track training hours, attendance points, and compete on the podium.</p>
+    </div>`;
+  }
+  return `
+    <div id="home-lb-preview" class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <h2 style="margin:0;display:flex;align-items:center;gap:8px">🏆 Squad Leaderboard <span class="pill g" style="font-size:0.75rem">Top Dedicated</span></h2>
+        <button class="pri" style="font-size:0.82rem;padding:5px 12px;border-radius:10px" data-go="leaderboard">View Full Board ↗</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px">
+        ${top3
+          .map(
+            (p, idx) => `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:var(--soft);border:1px solid var(--line)">
+            <span style="font-size:1.3rem">${idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</span>
+            ${avatar(p.name, p.photo, 38)}
+            <div style="min-width:0;flex:1">
+              <b style="display:block;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</b>
+              <span class="mute" style="font-size:0.75rem">${p.hours} hrs · ${p.points.toLocaleString()} XP</span>
+            </div>
+          </div>
+        `,
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
 }
 
 const RULES = [
@@ -4867,6 +5362,7 @@ function openMatches() {
 // ---------- HOME TAB (no attendance figures here; they are on the Attendance tab) ----------
 function vMe() {
   fetchNews();
+  fetchLeaderboard();
   const first = esc((WHO || "").split(" ")[0] || "there"),
     mine = pl ? P.find((x) => x.id === me) : null;
   const sub = pl
@@ -4881,9 +5377,9 @@ function vMe() {
         ? "Vice-captain"
         : "Admin";
   $("view").innerHTML = `${welcomeHero()}
-  ${annCard()}${featTiles()}${teamCard()}
+  ${annCard()}${featTiles()}${lbPreviewCard()}${teamCard()}
   ${gphCard()}
-  <div class="grid">${upCard()}${newsCard()}${histCard()}</div>`;
+  <div class="grid home-cards-grid">${upCard()}${newsCard()}${histCard()}</div>`;
   bindHome();
   bindAnn();
   heroCover();

@@ -589,9 +589,12 @@ app.delete(
 // ---- reading data ----
 let cache = null,
   cacheAt = 0;
+let lbCache = null,
+  lbAt = 0;
 const bust = () => {
   cache = null;
   pubCache = null;
+  lbCache = null;
 };
 let lastGood = null;
 async function readAll(fresh) {
@@ -2058,12 +2061,43 @@ app.get(
       .map((d) => d.data().thumb)
       .filter(Boolean)
       .slice(0, 8);
+
+    // Compute top dedicated players summary for public showcase
+    const sks = Object.keys(all.sessions || {});
+    const activeP = (all.players || []).filter((p) => !p.removed);
+    const pScores = activeP.map((p) => {
+      let count = 0;
+      for (const sk of sks) {
+        if (all.sessions[sk] && all.sessions[sk][p.id]) count++;
+      }
+      for (const m in all.legacy || {}) {
+        if (all.legacy[m] && all.legacy[m].att && all.legacy[m].att[p.id]) {
+          count += all.legacy[m].att[p.id] || 0;
+        }
+      }
+      const hrs = Math.round(count * 2.0 * 10) / 10;
+      const pts = count * 50 + Math.round(hrs * 25);
+      return {
+        name: p.name,
+        position: p.position || "Player",
+        photo: p.photo || "",
+        sessions: count,
+        hours: hrs,
+        points: pts,
+      };
+    });
+    pScores.sort((a, b) => b.points - a.points || b.hours - a.hours);
+    pScores.forEach((p, idx) => {
+      p.rank = idx + 1;
+    });
+
     const out = {
       team: all.team,
       group: all.group || "",
       matches: all.matches,
       groupPhoto: gb.exists ? gb.data().img || "" : "",
       gallery: teamPhotos,
+      leaderboardTop: pScores.slice(0, 5),
       latest: [],
       upcoming: [],
       playersCount: all.players.filter((p) => !p.removed).length,
@@ -2081,6 +2115,158 @@ app.get(
     pubCache = out;
     pubAt = Date.now();
     res.json(out);
+  }),
+);
+
+// ---- Leaderboard (Gamified ranking system like PW online platform) ----
+// Who gives more time -> earns more points -> top in leaderboard!
+app.get(
+  "/api/leaderboard",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+
+    const myId = u.id || "";
+    const myPid = u.playerId || "";
+
+    const fresh = req.query.fresh === "1";
+    if (!fresh && lbCache && Date.now() - lbAt < 15000) {
+      const annotated = lbCache.leaderboard.map((p) => ({
+        ...p,
+        isMe:
+          p.id === myId ||
+          (myPid && p.id === myPid) ||
+          (p.roll && (p.roll === myId || p.roll === myPid)),
+      }));
+      return res.json({
+        ...lbCache,
+        leaderboard: annotated,
+        myId: myPid || myId,
+      });
+    }
+
+    const all = await readAll(fresh);
+    const sessionKeys = Object.keys(all.sessions || {}).sort();
+    const curMon = new Date().toISOString().slice(0, 7);
+    const activePlayers = (all.players || []).filter((p) => !p.removed);
+
+    const stats = {};
+    for (const p of activePlayers) {
+      stats[p.id] = {
+        id: p.id,
+        name: p.name || p.id,
+        roll: p.roll || p.id,
+        position: p.position || "Player",
+        photo: p.photo || "",
+        sessions: 0,
+        legacy: 0,
+        curStreak: 0,
+        maxStreak: 0,
+        monthSessions: 0,
+      };
+    }
+
+    // Historical legacy attendance
+    for (const m in all.legacy || {}) {
+      const att = (all.legacy[m] && all.legacy[m].att) || {};
+      for (const pid in att) {
+        if (stats[pid]) {
+          stats[pid].legacy += att[pid] || 0;
+        }
+      }
+    }
+
+    // Regular sessions attendance
+    for (const sk of sessionKeys) {
+      const isThisMon = sk.startsWith(curMon);
+      const sess = all.sessions[sk] || {};
+      for (const pid in stats) {
+        const attended = Boolean(sess[pid]);
+        if (attended) {
+          stats[pid].sessions++;
+          if (isThisMon) stats[pid].monthSessions++;
+          stats[pid].curStreak++;
+          if (stats[pid].curStreak > stats[pid].maxStreak) {
+            stats[pid].maxStreak = stats[pid].curStreak;
+          }
+        } else {
+          stats[pid].curStreak = 0;
+        }
+      }
+    }
+
+    // Active current streak (tracing back from the latest session)
+    for (const pid in stats) {
+      let streak = 0;
+      for (let i = sessionKeys.length - 1; i >= 0; i--) {
+        const sk = sessionKeys[i];
+        if (all.sessions[sk] && all.sessions[sk][pid]) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+      stats[pid].streak = streak;
+
+      const totalSessions = stats[pid].sessions + stats[pid].legacy;
+      // 2.0 hours per practice session on turf
+      const hours = Math.round(totalSessions * 2.0 * 10) / 10;
+      // PW consistency streak bonus: +60 pts for 3+ streak, +150 pts for 5+ streak
+      const streakBonus =
+        stats[pid].streak >= 5 ? 150 : stats[pid].streak >= 3 ? 60 : 0;
+      // 50 pts base per session + 25 pts per hour dedicated + streak bonus
+      const points = totalSessions * 50 + Math.round(hours * 25) + streakBonus;
+
+      const monthHours = Math.round(stats[pid].monthSessions * 2.0 * 10) / 10;
+      const monthPoints =
+        stats[pid].monthSessions * 50 +
+        Math.round(monthHours * 25) +
+        (stats[pid].streak >= 3 ? 50 : 0);
+
+      stats[pid].totalSessions = totalSessions;
+      stats[pid].hours = hours;
+      stats[pid].points = points;
+      stats[pid].monthHours = monthHours;
+      stats[pid].monthPoints = monthPoints;
+      stats[pid].rate = Math.round(
+        (totalSessions / (sessionKeys.length || 1)) * 100,
+      );
+    }
+
+    const list = Object.values(stats);
+    list.sort(
+      (a, b) =>
+        b.points - a.points ||
+        b.hours - a.hours ||
+        b.totalSessions - a.totalSessions ||
+        a.name.localeCompare(b.name),
+    );
+    list.forEach((p, idx) => {
+      p.rank = idx + 1;
+    });
+
+    lbCache = {
+      ok: true,
+      totalSessions: sessionKeys.length,
+      totalPlayers: activePlayers.length,
+      curMon,
+      leaderboard: list,
+    };
+    lbAt = Date.now();
+
+    const annotated = list.map((p) => ({
+      ...p,
+      isMe:
+        p.id === myId ||
+        (myPid && p.id === myPid) ||
+        (p.roll && (p.roll === myId || p.roll === myPid)),
+    }));
+
+    res.json({
+      ...lbCache,
+      leaderboard: annotated,
+      myId: myPid || myId,
+    });
   }),
 );
 // Captain / vice-captain set the names shown on the public page, and which player record is the captain's / vice-captain's own
