@@ -982,24 +982,29 @@ nav button.on::after {
   background: var(--soft);
 }
 
-/* ---------- Change Code Dialog ---------- */
+/* ---------- Change Code / Password Dialog ---------- */
 #codedlg {
-  max-width: 400px;
-  width: 90vw;
-  border-radius: 18px;
-  padding: 22px;
+  max-width: 440px;
+  width: 92vw;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  border-radius: 20px;
+  padding: 24px 20px;
   border: 1px solid var(--line);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
   background: var(--card);
   color: var(--ink);
+  box-sizing: border-box;
 }
 #codedlg h2 {
   margin: 0 0 6px 0;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
 }
 #codedlg p.mute {
   font-size: 0.85rem;
   margin-bottom: 14px;
+  line-height: 1.4;
 }
 #codedlg .fl {
   display: flex;
@@ -1016,9 +1021,49 @@ nav button.on::after {
   background: var(--soft);
   color: var(--ink);
   font-size: 0.95rem;
+  box-sizing: border-box;
+  width: 100%;
 }
 #codedlg .fl input:focus {
   outline: 2px solid var(--brand);
+}
+#codedlg .seg {
+  margin: 6px 0 12px;
+}
+#codedlg .seg button {
+  font-size: 0.8rem;
+  padding: 8px 6px;
+}
+#codedlg .pat-box {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 10px;
+  margin: 6px 0 10px;
+  text-align: center;
+}
+#codedlg .pat-box .pat {
+  margin: 4px auto 8px;
+  background: var(--card);
+}
+#codedlg .pat-acts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px auto 0;
+  width: min(240px, 100%);
+}
+#codedlg .pat-stat {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--brand);
+}
+#codedlg .chg-hint {
+  font-size: 0.78rem;
+  color: var(--mute);
+  margin-top: 4px;
+  line-height: 1.35;
 }
 #codedlg .ctl {
   display: flex;

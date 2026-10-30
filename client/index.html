@@ -27,8 +27,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap"
     rel="stylesheet">
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
-  <link rel="preload" href="style.css?v=64" as="style">
-  <link rel="stylesheet" href="style.css?v=64">
+  <link rel="preload" href="style.css?v=65" as="style">
+  <link rel="stylesheet" href="style.css?v=65">
 </head>
 
 <body>
@@ -194,19 +194,7 @@
   <dialog id="avdlg"></dialog>
   <dialog id="pdlg"></dialog>
   <dialog id="codedlg" aria-labelledby="codedlg-title">
-    <h2 id="codedlg-title">Change Password</h2>
-    <p class="mute" id="codedlg-sub">Set a new password for your account.</p>
-    <form id="codeform" autocomplete="off">
-      <label class="fl"><span id="lbl-curcode">Current password</span><input id="curcode" type="password" placeholder="Current password"
-          autocomplete="current-password" required></label>
-      <label class="fl"><span id="lbl-newcode">New password</span><input id="newcode" type="password" placeholder="At least 4 characters" minlength="4"
-          maxlength="30" autocomplete="new-password" required></label>
-      <label class="fl"><span id="lbl-newcode2">Confirm new password</span><input id="newcode2" type="password" placeholder="Repeat new password" minlength="4"
-          maxlength="30" autocomplete="new-password" required></label>
-      <p id="codemsg" class="err" role="alert"></p>
-      <div class="ctl"><button type="submit" class="pri" id="codebtn">Save New Password</button><button type="button"
-          id="codex">Cancel</button></div>
-    </form>
+    <div id="codedlg-body"></div>
   </dialog>
 
   <div id="fatal" hidden
@@ -236,12 +224,12 @@
     })();
   </script>
   <script src="config.js"></script>
-  <script src="icons.js?v=64"></script>
-  <script src="public.js?v=64"></script>
+  <script src="icons.js?v=65"></script>
+  <script src="public.js?v=65"></script>
   <script src="extras.js"></script>
   <script src="help.js"></script>
-  <script src="app.js?v=64"></script>
-  <script src="chat.js?v=64"></script>
+  <script src="app.js?v=65"></script>
+  <script src="chat.js?v=65"></script>
 </body>
 
 </html>

@@ -1067,6 +1067,7 @@ function logout() {
   ANN = [];
   annAll = false;
   lbData = null;
+  myCodeType = "alnum";
 
   // Close all open dialogs & menus
   document.querySelectorAll("dialog[open]").forEach((d) => {
@@ -1158,6 +1159,7 @@ function useData(d, force) {
   admin = ["captain", "vice", "admin"].includes(role);
   pl = role === "player";
   me = d.me || "";
+  myCodeType = d.codeType || "alnum";
   owner = role === "captain" || role === "vice";
   WHO =
     d.name ||
@@ -1761,116 +1763,364 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") $("menu").hidden = true;
 });
 
-// ---- change login password / code (player, captain, vice-captain, admin) ----
+// ---- change login password / PIN / pattern / code ----
+let myCodeType = "alnum";
+let changeNewType = "alnum";
+
 function openChangeCode() {
   const dlg = $("codedlg");
-  if (!dlg) return;
-  $("curcode").value = "";
-  $("newcode").value = "";
-  $("newcode2").value = "";
-  $("codemsg").textContent = "";
-  $("codemsg").className = "err";
+  const body = $("codedlg-body");
+  if (!dlg || !body) return;
 
   const isPl = role === "player";
-  const title = $("codedlg-title");
-  const sub = $("codedlg-sub");
-  const btn = $("codebtn");
-  const lCur = $("lbl-curcode");
-  const lNw = $("lbl-newcode");
-  const lNw2 = $("lbl-newcode2");
+  changeNewType = isPl ? myCodeType || "alnum" : "alnum";
 
-  if (isPl) {
-    if (title) title.textContent = "Change Password";
-    if (sub)
-      sub.textContent =
-        "Set a new password for your account" +
-        (me ? " (" + me + ")" : "") +
-        ". You will use this password next time you log in.";
-    if (btn) btn.textContent = "Save New Password";
-    if (lCur) lCur.textContent = "Current password";
-    if (lNw) lNw.textContent = "New password";
-    if (lNw2) lNw2.textContent = "Confirm new password";
-    $("curcode").placeholder = "Current password";
-    $("newcode").placeholder = "New password (4–30 chars)";
-    $("newcode2").placeholder = "Repeat new password";
-  } else {
-    const rName =
-      role === "captain"
-        ? "Captain"
-        : role === "vice"
-          ? "Vice-captain"
-          : "Admin";
-    if (title) title.textContent = "Change " + rName + " Code";
-    if (sub)
-      sub.textContent =
-        "Set a private code for yourself. You will use this code to log in as " +
-        rName +
-        ".";
-    if (btn) btn.textContent = "Save New Code";
-    if (lCur) lCur.textContent = "Current code";
-    if (lNw) lNw.textContent = "New code";
-    if (lNw2) lNw2.textContent = "Confirm new code";
-    $("curcode").placeholder = "Current code";
-    $("newcode").placeholder = "New code (4–30 chars)";
-    $("newcode2").placeholder = "Repeat new code";
-  }
-
-  dlg.showModal();
-  setTimeout(() => {
-    const c = $("curcode");
-    if (c) c.focus();
-  }, 100);
-}
-if ($("codex")) $("codex").onclick = () => $("codedlg").close();
-if ($("codeform")) {
-  $("codeform").onsubmit = async (e) => {
-    e.preventDefault();
-    const cur = $("curcode").value.trim();
-    const nw = $("newcode").value.trim();
-    const nw2 = $("newcode2").value.trim();
-    const msg = $("codemsg");
-    msg.className = "err";
-    msg.textContent = "";
-
-    const isPl = role === "player";
-    const term = isPl ? "password" : "code";
-
-    if (nw.length < 4 || nw.length > 30) {
-      msg.textContent = "New " + term + " must be between 4 and 30 characters.";
-      return;
+  const renderCurInput = (type) => {
+    if (type === "pattern") {
+      return `
+        <div class="fl">
+          <span class="chg-lbl">Current Pattern</span>
+          <p class="mute" style="margin:0 0 6px;font-size:0.8rem">Draw your current pattern to verify it's you.</p>
+          <div class="pat-box">
+            <div class="pat" id="chg-cur-pad"></div>
+            <div class="pat-acts">
+              <button type="button" class="ghost2" id="chg-cur-clr">Clear pattern</button>
+              <span class="pat-stat mute" id="chg-cur-stat"></span>
+            </div>
+          </div>
+          <input id="curcode" type="hidden" required>
+        </div>
+      `;
     }
-    if (nw !== nw2) {
-      msg.textContent = "New " + term + "s do not match.";
-      return;
+    if (type === "numeric") {
+      return `
+        <label class="fl">
+          <span class="chg-lbl">Current PIN</span>
+          <input id="curcode" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Current 4-8 digit PIN" autocomplete="current-password" required>
+        </label>
+      `;
     }
-    if (cur === nw) {
-      msg.textContent = "New " + term + " must be different from current " + term + ".";
-      return;
+    return `
+      <label class="fl">
+        <span class="chg-lbl">Current password</span>
+        <input id="curcode" type="password" placeholder="Current password" autocomplete="current-password" required>
+      </label>
+    `;
+  };
+
+  const renderNewInputs = (type) => {
+    if (type === "pattern") {
+      return `
+        <div class="fl">
+          <span class="chg-lbl">New Pattern Lock</span>
+          <p class="mute" style="margin:0 0 4px;font-size:0.8rem">Draw new pattern connecting at least 4 dots.</p>
+          <div class="pat-box">
+            <div class="pat" id="chg-new-pad"></div>
+            <div class="pat-acts">
+              <button type="button" class="ghost2" id="chg-new-clr">Clear</button>
+              <span class="pat-stat mute" id="chg-new-stat"></span>
+            </div>
+          </div>
+          <input id="newcode" type="hidden">
+        </div>
+        <div class="fl" style="margin-top:6px">
+          <span class="chg-lbl">Confirm New Pattern</span>
+          <p class="mute" style="margin:0 0 4px;font-size:0.8rem">Draw the same pattern again to confirm.</p>
+          <div class="pat-box">
+            <div class="pat" id="chg-conf-pad"></div>
+            <div class="pat-acts">
+              <button type="button" class="ghost2" id="chg-conf-clr">Clear</button>
+              <span class="pat-stat mute" id="chg-conf-stat"></span>
+            </div>
+          </div>
+          <input id="newcode2" type="hidden">
+        </div>
+      `;
     }
-    const btn = $("codebtn");
-    btn.disabled = true;
-    btn.textContent = "Saving...";
-    try {
-      const res = await api("/api/auth/change-code", {
-        method: "POST",
-        body: { currentCode: cur, newCode: nw },
+    if (type === "numeric") {
+      return `
+        <label class="fl">
+          <span class="chg-lbl">New PIN (4 to 8 digits)</span>
+          <input id="newcode" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="4 to 8 digits" autocomplete="new-password" required>
+        </label>
+        <label class="fl">
+          <span class="chg-lbl">Confirm New PIN</span>
+          <input id="newcode2" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Repeat 4 to 8 digits" autocomplete="new-password" required>
+        </label>
+        <div class="chg-hint">💡 Numeric PIN can be 4 to 8 digits.</div>
+      `;
+    }
+    return `
+      <label class="fl">
+        <span class="chg-lbl">New Password</span>
+        <input id="newcode" type="password" placeholder="Any characters: letters, numbers, symbols (4–30 chars)" maxlength="30" autocomplete="new-password" required>
+      </label>
+      <label class="fl">
+        <span class="chg-lbl">Confirm New Password</span>
+        <input id="newcode2" type="password" placeholder="Repeat new password" maxlength="30" autocomplete="new-password" required>
+      </label>
+      <div class="chg-hint">💡 Accepts any character type: letters, numbers, symbols, spaces, or punctuation (4–30 characters).</div>
+    `;
+  };
+
+  const btnLabel = (type) =>
+    type === "pattern"
+      ? "Save New Pattern"
+      : type === "numeric"
+        ? "Save New PIN"
+        : isPl
+          ? "Save New Password"
+          : "Save New Code";
+
+  const renderDialog = () => {
+    let h = "";
+    if (isPl) {
+      h = `
+        <h2 id="codedlg-title">Change Password / Credentials</h2>
+        <p class="mute" id="codedlg-sub">Update credentials for roll <b>${esc(me || "Player")}</b>. You can choose any security type: alphanumeric password, numeric PIN, or pattern lock.</p>
+        <form id="codeform" autocomplete="off">
+          <div id="chg-cur-wrap">
+            ${renderCurInput(myCodeType)}
+          </div>
+          <div class="fl" style="margin-top:14px">
+            <span class="chg-lbl">Choose New Security Type</span>
+            <div class="seg" id="chg-pty">
+              <button type="button" data-t="alnum" class="${changeNewType === "alnum" ? "on" : ""}">Alphanumeric</button>
+              <button type="button" data-t="numeric" class="${changeNewType === "numeric" ? "on" : ""}">Numeric PIN</button>
+              <button type="button" data-t="pattern" class="${changeNewType === "pattern" ? "on" : ""}">Pattern Lock</button>
+            </div>
+          </div>
+          <div id="chg-new-wrap">
+            ${renderNewInputs(changeNewType)}
+          </div>
+          <p id="codemsg" class="err" role="alert"></p>
+          <div class="ctl">
+            <button type="submit" class="pri" id="codebtn">${btnLabel(changeNewType)}</button>
+            <button type="button" id="codex">Cancel</button>
+          </div>
+        </form>
+      `;
+    } else {
+      const rName =
+        role === "captain"
+          ? "Captain"
+          : role === "vice"
+            ? "Vice-captain"
+            : "Admin";
+      h = `
+        <h2 id="codedlg-title">Change ${rName} Code</h2>
+        <p class="mute" id="codedlg-sub">Set a private code for your ${rName} account. Accepts any characters, numbers, or symbols.</p>
+        <form id="codeform" autocomplete="off">
+          <label class="fl">
+            <span class="chg-lbl">Current code</span>
+            <input id="curcode" type="password" placeholder="Current login code" autocomplete="current-password" required>
+          </label>
+          <label class="fl">
+            <span class="chg-lbl">New code</span>
+            <input id="newcode" type="password" placeholder="New code (4 to 30 characters)" minlength="4" maxlength="30" autocomplete="new-password" required>
+          </label>
+          <label class="fl">
+            <span class="chg-lbl">Confirm new code</span>
+            <input id="newcode2" type="password" placeholder="Repeat new code" minlength="4" maxlength="30" autocomplete="new-password" required>
+          </label>
+          <p id="codemsg" class="err" role="alert"></p>
+          <div class="ctl">
+            <button type="submit" class="pri" id="codebtn">Save New Code</button>
+            <button type="button" id="codex">Cancel</button>
+          </div>
+        </form>
+      `;
+    }
+    body.innerHTML = h;
+    bindDialogEvents();
+  };
+
+  const bindDialogEvents = () => {
+    if ($("codex")) $("codex").onclick = () => dlg.close();
+
+    // Bind current pattern pad if needed
+    if (myCodeType === "pattern" && $("chg-cur-pad")) {
+      patternPad($("chg-cur-pad"), (v) => {
+        const cur = $("curcode");
+        if (cur) cur.value = v;
+        const st = $("chg-cur-stat");
+        if (st) st.textContent = v ? `Pattern drawn (${v.split("-").length} dots)` : "";
       });
-      msg.className = "ok";
-      msg.textContent = res.message || "Updated successfully!";
-      setTimeout(() => {
-        $("codedlg").close();
-        btn.disabled = false;
-        btn.textContent = isPl ? "Save New Password" : "Save New Code";
-        toast(res.message || (isPl ? "Password updated successfully!" : "Code updated successfully!"));
-      }, 1200);
-    } catch (err) {
-      msg.className = "err";
-      msg.textContent =
-        err.message || ("Failed to change " + term + ". Check current " + term + ".");
-      btn.disabled = false;
-      btn.textContent = isPl ? "Save New Password" : "Save New Code";
+      if ($("chg-cur-clr")) {
+        $("chg-cur-clr").onclick = () => {
+          const curPad = $("chg-cur-pad");
+          if (curPad && curPad.clear) curPad.clear();
+          const cur = $("curcode");
+          if (cur) cur.value = "";
+          const st = $("chg-cur-stat");
+          if (st) st.textContent = "";
+        };
+      }
+    }
+
+    // Bind segmented buttons for new type
+    const pty = $("chg-pty");
+    if (pty) {
+      pty.onclick = (e) => {
+        const b = e.target.closest("button[data-t]");
+        if (!b) return;
+        changeNewType = b.dataset.t;
+        pty.querySelectorAll("button").forEach((btn) => btn.classList.toggle("on", btn === b));
+        const newWrap = $("chg-new-wrap");
+        if (newWrap) newWrap.innerHTML = renderNewInputs(changeNewType);
+        const codeBtn = $("codebtn");
+        if (codeBtn) codeBtn.textContent = btnLabel(changeNewType);
+        const msg = $("codemsg");
+        if (msg) msg.textContent = "";
+        bindNewInputs();
+      };
+    }
+
+    bindNewInputs();
+
+    // Form submit
+    const form = $("codeform");
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const msg = $("codemsg");
+        if (msg) {
+          msg.className = "err";
+          msg.textContent = "";
+        }
+        const cur = ($("curcode") ? $("curcode").value : "").trim();
+        const nw = ($("newcode") ? $("newcode").value : "").trim();
+        const nw2 = ($("newcode2") ? $("newcode2").value : "").trim();
+
+        if (!cur) {
+          if (msg) msg.textContent = myCodeType === "pattern" ? "Please draw your current pattern." : "Please enter your current credential.";
+          return;
+        }
+
+        if (changeNewType === "pattern") {
+          if (!nw || nw.split("-").length < 4) {
+            if (msg) msg.textContent = "Draw a new pattern connecting at least 4 dots.";
+            return;
+          }
+          if (!nw2) {
+            if (msg) msg.textContent = "Draw the confirm pattern to confirm.";
+            return;
+          }
+          if (nw !== nw2) {
+            if (msg) msg.textContent = "Patterns do not match. Try drawing again.";
+            return;
+          }
+        } else if (changeNewType === "numeric") {
+          if (!/^\d{4,8}$/.test(nw)) {
+            if (msg) msg.textContent = "PIN must be between 4 and 8 digits.";
+            return;
+          }
+          if (nw !== nw2) {
+            if (msg) msg.textContent = "PINs do not match.";
+            return;
+          }
+        } else {
+          if (nw.length < 4 || nw.length > 30) {
+            if (msg) msg.textContent = "New password must be between 4 and 30 characters (any letters, numbers, symbols).";
+            return;
+          }
+          if (nw !== nw2) {
+            if (msg) msg.textContent = "Passwords do not match.";
+            return;
+          }
+        }
+
+        if (cur === nw) {
+          if (msg) msg.textContent = "New credentials must be different from current ones.";
+          return;
+        }
+
+        const btn = $("codebtn");
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Saving...";
+        }
+
+        try {
+          const res = await api("/api/auth/change-code", {
+            method: "POST",
+            body: { currentCode: cur, newCode: nw, ctype: changeNewType },
+          });
+          myCodeType = res.codeType || changeNewType;
+          if (msg) {
+            msg.className = "ok";
+            msg.textContent = res.message || "Updated successfully!";
+          }
+          setTimeout(() => {
+            dlg.close();
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = btnLabel(changeNewType);
+            }
+            toast(res.message || "Updated successfully!");
+          }, 1200);
+        } catch (err) {
+          if (msg) {
+            msg.className = "err";
+            msg.textContent = err.message || "Failed to update. Check current credential.";
+          }
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = btnLabel(changeNewType);
+          }
+        }
+      };
     }
   };
+
+  const bindNewInputs = () => {
+    if (changeNewType === "pattern") {
+      const newPad = $("chg-new-pad");
+      if (newPad) {
+        patternPad(newPad, (v) => {
+          const n = $("newcode");
+          if (n) n.value = v;
+          const st = $("chg-new-stat");
+          if (st) st.textContent = v ? `Pattern drawn (${v.split("-").length} dots)` : "";
+        });
+      }
+      if ($("chg-new-clr")) {
+        $("chg-new-clr").onclick = () => {
+          if (newPad && newPad.clear) newPad.clear();
+          const n = $("newcode");
+          if (n) n.value = "";
+          const st = $("chg-new-stat");
+          if (st) st.textContent = "";
+        };
+      }
+      const confPad = $("chg-conf-pad");
+      if (confPad) {
+        patternPad(confPad, (v) => {
+          const n2 = $("newcode2");
+          if (n2) n2.value = v;
+          const st = $("chg-conf-stat");
+          if (st) st.textContent = v ? `Pattern drawn (${v.split("-").length} dots)` : "";
+        });
+      }
+      if ($("chg-conf-clr")) {
+        $("chg-conf-clr").onclick = () => {
+          if (confPad && confPad.clear) confPad.clear();
+          const n2 = $("newcode2");
+          if (n2) n2.value = "";
+          const st = $("chg-conf-stat");
+          if (st) st.textContent = "";
+        };
+      }
+    } else if (changeNewType === "numeric") {
+      const nc = $("newcode");
+      if (nc) nc.oninput = (e) => (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8));
+      const nc2 = $("newcode2");
+      if (nc2) nc2.oninput = (e) => (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8));
+    }
+  };
+
+  renderDialog();
+  dlg.showModal();
 }
 
 // ---- add students (captain / admin) ----

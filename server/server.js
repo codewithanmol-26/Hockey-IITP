@@ -203,22 +203,11 @@ const handleChangeCode = async (req, res) => {
     return res.status(429).json({ error: "Too many attempts. Wait a minute and try again." });
   }
 
-  const { currentCode, newCode } = req.body || {};
+  const { currentCode, newCode, ctype } = req.body || {};
   const cur = String(currentCode || "").trim();
   const nw = String(newCode || "").trim();
 
-  if (!nw || nw.length < 4 || nw.length > 30) {
-    return res
-      .status(400)
-      .json({ error: "New password/code must be between 4 and 30 characters." });
-  }
-  if (cur === nw) {
-    return res
-      .status(400)
-      .json({ error: "New password must be different from current password." });
-  }
-
-  // 1. Player password change
+  // 1. Player password/credential change (supports Alphanumeric, Numeric PIN, or Pattern lock)
   if (u.role === "player") {
     const accRef = db.collection("accounts").doc(u.id);
     const acc = await accRef.get();
@@ -230,32 +219,49 @@ const handleChangeCode = async (req, res) => {
     const accData = acc.data();
     const ok = eq(hashCode(cur, accData.salt), accData.hash);
     if (!ok) {
-      return res.status(401).json({ error: "Current password is incorrect." });
+      const curType = accData.type || "alnum";
+      const curLabel = curType === "pattern" ? "Current pattern" : curType === "numeric" ? "Current PIN" : "Current password";
+      return res.status(401).json({ error: `${curLabel} is incorrect.` });
     }
 
-    let ctype = accData.type || "alnum";
-    if (ctype === "numeric" && !/^\d{4,8}$/.test(nw)) {
-      ctype = "alnum"; // allow upgrading from numeric PIN to full alphanumeric password
-    }
-    const bad = codeProblem(ctype, nw);
+    const newType = CODE_TYPES.includes(ctype) ? ctype : (accData.type || "alnum");
+    const bad = codeProblem(newType, nw);
     if (bad) return res.status(400).json({ error: bad });
+
+    if (cur === nw) {
+      return res
+        .status(400)
+        .json({ error: "New credentials must be different from current ones." });
+    }
 
     const salt = crypto.randomBytes(16).toString("hex");
     await accRef.set({
       salt,
       hash: hashCode(nw, salt),
       created: accData.created || Date.now(),
-      type: ctype,
+      type: newType,
     });
     bust();
+    const typeLabel = newType === "pattern" ? "Pattern lock" : newType === "numeric" ? "PIN" : "Password";
     return res.json({
       ok: true,
-      message: "Your password has been updated successfully!",
+      message: `Your ${typeLabel} has been updated successfully!`,
+      codeType: newType,
     });
   }
 
   // 2. Captain or Vice-captain code change
   if (u.role === "captain" || u.role === "vice") {
+    if (!nw || nw.length < 4 || nw.length > 30) {
+      return res
+        .status(400)
+        .json({ error: "New code must be between 4 and 30 characters." });
+    }
+    if (cur === nw) {
+      return res
+        .status(400)
+        .json({ error: "New code must be different from current code." });
+    }
     const role = u.role;
     const customCodesDoc = await db
       .collection("config")
@@ -293,6 +299,16 @@ const handleChangeCode = async (req, res) => {
 
   // 3. Extra admin code change
   if (u.role === "admin") {
+    if (!nw || nw.length < 4 || nw.length > 30) {
+      return res
+        .status(400)
+        .json({ error: "New code must be between 4 and 30 characters." });
+    }
+    if (cur === nw) {
+      return res
+        .status(400)
+        .json({ error: "New code must be different from current code." });
+    }
     const aDoc = await db.collection("admins").doc(u.id).get();
     if (!aDoc.exists || aDoc.data().disabled) {
       return res.status(401).json({ error: "Admin account not found or disabled." });
@@ -320,6 +336,21 @@ const handleChangeCode = async (req, res) => {
 app.post("/api/auth/change-code", h(handleChangeCode));
 app.post("/api/player/change-password", h(handleChangeCode));
 app.post("/api/me/change-code", h(handleChangeCode));
+app.get(
+  "/api/me/code-type",
+  h(async (req, res) => {
+    const u = await who(req);
+    if (!u) return res.status(401).json({ error: "Login required" });
+    if (u.role === "player") {
+      const acc = await db.collection("accounts").doc(u.id).get().catch(() => null);
+      return res.json({
+        role: "player",
+        codeType: (acc && acc.exists ? acc.data().type : "alnum") || "alnum",
+      });
+    }
+    return res.json({ role: u.role, codeType: "alnum" });
+  }),
+);
 
 // ---- player accounts: roll number + personal code (first signup checked with an e-mail code) ----
 const normRoll = (v) =>
@@ -732,6 +763,8 @@ app.get(
     }
     const me = p.id,
       mine = all.players.find((x) => x.id === me);
+    const acc = await db.collection("accounts").doc(me).get().catch(() => null);
+    const codeType = (acc && acc.exists ? acc.data().type : "alnum") || "alnum";
     const sessions = {};
     for (const d in all.sessions)
       sessions[d] = { [me]: Boolean(all.sessions[d][me]) };
@@ -750,6 +783,7 @@ app.get(
     res.json({
       role: "player",
       me,
+      codeType,
       name: mine ? mine.name : "",
       players: mine ? [mine] : [],
       sessions,
