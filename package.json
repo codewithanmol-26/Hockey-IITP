@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "node backend/server.js",
-    "dev": "node --env-file=.env backend/server.js",
+    "start": "node server/server.js",
+    "dev": "node --env-file=.env server/server.js",
     "vapid": "npx web-push generate-vapid-keys"
   },
   "engines": {

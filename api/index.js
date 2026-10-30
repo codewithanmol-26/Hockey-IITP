@@ -1,2 +1,2 @@
-// Vercel runs this file as the backend. The real code lives in backend/server.js
-module.exports = require("../backend/server.js");
+// Vercel runs this file as the backend. The real code lives in server/server.js
+module.exports = require("../server/server.js");

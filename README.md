@@ -1,8 +1,8 @@
 # IITP Hockey Attendance
 
-    frontend/   the web pages (index.html, style.css, app.js, config.js)
-    backend/    the server code (server.js) + seed.json (team list from the register)
-    api/        tiny file that lets Vercel run the backend
+    client/     the web app frontend (index.html, style.css, app.js, config.js)
+    server/     the backend server code (server.js, db.js, chatbot.js)
+    api/        serverless entrypoint for Vercel deployment
     vercel.json, package.json, .env.example
 
 ## 1. Supabase (PostgreSQL Database & Storage)
@@ -39,7 +39,7 @@ Test the backend alone: open `https://YOUR-SITE.vercel.app/api/health` - you sho
 - **Health log:** Training tab > _My health log_: type in steps, distance, sleep, calories, height and weight by hand (the smartwatch connection was removed in v20).
 - **Login for the app itself:** after login, Home shows personal details and feature shortcuts.
   Players: roll number + their own code. Captain / Vice-captain / Admin: **Captain / Admin** tab.
-- **Install as an app:** _Install app_ on the login page or in the ⋮ menu (Chrome/Edge/Android). On iPhone: Safari > Share > Add to Home Screen. The icons are in `frontend/icons/`.
+- **Install as an app:** _Install app_ on the login page or in the ⋮ menu (Chrome/Edge/Android). On iPhone: Safari > Share > Add to Home Screen. The icons are in `client/icons/`.
 - **⋮ menu** lists every tab plus tools: Add students, WhatsApp template (admins), Alerts on/off, calendar file, Install, Hockey WhatsApp group, Log out. Each option appears once.
 - **Admins** (Admins tab, captain/vice only): add with a name and code. Admins log in with _Admin_ + their name + code. A switch turns an admin's access on or off at once, _Remove_ deletes them.
 - **Removed students** (admin tab): _Remove_ in Players only hides a student (they are logged out, attendance history is kept). _Restore_ brings them back with the same login code. _Delete forever_ erases them.
@@ -67,14 +67,14 @@ Supabase PostgreSQL layout:
   No SMS/OTP provider is needed. 10 wrong contact numbers lock that roll number; the captain presses **Reset code** in the Players tab to unlock it or when a player forgets the code.
 - A player login can only read that player's own data, never take attendance or edit anything.
 - Contact numbers, e-mails and jersey details are visible only to the captain, vice-captain and admins (and to the player for their own record).
-- ⋮ > **Add students**: one student, paste many lines as `Name, Roll no, Contact`, or **Import jersey form list** (backend/jersey.json).
+- ⋮ > **Add students**: one student, paste many lines as `Name, Roll no, Contact`, or **Import jersey form list** (server/jersey.json).
 
 ## WhatsApp, template, alerts
 
 - **WhatsApp buttons** open WhatsApp with the message ready; pick the hockey group and press send (WhatsApp has no free way to post to a group automatically).
   Attendance: after saving, or the _Send on WhatsApp_ button. Playing day: _WhatsApp_ on each row of Playing days. Weekly schedule: Schedule tab.
 - **Message template** (captain/admin, ⋮ menu or Schedule tab): editable text with {day} {date} {time} {venue} {session} {note}. Shared by all admins.
-- **Hockey WhatsApp group** link: any admin can change it in the app (⋮ > Edit group link). It is saved in `config/group`; `frontend/config.js` (WA_GROUP) is only the fallback.
+- **Hockey WhatsApp group** link: any admin can change it in the app (⋮ > Edit group link). It is saved in `config/group`; `client/config.js` (WA_GROUP) is only the fallback.
 - **Alerts on/off** (⋮ menu, for everyone): a notification 15 minutes before each fixed playing day that has a time. It works while the app is open or in a background tab. This one only fires while the app is open; for closed-app notifications use **Push** below. On iPhone, notifications only work after Share > Add to Home Screen and opening from the home screen.
 - **Add schedule to calendar** (⋮ menu): downloads an .ics file of upcoming fixed days with a built-in 15-minute reminder. This is the reliable option, it works with the app closed.
 - New Firestore data: `accounts/<roll>`, `signupTries/<roll>`, `config/template`. Players gain optional fields contact, email, size, jerseyName, jerseyNo.
@@ -92,7 +92,7 @@ The codes live only in the server's environment variables, not in the web page.
 
 ## Day-wise attendance (10 Nov 2025 to 13 Oct 2026)
 
-Taken from the WhatsApp group screenshots and stored in `backend/seed.json` under `sessions` (75 days). On a fresh install _Import team_ loads it. On an existing site open **Players** and press **Replace with day-wise attendance** (or **Re-apply register data** once it is loaded). It overwrites the attendance saved for those dates, deletes the old monthly totals that are now day-wise (Nov 2025, Jan to Apr, Jul, Sep 2026), adds the people below and merges J Sathwik's duplicate record.
+Taken from the WhatsApp group screenshots and stored in `server/seed.json` under `sessions` (75 days). On a fresh install _Import team_ loads it. On an existing site open **Players** and press **Replace with day-wise attendance** (or **Re-apply register data** once it is loaded). It overwrites the attendance saved for those dates, deletes the old monthly totals that are now day-wise (Nov 2025, Jan to Apr, Jul, Sep 2026), adds the people below and merges J Sathwik's duplicate record.
 
 - **Aug 2026** is still partly monthly: 1 day is missing from the screenshots, so a 1-day monthly total holds it until it is sent.
 - **Removed students** (attended but left the team): Rishabh, Krishna Mule, Vipin, Pradeep, Tarun, Abhishek Raj Kumar, David Pratap Singh, Rajiv Karn, Purushottam, Karthik and Jangiti Sathwik Kumar (2501CS31, also listed as "Sathwik CS", "Sathwik Kumar", "J Sathwik"). Only the days they were present are stored. Team turnout figures count current players only.
@@ -212,7 +212,7 @@ No command line needed: open the app > ⋮ menu > **Set up push notifications**.
 
 ## v21
 
-- **Icons instead of text.** One set of outline icons (`frontend/icons.js`). The bottom bar, header and menu use icons; short action buttons (Save, Edit, Delete, Share, Copy, Add, Retry, Cancel ...) are icon-only, with the word kept as the tooltip and for screen readers. Longer buttons keep their words with an icon in front. To change which word becomes which icon, edit the `_ONLY` and `_EMO` tables at the top of `icons.js`.
+- **Icons instead of text.** One set of outline icons (`client/icons.js`). The bottom bar, header and menu use icons; short action buttons (Save, Edit, Delete, Share, Copy, Add, Retry, Cancel ...) are icon-only, with the word kept as the tooltip and for screen readers. Longer buttons keep their words with an icon in front. To change which word becomes which icon, edit the `_ONLY` and `_EMO` tables at the top of `icons.js`.
 - **Back arrows, not crosses.** Every dialog and the login page have a back arrow at the top-left; pages opened from the menu have a back arrow in the header. The only cross left closes the menu panel.
 - **Photo cropper:** rotate left / right buttons; the zoom slider and pinch zoom are gone.
 - **Home:** the lower "Next playing day" card is removed (the top card shows it).

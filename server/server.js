@@ -33,7 +33,7 @@ app.use(
   cors({ origin: ALLOWED_ORIGIN === "*" ? true : ALLOWED_ORIGIN.split(",") }),
 );
 app.use(
-  express.static(require("path").join(__dirname, "../frontend"), {
+  express.static(require("path").join(__dirname, "../client"), {
     maxAge: "1d",
     setHeaders: (res, path) => {
       if (path.endsWith("sw.js")) {
@@ -41,7 +41,7 @@ app.use(
       }
     },
   }),
-); // used when running locally; Vercel serves the frontend itself
+); // used when running locally; Vercel serves the client itself
 app.use(express.json({ limit: "2mb" }));
 app.use((req, res, next) =>
   initError
