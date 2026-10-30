@@ -31,6 +31,16 @@ function bindSix(id, onFull) {
     ins.forEach((x) => (x.value = ""));
     ins[0].focus();
   };
+  box.fill = (from, digits) => fill(from, digits);
+  box.onpaste = (e) => {
+    e.preventDefault();
+    const d = (
+      (e.clipboardData || window.clipboardData).getData("text") || ""
+    )
+      .replace(/\D/g, "")
+      .slice(0, 6);
+    if (d) fill(0, d);
+  };
   ins.forEach((el, i) => {
     el.oninput = () => {
       const d = el.value.replace(/\D/g, "");

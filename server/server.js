@@ -554,16 +554,105 @@ app.post(
       hs: hourStart,
       sends: sends + 1,
     });
+
+    const host =
+      req.headers["x-forwarded-host"] ||
+      req.headers.host ||
+      "hockey-iitp.anmol.website";
+    const proto =
+      req.headers["x-forwarded-proto"] || (req.secure ? "https" : "https");
+    const appUrl = `${proto}://${host}`;
+    const autoFillUrl = `${appUrl}/?roll=${encodeURIComponent(pl.id)}&otp=${encodeURIComponent(code)}`;
+
+    const escH = (s) =>
+      String(s ?? "").replace(
+        /[&<>"']/g,
+        (c) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[c],
+      );
+
+    const emailSubject = `Your Verification Code: ${code} - IITP Hockey`;
+    const emailText =
+      `IIT Patna Hockey - Player Verification\n\n` +
+      `Hello ${pl.name || "Player"},\n\n` +
+      `Your 6-digit verification code is:\n` +
+      `>>> ${code} <<<\n\n` +
+      `Tap or copy the code above and paste it into the app.\n\n` +
+      `Or open this link to auto-fill your code directly:\n` +
+      `${autoFillUrl}\n\n` +
+      `This code is valid for 10 minutes. If you did not request this, please ignore this email.`;
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="margin:0;padding:24px 12px;background:#f0f4f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 12px 36px rgba(4,15,27,0.08);border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:linear-gradient(135deg, #071a2e 0%, #0b2a4a 55%, #0f4aa8 100%);padding:28px 24px;text-align:center;">
+              <div style="font-size:12px;letter-spacing:2px;font-weight:800;color:#facc15;text-transform:uppercase;margin-bottom:4px;">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div>
+              <h1 style="margin:0;font-size:24px;color:#ffffff;font-weight:900;letter-spacing:-0.5px;">🏑 IITP Hockey Squad</h1>
+              <div style="font-size:13px;color:#cbd5e1;margin-top:6px;">Player Verification &amp; Account Setup</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 24px 20px;">
+              <h2 style="margin:0 0 10px;font-size:18px;color:#0b2a4a;font-weight:700;">Hello ${escH(pl.name || "Player")},</h2>
+              <p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#475569;">
+                Use the 6-digit verification code below to verify your email and complete your squad account setup for roll number <b>${escH(pl.id)}</b>.
+              </p>
+
+              <!-- OTP Code Display Card with One-Tap Copy -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px dashed #0f4aa8;border-radius:16px;margin:20px 0;">
+                <tr>
+                  <td style="padding:22px 16px;text-align:center;">
+                    <span style="display:block;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px;">Your 6-Digit OTP Code</span>
+                    <div style="font-family:'Courier New',Courier,monospace;font-size:40px;letter-spacing:12px;font-weight:900;color:#0b2a4a;padding:4px 0;user-select:all;-webkit-user-select:all;display:inline-block;">
+                      ${code}
+                    </div>
+                    <div style="font-size:12px;color:#0f4aa8;font-weight:600;margin-top:8px;">
+                      📋 Tap or double-click to select and copy
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- 1-Click Auto Fill Action Button -->
+              <div style="text-align:center;margin:24px 0 18px;">
+                <a href="${autoFillUrl}" target="_blank" style="display:inline-block;background:#0f4aa8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 26px;border-radius:12px;box-shadow:0 4px 14px rgba(15,74,168,0.35);">
+                  🚀 Open App &amp; Paste Code Automatically
+                </a>
+              </div>
+
+              <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#64748b;text-align:center;">
+                Or return to the IITP Hockey portal and click the <b>📋 Paste code</b> button next to the 6 code boxes.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.4;">
+                ⏰ This code is valid for <b>10 minutes</b>. If you did not request this code, no action is needed.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
     try {
       await sendEmail(
         email,
-        "Your Email verification code for IITP Hockey",
-        "Your sign-up code is " +
-          code +
-          ". It works for 10 minutes. If you did not ask for it, ignore this e-mail.",
-        '<div style="font-family:Arial,sans-serif;max-width:420px"><h2 style="margin:0 0 8px">IITP Hockey</h2><p>Your sign-up code is</p><p style="font-size:32px;letter-spacing:6px;font-weight:700;margin:8px 0">' +
-          code +
-          '</p><p style="color:#555">It works for 10 minutes. If you did not ask for it, ignore this e-mail.</p></div>',
+        emailSubject,
+        emailText,
+        emailHtml,
       );
     } catch (e) {
       if (cur.exists) await ref.set(c).catch(() => {});

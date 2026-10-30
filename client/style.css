@@ -4479,6 +4479,32 @@ nav .i .svgi {
 .hb .mbtn .svgi {
   color: #fff;
 }
+.otp-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.btn-paste-otp {
+  background: var(--soft);
+  color: var(--brand);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+.btn-paste-otp:hover {
+  background: color-mix(in srgb, var(--brand) 15%, var(--soft));
+  border-color: var(--brand);
+  color: var(--ink);
+}
 .six {
   display: flex;
   gap: 8px;
@@ -4486,11 +4512,11 @@ nav .i .svgi {
   margin: 8px 0;
 }
 .six input {
-  width: 46px;
-  height: 54px;
+  width: min(46px, 12.5vw);
+  height: 52px;
   padding: 0;
   text-align: center;
-  font-size: 1.5rem;
+  font-size: 1.45rem;
   font-weight: 700;
   border: 2px solid var(--ic-line);
   border-radius: 10px;

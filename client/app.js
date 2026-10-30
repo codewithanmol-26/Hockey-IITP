@@ -1101,8 +1101,68 @@ function logout() {
   showPublic();
   window.scrollTo(0, 0);
 }
+
+function handleUrlAuthParams() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const roll = (params.get("roll") || "").trim().toUpperCase();
+    const otp = (params.get("otp") || "").trim().replace(/\D/g, "").slice(0, 6);
+    if (!roll && !otp) return;
+
+    if (window.history && window.history.replaceState) {
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+
+    showLogin();
+
+    if (roll) {
+      const pr = $("pr");
+      if (pr) pr.value = roll;
+    }
+
+    if (roll) {
+      setTimeout(async () => {
+        try {
+          const r = await api("/api/player/check", {
+            method: "POST",
+            body: { roll },
+          });
+          if (!r.hasAccount) {
+            pOtp(r.emailHint || "your email", 60);
+            if (otp) {
+              setTimeout(() => {
+                const box = $("po");
+                if (box && box.fill) {
+                  box.fill(0, otp);
+                  toast("Verification code filled from email link!");
+                }
+              }, 120);
+            }
+          } else {
+            pForm(true, r);
+          }
+        } catch (e) {
+          if ($("pe")) $("pe").textContent = e.message || "Failed to check roll number.";
+        }
+      }, 150);
+    } else if (otp) {
+      setTimeout(() => {
+        const box = $("po");
+        if (box && box.fill) {
+          box.fill(0, otp);
+          toast("Verification code filled!");
+        }
+      }, 120);
+    }
+  } catch (err) {
+    console.error("handleUrlAuthParams error:", err);
+  }
+}
+
 function boot() {
   pushAuto();
+  handleUrlAuthParams();
   if (!token) return showPublic();
   const c = cacheLoad();
   if (c) {
@@ -1475,11 +1535,54 @@ function pOtp(sentTo, wait) {
   pStep = "otp";
   $("pa").innerHTML =
     `<p class="note">We sent a 6 digit code to <b>${esc(sentTo)}</b>. It works for 10 minutes. Look in spam or junk if you cannot see it.</p>
-  <div class="fl">Code from the e-mail${sixBox("po")}</div>
+  <div class="fl">
+    <div class="otp-header-row">
+      <span>Code from the e-mail</span>
+      <button type="button" class="btn-paste-otp" id="btn-paste-otp" title="Paste 6-digit code from clipboard">📋 Paste code</button>
+    </div>
+    ${sixBox("po")}
+  </div>
   <div class="fl">Security type<div class="seg" id="pty">${CTYPES.map((t) => `<button type="button" data-t="${t[0]}" class="${t[0] === pType ? "on" : ""}">${t[1]}</button>`).join("")}</div></div>
   <div id="pcw">${codeInput(pType, "new")}</div>
   <button class="pri big" id="plg">Create account &amp; log in</button><button type="button" id="presend" disabled>Send the code again</button>`;
   bindCode(pType);
+  bindSix("po");
+
+  const pasteBtn = $("btn-paste-otp");
+  if (pasteBtn) {
+    pasteBtn.onclick = async (e) => {
+      e.preventDefault();
+      try {
+        let text = "";
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          text = await navigator.clipboard.readText();
+        } else {
+          text = prompt("Paste your 6-digit verification code:") || "";
+        }
+        const digits = (text || "").replace(/\D/g, "").slice(0, 6);
+        if (!digits) {
+          toast("No digits found in clipboard. Please copy your 6-digit code.");
+          return;
+        }
+        const box = $("po");
+        if (box && box.fill) {
+          box.fill(0, digits);
+          toast("Code pasted!");
+        }
+      } catch (err) {
+        const fallback = prompt("Paste your 6-digit verification code:");
+        if (fallback) {
+          const digits = fallback.replace(/\D/g, "").slice(0, 6);
+          const box = $("po");
+          if (box && box.fill && digits) {
+            box.fill(0, digits);
+            toast("Code pasted!");
+          }
+        }
+      }
+    };
+  }
+
   $("pty").onclick = (e) => {
     const b = e.target.closest("button[data-t]");
     if (!b) return;
