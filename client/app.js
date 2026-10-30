@@ -946,12 +946,28 @@ const go = (t) => {
 const empty = (e, t) =>
   `<div class="empty"><span class="e">${e}</span>${t}</div>`;
 
-// ---- screens: login page first, then the app ----
+// ---- screens: public page by default, login popup on demand, then the app ----
 function showLogin() {
-  $("app").hidden = true;
-  $("pub").hidden = true;
-  $("login").hidden = false;
-  $("menu").hidden = true;
+  const appEl = $("app");
+  if (appEl) {
+    appEl.hidden = true;
+    appEl.style.setProperty("display", "none", "important");
+  }
+  const pubEl = $("pub");
+  if (pubEl) {
+    pubEl.hidden = false;
+    pubEl.style.display = "";
+  }
+  const lgEl = $("login");
+  if (lgEl) {
+    lgEl.hidden = false;
+    lgEl.style.display = "grid";
+  }
+  const m = $("menu");
+  if (m) m.hidden = true;
+  const pd = $("pub-drawer");
+  if (pd) pd.hidden = true;
+
   $("pr").value = "";
   $("pa").innerHTML = "";
   $("pgo").hidden = false;
@@ -961,14 +977,39 @@ function showLogin() {
   $("an").value = "";
   pStep = "roll";
   loginTab("player");
-  document.title = "Hockey Attendance · Log in";
+  document.title = "IIT Patna Hockey · Member Login";
   syncInstall();
+  setTimeout(() => {
+    const pr = $("pr");
+    if (pr && !$("pf").hidden) pr.focus();
+  }, 100);
 }
+
+function closeLogin() {
+  const lgEl = $("login");
+  if (lgEl) {
+    lgEl.hidden = true;
+    lgEl.style.display = "none";
+  }
+  if (!token) {
+    showPublic();
+  }
+}
+
 function showApp() {
-  $("login").hidden = true;
-  $("pub").hidden = true;
-  $("app").hidden = false;
-  document.title = "Hockey Attendance";
+  const lgEl = $("login");
+  if (lgEl) {
+    lgEl.hidden = true;
+    lgEl.style.display = "none";
+  }
+  const pubEl = $("pub");
+  if (pubEl) pubEl.hidden = true;
+  const appEl = $("app");
+  if (appEl) {
+    appEl.hidden = false;
+    appEl.style.display = ""; // Clear inline override so CSS flex handles layout
+  }
+  document.title = "IITP Hockey Attendance";
 }
 function loginTab(m) {
   const pm = m !== "admin";
@@ -995,6 +1036,8 @@ function logout() {
   setNet("");
   try {
     localStorage.removeItem("hk_token");
+    localStorage.removeItem(CK);
+    sessionStorage.clear();
   } catch (e) {}
   loaded = false;
   lastJs = "";
@@ -1010,6 +1053,7 @@ function logout() {
   pl = false;
   owner = false;
   me = "";
+  WHO = "";
   tab = "me";
   prof = null;
   MYPH = "";
@@ -1022,11 +1066,43 @@ function logout() {
   AVL = {};
   ANN = [];
   annAll = false;
-  standalone() ? showLogin() : showPublic();
+  lbData = null;
+
+  // Close all open dialogs & menus
+  document.querySelectorAll("dialog[open]").forEach((d) => {
+    try {
+      d.close();
+    } catch (x) {}
+  });
+  const m = $("menu");
+  if (m) m.hidden = true;
+  const pd = $("pub-drawer");
+  if (pd) pd.hidden = true;
+
+  // Clear sidebar & main view DOM
+  const sb = $("sidebar");
+  if (sb) sb.innerHTML = "";
+  const v = $("view");
+  if (v) v.innerHTML = "";
+
+  // Guaranteed hide of app
+  const appEl = $("app");
+  if (appEl) {
+    appEl.hidden = true;
+    appEl.style.setProperty("display", "none", "important");
+  }
+  const lgEl = $("login");
+  if (lgEl) {
+    lgEl.hidden = true;
+    lgEl.style.display = "none";
+  }
+
+  showPublic();
+  window.scrollTo(0, 0);
 }
 function boot() {
   pushAuto();
-  if (!token) return standalone() ? showLogin() : showPublic();
+  if (!token) return showPublic();
   const c = cacheLoad();
   if (c) {
     useData(c, true);
@@ -1637,12 +1713,7 @@ function drawMenu() {
       "🚪",
       "Log out",
       () => {
-        if (
-          confirm(
-            "Log out of this device?\n\nYou will need your roll number and code to log in again.",
-          )
-        )
-          logout();
+        doLogout();
       },
       { cls: "out" },
     );
@@ -2203,11 +2274,15 @@ function icsDownload() {
 }
 
 function doLogout() {
-  if (
-    confirm(
+  let ok = false;
+  try {
+    ok = confirm(
       "Log out of this device?\n\nYou will need your roll number and code to log in again.",
-    )
-  ) {
+    );
+  } catch (e) {
+    ok = true;
+  }
+  if (ok) {
     logout();
   }
 }

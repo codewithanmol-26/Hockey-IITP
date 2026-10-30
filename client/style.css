@@ -92,6 +92,9 @@ h4,
   font-weight: 700;
   letter-spacing: -0.02em;
 }
+#app[hidden],
+#login[hidden],
+#pub[hidden],
 [hidden] {
   display: none !important;
 }
@@ -172,26 +175,47 @@ a {
   color: var(--brand);
 }
 
-/* ---------- login page ---------- */
+/* ---------- login popup modal overlay ---------- */
 #login {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 24px 16px;
-  background:
-    radial-gradient(circle at 15% 12%, #19b6e655, transparent 42%),
-    radial-gradient(circle at 88% 90%, #1459d988, transparent 46%),
-    repeating-linear-gradient(115deg, #ffffff08 0 2px, transparent 2px 38px),
-    linear-gradient(160deg, #071a2e, #0b2a4a 55%, #0f4aa8);
+  background: rgba(4, 15, 27, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+#login[hidden] {
+  display: none !important;
 }
 .lg-card {
-  width: min(100%, 400px);
+  position: relative;
+  width: min(100%, 420px);
   background: var(--card);
-  border-radius: 22px;
-  padding: 28px 24px 22px;
-  box-shadow: 0 20px 60px #0008;
+  border-radius: 24px;
+  padding: 30px 24px 22px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65);
+  border: 1px solid var(--line);
   text-align: center;
+  animation: lgPopupZoom 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  margin: auto;
+}
+@keyframes lgPopupZoom {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 .lg-logo {
   border-radius: 20px;
@@ -423,11 +447,14 @@ nav button.on::after {
   :root {
     --nav-h: 0px;
   }
-  #app {
+  #app:not([hidden]) {
     display: flex !important;
     flex-direction: row;
     min-height: 100vh;
     background: var(--bg);
+  }
+  #app[hidden] {
+    display: none !important;
   }
   .app-sidebar {
     display: flex !important;
@@ -4092,13 +4119,37 @@ button.dng .svgi {
 button.ib.dng {
   border-color: color-mix(in srgb, var(--a) 45%, var(--line));
 }
-/* back arrow on every dialog and on the login page, top-left */
-.lgx,
+/* back arrow on dialogs */
 .dx {
   left: 10px;
   right: auto;
   color: var(--brand);
   box-shadow: 0 1px 6px #0b2a4a22;
+}
+.lgx {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  left: auto !important;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+  line-height: 1;
+  background: var(--soft);
+  color: var(--mute);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.15s ease;
+}
+.lgx:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--brand) 15%, var(--soft));
+  border-color: var(--brand);
 }
 .lgx .svgi,
 .dx .svgi,

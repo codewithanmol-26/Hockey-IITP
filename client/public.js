@@ -744,7 +744,9 @@ function bindPublic() {
   // Login buttons
   document
     .querySelectorAll("#pub [data-plog]")
-    .forEach((b) => (b.onclick = showLogin));
+    .forEach((b) => (b.onclick = () => {
+      if (typeof showLogin === "function") showLogin();
+    }));
 
   // Help Desk
   bindHelp();
@@ -896,15 +898,31 @@ async function checkPublicProgress() {
 
 function showPublic() {
   if (typeof pushAuto === "function") pushAuto();
-  gid("app").hidden = true;
-  gid("login").hidden = true;
-  gid("pub").hidden = false;
-  gid("menu").hidden = true;
+  const appEl = gid("app");
+  if (appEl) {
+    appEl.hidden = true;
+    appEl.style.setProperty("display", "none", "important");
+  }
+  const lgEl = gid("login");
+  if (lgEl) {
+    lgEl.hidden = true;
+    lgEl.style.display = "none";
+  }
+  const pubEl = gid("pub");
+  if (pubEl) {
+    pubEl.hidden = false;
+    pubEl.style.display = "";
+  }
+  const m = gid("menu");
+  if (m) m.hidden = true;
+  const pd = gid("pub-drawer");
+  if (pd) pd.hidden = true;
+
   document.title = "IIT Patna Hockey · Official Team Portal";
   drawPublic();
   if (!PUB && !pubBusy) fetchPublic();
   else if (Date.now() - pubAt > 60000) fetchPublic();
-  syncInstall();
+  if (typeof syncInstall === "function") syncInstall();
 }
 let pubAt = Date.now();
 function pubMenu() {
@@ -969,10 +987,35 @@ new MutationObserver(() => {
     b.setAttribute("aria-label", o ? "Close menu" : "Menu");
   });
 }).observe(gid("menu"), { attributes: true, attributeFilter: ["hidden"] });
-// the back arrow on the login page goes to the public page; the back arrow in the header goes from any menu page back to Home
-gid("lgx").onclick = () => showPublic();
-if (matchMedia("(display-mode: standalone)").matches || navigator.standalone)
-  gid("lgx").hidden = true; // installed app: no public page, so no back arrow
+// Login popup modal close button, backdrop click, and Escape key
+const lgxBtn = gid("lgx");
+if (lgxBtn) {
+  lgxBtn.hidden = false;
+  lgxBtn.onclick = () => {
+    if (typeof closeLogin === "function") closeLogin();
+    else showPublic();
+  };
+}
+
+const loginModal = gid("login");
+if (loginModal) {
+  loginModal.addEventListener("click", (e) => {
+    if (e.target === loginModal) {
+      if (typeof closeLogin === "function") closeLogin();
+      else showPublic();
+    }
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const lg = gid("login");
+    if (lg && !lg.hidden) {
+      if (typeof closeLogin === "function") closeLogin();
+      else showPublic();
+    }
+  }
+});
 gid("xb").onclick = () => {
   gid("menu").hidden = true;
   go("me");
