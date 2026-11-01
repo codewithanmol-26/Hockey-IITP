@@ -434,6 +434,17 @@ nav button.on::after {
   background: var(--brand);
   margin-top: 2px;
 }
+body.nav-hidden {
+  --nav-h: 0px !important;
+}
+body.nav-hidden nav#nav,
+nav#nav[hidden] {
+  display: none !important;
+}
+#app header .brand {
+  cursor: pointer;
+  user-select: none;
+}
 /* ---------- Mobile Default Layout ---------- */
 .app-sidebar {
   display: none !important;
@@ -1593,6 +1604,53 @@ dialog .ctl button {
 }
 .hi .whs {
   filter: drop-shadow(0 1px 2px #0005);
+}
+.hi.hlb-btn {
+  font-size: 1.15rem;
+  color: #fff;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  cursor: pointer;
+}
+.hi.hlb-btn .svgi {
+  width: 22px;
+  height: 22px;
+  color: #fff;
+  transition: all 0.2s;
+}
+.hi.hlb-btn:hover {
+  background: #ffffff30;
+  transform: translateY(-1px);
+}
+.hi.hlb-btn.active {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  border-color: #fde68a !important;
+  color: #fff !important;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.55) !important;
+  transform: scale(1.05);
+}
+.hi.hlb-btn.active .svgi {
+  color: #fff !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+.pub-hlb-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ffffff18;
+  border: 1px solid #ffffff26;
+  display: inline-grid;
+  place-items: center;
+  font-size: 1.15rem;
+  text-decoration: none;
+  color: #fff;
+  transition: all 0.2s;
+  flex: none;
+  cursor: pointer;
+}
+.pub-hlb-btn:hover {
+  background: #ffffff28;
+  transform: translateY(-1px);
 }
 #mb {
   width: 40px;
@@ -6973,7 +7031,7 @@ img.sig,
 }
 
 /* ==========================================================================
-   GAMIFIED LEADERBOARD (Physics Wallah / PW Style Podium & Rankings)
+   GAMIFIED LEADERBOARD (Squad Podium & Merit Rankings)
    ========================================================================== */
 .lb-container {
   width: 100%;
@@ -7222,7 +7280,7 @@ img.sig,
 }
 
 /* ==========================================================================
-   THE SIGNATURE PW PODIUM (Top 3 Players)
+   THE SIGNATURE SQUAD PODIUM (Top 3 Players)
    ========================================================================== */
 .lb-podium-card {
   background: var(--card);

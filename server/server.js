@@ -2316,7 +2316,7 @@ app.get(
   }),
 );
 
-// ---- Leaderboard (Gamified ranking system like PW online platform) ----
+// ---- Leaderboard (Gamified ranking system for collegiate athletics) ----
 // Who gives more time -> earns more points -> top in leaderboard!
 app.get(
   "/api/leaderboard",
@@ -2409,7 +2409,7 @@ app.get(
       const totalSessions = stats[pid].sessions + stats[pid].legacy;
       // 2.0 hours per practice session on turf
       const hours = Math.round(totalSessions * 2.0 * 10) / 10;
-      // PW consistency streak bonus: +60 pts for 3+ streak, +150 pts for 5+ streak
+      // Squad consistency streak bonus: +60 pts for 3+ streak, +150 pts for 5+ streak
       const streakBonus =
         stats[pid].streak >= 5 ? 150 : stats[pid].streak >= 3 ? 60 : 0;
       // 50 pts base per session + 25 pts per hour dedicated + streak bonus

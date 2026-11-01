@@ -925,7 +925,13 @@ const tabsFor = () =>
   TABS.filter(
     (t) => !t[3] || (t[3] === "a" && admin) || (t[3] === "o" && owner),
   );
+let prevTab = "me";
 const go = (t) => {
+  if (t !== "leaderboard" && tab !== "leaderboard" && tab !== t) {
+    prevTab = tab || "me";
+  } else if (t === "leaderboard" && tab !== "leaderboard") {
+    prevTab = tab || "me";
+  }
   tab = t;
   prof = null;
   if (t === "gallery") {
@@ -1854,6 +1860,29 @@ function toggleProfileMenu(e) {
 if ($("mb")) $("mb").onclick = toggleProfileMenu;
 $("hp").onclick = toggleProfileMenu;
 
+if ($("hlb")) {
+  $("hlb").onclick = (e) => {
+    if (e) e.stopPropagation();
+    if ($("menu")) $("menu").hidden = true;
+    if (tab === "leaderboard" && !prof) {
+      go(prevTab || "me");
+    } else {
+      if (!prof && tab) prevTab = tab;
+      else prevTab = "me";
+      go("leaderboard");
+    }
+  };
+}
+const appBrand = document.querySelector("#app header .brand");
+if (appBrand) {
+  appBrand.onclick = () => {
+    if (tab !== "me" || prof) {
+      if ($("menu")) $("menu").hidden = true;
+      go("me");
+    }
+  };
+}
+
 document.addEventListener("click", (e) => {
   if (
     !e.composedPath().includes($("menu")) &&
@@ -2531,7 +2560,7 @@ async function pushEnsure() {
   }
   return pushOn;
 }
-// ---- immediate push permission & registration at startup (PW / app style) ----
+// ---- immediate push permission & registration at startup (PWA / app style) ----
 async function requestPushPermissionAndSubscribe() {
   if (!pushOk()) return;
   try {
@@ -2916,7 +2945,25 @@ function render() {
           : "Player";
   $("who").textContent = loaded ? (WHO === rn ? rn : WHO + " · " + rn) : "";
   $("hp").innerHTML = loaded ? avatar(WHO, MYPH, 34) : "";
-  $("xb").hidden = !(loaded && !err && !prof && !PRIMARY.includes(tab)); // ✕ on pages that were opened from the menu: goes back to Home
+
+  // When opening any page in navigation, lower navigation bar disappears
+  const isHome = tab === "me" && !prof;
+  const navEl = $("nav");
+  if (navEl) {
+    navEl.hidden = !isHome;
+  }
+  document.body.classList.toggle("nav-hidden", !isHome);
+  $("xb").hidden = !(loaded && !err && !isHome);
+
+  const hlbBtn = $("hlb");
+  if (hlbBtn) {
+    const isLb = tab === "leaderboard" && !prof;
+    hlbBtn.classList.toggle("active", isLb);
+    hlbBtn.setAttribute("aria-pressed", isLb ? "true" : "false");
+    hlbBtn.title = isLb
+      ? "Back to " + (prevTab === "me" ? "Home" : prevTab)
+      : "Squad Leaderboard";
+  }
   if (!$("menu").hidden) drawMenu();
   drawSidebar();
   if (err) {
@@ -3636,7 +3683,7 @@ function vSched() {
   });
 }
 
-// ---------- SQUAD LEADERBOARD (Physics Wallah / PW Style Gamification) ----------
+// ---------- SQUAD LEADERBOARD (Merit & Training Points Gamification) ----------
 // More practice time = more points = top on the leaderboard!
 let lbData = null,
   lbBusy = false,
@@ -3851,13 +3898,13 @@ function vLeaderboard() {
         </div>
       </div>
 
-      <!-- 2. "How Points Work" Collapsible Card (PW Gamification Explainer) -->
+      <!-- 2. "How Points Work" Collapsible Card (Squad Gamification Explainer) -->
       ${
         lbHow
           ? `
         <div class="lb-rules-card">
           <div class="lb-rules-title">
-            <span>⚡ Physics Wallah Style Gamification: How Points Are Earned</span>
+            <span>⚡ Squad Points & Merit System: How Points Are Earned</span>
           </div>
           <div class="lb-rules-grid">
             <div class="lb-rule-item">
@@ -3956,7 +4003,7 @@ function vLeaderboard() {
         </div>
       </div>
 
-      <!-- 5. The Top 3 Podium (PW Signature Gamification) -->
+      <!-- 5. The Top 3 Podium (Signature Squad Podium) -->
       ${
         list.length >= 1 && !lbSearch.trim() && lbPos === "all"
           ? `

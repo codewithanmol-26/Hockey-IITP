@@ -81,6 +81,8 @@ const _P = {
   chat: '<path d="M20.5 11.5c0 3.9-3.8 7-8.5 7-1 0-2-.1-2.9-.4L4.5 20l1.4-3.6C4.4 15.3 3.5 13.5 3.5 11.5c0-3.9 3.8-7 8.5-7s8.5 3.1 8.5 7z"/>',
   award:
     '<circle cx="12" cy="9" r="5.3"/><path d="m8.6 13.6-1.4 6.9 4.8-2.4 4.8 2.4-1.4-6.9"/>',
+  trophy:
+    '<path d="M6 9V4.5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 4.5V9a6 6 0 0 1-6 6 6 6 0 0 1-6-6Z"/><path d="M6 5H3.5a1.5 1.5 0 0 0-1.5 1.5v1A3.5 3.5 0 0 0 5.5 11H6M18 5h2.5a1.5 1.5 0 0 1 1.5 1.5v1a3.5 3.5 0 0 1-3.5 3.5H18"/><path d="M12 15v4M8.5 21h7"/>',
   sound:
     '<path d="M4 9.8v4.4h3.6l4.9 3.8V6L7.6 9.8z"/><path d="M16 9.2a4 4 0 0 1 0 5.6M18.4 6.8a7.5 7.5 0 0 1 0 10.4"/>',
   pointer: '<path d="m6 3.5 12 8.7-5.2 1.1 3 5.4-2.3 1.3-3-5.4-4.5 3.3z"/>',
@@ -160,6 +162,7 @@ const _EMO = {
   "✉": "mail",
   "🛠": "tool",
   "🎖": "award",
+  "🏆": "trophy",
   "🔈": "sound",
   "🖱": "pointer",
   "🎯": "target",
@@ -258,6 +261,7 @@ const _DEFLBL = {
   moon: "Night mode",
   sun: "Day mode",
   close: "Close",
+  trophy: "Squad Leaderboard",
 };
 const _normKey = (raw) =>
   raw
