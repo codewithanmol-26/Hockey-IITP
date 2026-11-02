@@ -18,9 +18,9 @@ const COACH_NAME = process.env.COACH_NAME || "Kiran Chaudhary";
 const COACH_EMAIL = process.env.COACH_EMAIL || "kiran.chaudhary16@iitp.ac.in";
 let initError = null;
 try {
+  // Only database and token secrets are strictly required.
+  // CAPTAIN_CODE, VICE_CODE, and COACH_CODE are optional fallbacks because leadership accounts are managed in the database.
   const missing = [
-    "CAPTAIN_CODE",
-    "VICE_CODE",
     "TOKEN_SECRET",
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
@@ -285,7 +285,7 @@ app.post(
       } else if (customCodes.captain && customCodes.captain.hash) {
         if (eq(hashCode(c, customCodes.captain.salt), customCodes.captain.hash))
           payload = { role };
-      } else if (eq(c, CAPTAIN_CODE)) {
+      } else if (CAPTAIN_CODE && eq(c, CAPTAIN_CODE)) {
         payload = { role };
       }
     } else if (role === "vice") {
@@ -314,7 +314,7 @@ app.post(
       } else if (customCodes.vice && customCodes.vice.hash) {
         if (eq(hashCode(c, customCodes.vice.salt), customCodes.vice.hash))
           payload = { role };
-      } else if (eq(c, VICE_CODE)) {
+      } else if (VICE_CODE && eq(c, VICE_CODE)) {
         payload = { role };
       }
     } else if (role === "admin") {
@@ -423,7 +423,7 @@ const handleChangeCode = async (req, res) => {
     let ok = false;
     if (currentCustom && currentCustom.hash) {
       ok = eq(hashCode(cur, currentCustom.salt), currentCustom.hash);
-    } else {
+    } else if (expectedEnv) {
       ok = eq(cur, expectedEnv);
     }
     if (!ok) {
