@@ -118,6 +118,10 @@ function rowToDoc(col, row) {
     };
   }
   if (col === "admins") {
+    const rawKind = row.kind || "";
+    const post = ["coach", "captain", "vice", "admin"].includes(rawKind)
+      ? rawKind
+      : "admin";
     return {
       id,
       data: () => ({
@@ -126,7 +130,8 @@ function rowToDoc(col, row) {
         salt: row.salt,
         hash: row.hash,
         photo: row.photo || "",
-        kind: row.kind || "",
+        kind: rawKind || post,
+        post,
         playerId: row.player_id || "",
         created: row.created_at || 0,
       }),
@@ -316,7 +321,12 @@ function docToRow(col, id, data) {
     if (data.salt !== undefined) row.salt = data.salt;
     if (data.hash !== undefined) row.hash = data.hash;
     if (data.photo !== undefined) row.photo = data.photo || null;
-    if (data.kind !== undefined) row.kind = data.kind || "instructor";
+    const postVal = data.post !== undefined ? data.post : data.kind;
+    if (postVal !== undefined) {
+      row.kind = ["coach", "captain", "vice", "admin"].includes(postVal)
+        ? postVal
+        : (postVal || "admin");
+    }
     if (data.playerId !== undefined)
       row.player_id = (data.playerId && String(data.playerId).trim()) || null;
     if (data.created !== undefined)
@@ -740,15 +750,22 @@ async function readAllFromSupabase() {
       order: w.order_index,
       items: w.items || [],
     })),
-    admins: (adminsRes.data || []).map((a) => ({
-      id: a.id,
-      name: a.name,
-      disabled: !!a.disabled,
-      photo: a.photo || "",
-      created: a.created_at || 0,
-      kind: a.kind || "",
-      playerId: a.player_id || "",
-    })),
+    admins: (adminsRes.data || []).map((a) => {
+      const rawKind = a.kind || "";
+      const post = ["coach", "captain", "vice", "admin"].includes(rawKind)
+        ? rawKind
+        : "admin";
+      return {
+        id: a.id,
+        name: a.name,
+        disabled: !!a.disabled,
+        photo: a.photo || "",
+        created: a.created_at || 0,
+        kind: rawKind || post,
+        post,
+        playerId: a.player_id || "",
+      };
+    }),
     avail: {},
     announcements: (announcementsRes.data || []).map((an) => ({
       id: an.id,

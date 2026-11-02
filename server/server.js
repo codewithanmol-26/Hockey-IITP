@@ -76,9 +76,11 @@ const bearer = (req) =>
 async function who(req) {
   const p = verify(bearer(req));
   if (!p) return null;
-  if (p.role === "admin") {
-    const a = await db.collection("admins").doc(p.id).get();
-    if (!a.exists || a.data().disabled) return null;
+  if (p.role === "admin" || p.role === "coach" || p.role === "captain" || p.role === "vice") {
+    if (p.id) {
+      const a = await db.collection("admins").doc(p.id).get();
+      if (!a.exists || a.data().disabled) return null;
+    }
   } // removed or switched-off admins lose access at once
   if (p.role === "player") {
     const [a, pl] = await Promise.all([
@@ -89,7 +91,7 @@ async function who(req) {
   }
   return p;
 }
-// auth = captain / vice-captain / admin only. A player token is valid for reading their own data but never passes this.
+// auth = coach / captain / vice-captain / admin only. A player token is valid for reading their own data but never passes this.
 const auth = async (req, res, next) => {
   try {
     const p = await who(req);
@@ -102,7 +104,7 @@ const auth = async (req, res, next) => {
   }
 };
 const owner = (req, res, next) =>
-  ["captain", "vice", "admin"].includes(req.user.role)
+  ["coach", "captain", "vice", "admin"].includes(req.user.role)
     ? next()
     : res
         .status(403)
@@ -155,39 +157,117 @@ app.post(
         ? customCodesDoc.data() || {}
         : {};
 
-    if (role === "captain") {
-      if (customCodes.captain && customCodes.captain.hash) {
+    if (role === "coach") {
+      const want = String(name || "").trim().toLowerCase();
+      const allDocs = (await db.collection("admins").get()).docs;
+      const coachDocs = allDocs.filter(
+        (d) =>
+          !d.data().disabled &&
+          (d.data().post === "coach" || d.data().kind === "coach"),
+      );
+      let candidates = coachDocs;
+      if (want) {
+        candidates = coachDocs.filter(
+          (d) => String(d.data().name).trim().toLowerCase() === want,
+        );
+      }
+      const hit = candidates.find((d) =>
+        eq(
+          crypto.scryptSync(c, d.data().salt, 32).toString("hex"),
+          d.data().hash,
+        ),
+      );
+      if (hit) {
+        payload = { role: "coach", id: hit.id, name: hit.data().name, post: "coach" };
+      } else if (customCodes.coach && customCodes.coach.hash) {
+        if (eq(hashCode(c, customCodes.coach.salt), customCodes.coach.hash)) {
+          payload = { role: "coach", name: "Coach" };
+        }
+      }
+    } else if (role === "captain") {
+      // Check admins table where post === "captain" first
+      const want = String(name || "").trim().toLowerCase();
+      const allDocs = (await db.collection("admins").get()).docs;
+      const capDocs = allDocs.filter(
+        (d) =>
+          !d.data().disabled &&
+          (d.data().post === "captain" || d.data().kind === "captain"),
+      );
+      let candidates = capDocs;
+      if (want) {
+        candidates = capDocs.filter(
+          (d) => String(d.data().name).trim().toLowerCase() === want,
+        );
+      }
+      const hit = candidates.find((d) =>
+        eq(
+          crypto.scryptSync(c, d.data().salt, 32).toString("hex"),
+          d.data().hash,
+        ),
+      );
+      if (hit) {
+        payload = { role: "captain", id: hit.id, name: hit.data().name, post: "captain" };
+      } else if (customCodes.captain && customCodes.captain.hash) {
         if (eq(hashCode(c, customCodes.captain.salt), customCodes.captain.hash))
           payload = { role };
       } else if (eq(c, CAPTAIN_CODE)) {
         payload = { role };
       }
     } else if (role === "vice") {
-      if (customCodes.vice && customCodes.vice.hash) {
+      // Check admins table where post === "vice" first
+      const want = String(name || "").trim().toLowerCase();
+      const allDocs = (await db.collection("admins").get()).docs;
+      const viceDocs = allDocs.filter(
+        (d) =>
+          !d.data().disabled &&
+          (d.data().post === "vice" || d.data().kind === "vice"),
+      );
+      let candidates = viceDocs;
+      if (want) {
+        candidates = viceDocs.filter(
+          (d) => String(d.data().name).trim().toLowerCase() === want,
+        );
+      }
+      const hit = candidates.find((d) =>
+        eq(
+          crypto.scryptSync(c, d.data().salt, 32).toString("hex"),
+          d.data().hash,
+        ),
+      );
+      if (hit) {
+        payload = { role: "vice", id: hit.id, name: hit.data().name, post: "vice" };
+      } else if (customCodes.vice && customCodes.vice.hash) {
         if (eq(hashCode(c, customCodes.vice.salt), customCodes.vice.hash))
           payload = { role };
       } else if (eq(c, VICE_CODE)) {
         payload = { role };
       }
     } else if (role === "admin") {
-      // extra admins log in with the name the captain gave them + their code
+      // extra admins log in with the name the captain/coach gave them + their code
       const want = String(name || "")
         .trim()
         .toLowerCase();
+      const allDocs = (await db.collection("admins").get()).docs;
       const ad = want
-        ? (await db.collection("admins").get()).docs.filter(
+        ? allDocs.filter(
             (d) =>
               String(d.data().name).trim().toLowerCase() === want &&
               !d.data().disabled,
           )
-        : [];
+        : allDocs.filter((d) => !d.data().disabled);
       const hit = ad.find((d) =>
         eq(
           crypto.scryptSync(c, d.data().salt, 32).toString("hex"),
           d.data().hash,
         ),
       );
-      if (hit) payload = { role: "admin", id: hit.id, name: hit.data().name };
+      if (hit) {
+        const post = hit.data().post || hit.data().kind || "admin";
+        const assignedRole = ["coach", "captain", "vice"].includes(post)
+          ? post
+          : "admin";
+        payload = { role: assignedRole, id: hit.id, name: hit.data().name, post };
+      }
     }
     if (!payload) return res.status(401).json({ error: "Wrong name or code" });
     tries.delete(req.ip);
@@ -297,8 +377,8 @@ const handleChangeCode = async (req, res) => {
     });
   }
 
-  // 3. Extra admin code change
-  if (u.role === "admin") {
+  // 3. Coach / Admin code change
+  if (u.role === "admin" || u.role === "coach" || (u.id && ["captain", "vice"].includes(u.role))) {
     if (!nw || nw.length < 4 || nw.length > 30) {
       return res
         .status(400)
@@ -311,7 +391,7 @@ const handleChangeCode = async (req, res) => {
     }
     const aDoc = await db.collection("admins").doc(u.id).get();
     if (!aDoc.exists || aDoc.data().disabled) {
-      return res.status(401).json({ error: "Admin account not found or disabled." });
+      return res.status(401).json({ error: "Account not found or disabled." });
     }
     const ok = eq(hashCode(cur, aDoc.data().salt), aDoc.data().hash);
     if (!ok) {
@@ -324,9 +404,10 @@ const handleChangeCode = async (req, res) => {
       hash: hashCode(nw, salt),
     });
     bust();
+    const roleTitle = u.role === "coach" ? "Coach" : u.role === "captain" ? "Captain" : u.role === "vice" ? "Vice-captain" : "Admin";
     return res.json({
       ok: true,
-      message: "Your admin code has been updated successfully!",
+      message: `Your ${roleTitle} code has been updated successfully!`,
     });
   }
 
@@ -822,32 +903,27 @@ app.get(
     if (!p) return res.status(401).json({ error: "Login required" });
     const all = await readAll(req.query.fresh === "1");
     if (p.role !== "player") {
+      const isAdmUser = p.role === "admin" || p.role === "coach" || !!p.id;
+      const myAd = isAdmUser ? all.admins.find((x) => x.id === p.id) || null : null;
       const myPhoto =
-        p.role === "admin"
-          ? (all.admins.find((x) => x.id === p.id) || {}).photo || ""
-          : (all.staff || {})[p.role] || "";
-      const lk = (all.names || {}).links || {},
-        myAd =
-          p.role === "admin"
-            ? all.admins.find((x) => x.id === p.id) || {}
-            : null;
-      const myPlayerId =
-        p.role === "admin"
-          ? myAd.kind === "player"
-            ? myAd.playerId
-            : ""
-          : lk[p.role] || "";
-      const myKind = p.role === "admin" ? myAd.kind || "" : "player";
+        myAd && myAd.photo
+          ? myAd.photo
+          : p.role === "coach"
+            ? (all.team && all.team.coach && all.team.coach.photo) || (all.staff && all.staff.coach) || ""
+            : (all.staff || {})[p.role] || "";
+      const lk = (all.names || {}).links || {};
+      const myPlayerId = myAd ? myAd.playerId || "" : lk[p.role] || "";
+      const myKind = myAd ? myAd.kind || p.role : "player";
       const full = {
         role: p.role,
-        name: p.name || "",
+        name: p.name || (myAd ? myAd.name : p.role === "coach" ? "Coach" : ""),
         adminId: p.id || "",
         myPhoto,
         myPlayerId,
         myKind,
         ...all,
       };
-      if (!["captain", "vice", "admin"].includes(p.role)) delete full.admins; // only team admins/staff manage the admin list
+      if (!["coach", "captain", "vice", "admin"].includes(p.role)) delete full.admins; // only team admins/staff manage the admin list
       return res.json(full);
     }
     const me = p.id,
@@ -1590,7 +1666,7 @@ app.put(
       return res.status(400).json({ error: "Photo too large or not an image" });
     if (p.role === "player")
       await db.collection("players").doc(p.id).update({ photo: ph });
-    else if (p.role === "admin") {
+    else if (p.role === "admin" || p.role === "coach" || p.id) {
       await db.collection("admins").doc(p.id).update({ photo: ph });
       const aDoc = await db
         .collection("admins")
@@ -1800,7 +1876,11 @@ app.delete(
   }),
 );
 
-// Extra admins (only the captain or vice-captain can add or remove them). Codes are stored hashed.
+// Extra admins & leadership posts (Coach, Captain, Vice-captain, Admin)
+// - Coach has supreme access.
+// - Coach can make anyone captain or vice-captain.
+// - No one can remove Coach, but Coach can remove anyone.
+// - Coach can only be replaced by himself/herself by another person.
 app.post(
   "/api/admins",
   auth,
@@ -1813,8 +1893,10 @@ app.post(
       return res
         .status(400)
         .json({ error: "A name and a code of 4 to 30 characters are needed" });
+
+    const allAdmins = (await db.collection("admins").get()).docs;
     if (
-      (await db.collection("admins").get()).docs.some(
+      allAdmins.some(
         (d) =>
           String(d.data().name).trim().toLowerCase() === name.toLowerCase(),
       )
@@ -1822,12 +1904,37 @@ app.post(
       return res.status(409).json({
         error: "An admin with that name already exists. Use a different name.",
       });
-    const kind = b.kind === "player" ? "player" : "instructor";
-    const rawPid = b.playerId ? str(b.playerId, 40).trim() : "";
-    const playerId = kind === "player" && rawPid ? rawPid : null;
 
+    // Valid posts: coach, captain, vice, admin
+    const rawPost = String(b.post || b.kind || "admin").toLowerCase().trim();
+    const post = ["coach", "captain", "vice", "admin"].includes(rawPost)
+      ? rawPost
+      : "admin";
+
+    const currentCoachDoc = allAdmins.find(
+      (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
+    );
+    const isRequesterCoach = req.user.role === "coach";
+
+    // Rule: Coach can only be replaced by himself/herself by another person
+    if (post === "coach") {
+      if (currentCoachDoc && !isRequesterCoach) {
+        return res.status(403).json({
+          error: "Only the active Coach can appoint or replace the Coach.",
+        });
+      }
+    }
+
+    // Rule: Coach can make anyone captain/vice-captain (non-coaches cannot appoint them if coach exists)
+    if (currentCoachDoc && !isRequesterCoach && (post === "captain" || post === "vice")) {
+      return res.status(403).json({
+        error: "Only the Coach can appoint Captain or Vice-captain.",
+      });
+    }
+
+    const rawPid = b.playerId ? str(b.playerId, 40).trim() : "";
+    const playerId = rawPid || null;
     if (
-      kind === "player" &&
       playerId &&
       !(await db.collection("players").doc(playerId).get()).exists
     )
@@ -1835,11 +1942,20 @@ app.post(
         .status(400)
         .json({ error: "Chosen player not found in squad roster" });
 
+    // If appointing new coach when a coach exists: active coach replaces himself/herself
+    if (post === "coach" && currentCoachDoc) {
+      await db.collection("admins").doc(currentCoachDoc.id).update({
+        kind: "admin",
+        post: "admin",
+      });
+    }
+
     const salt = crypto.randomBytes(16).toString("hex");
     await db.collection("admins").add({
       name,
       disabled: false,
-      kind,
+      kind: post,
+      post,
       playerId,
       created: Date.now(),
       salt,
@@ -1848,24 +1964,80 @@ app.post(
     done(res);
   }),
 );
+
 app.put(
   "/api/admins/:id",
   auth,
   owner,
   h(async (req, res) => {
-    // switch an admin on / off without deleting them
     const ref = db.collection("admins").doc(req.params.id);
-    if (!(await ref.get()).exists)
+    const curDoc = await ref.get();
+    if (!curDoc.exists)
       return res.status(404).json({ error: "No such admin" });
+    const curData = curDoc.data();
+    const isTargetCoach = curData.kind === "coach" || curData.post === "coach";
+    const isRequesterCoach = req.user.role === "coach";
+
+    // Rule: No one can remove or alter Coach permissions except Coach
+    if (isTargetCoach && !isRequesterCoach && req.user.id !== curDoc.id) {
+      return res.status(403).json({
+        error: "Only the Coach can modify the Coach account.",
+      });
+    }
+
     const b = req.body || {},
       upd = {};
-    if (b.disabled !== undefined) upd.disabled = !!b.disabled;
-    if (b.kind !== undefined) {
-      upd.kind = ["player", "instructor"].includes(b.kind) ? b.kind : "instructor";
+
+    // Disabling Coach is strictly prohibited: Coach can only be replaced
+    if (b.disabled !== undefined) {
+      if (isTargetCoach && b.disabled) {
+        return res.status(403).json({
+          error: "The Coach cannot be disabled. Coach can only be replaced by another person.",
+        });
+      }
+      upd.disabled = !!b.disabled;
+    }
+
+    // Changing post
+    if (b.post !== undefined || b.kind !== undefined) {
+      const newPost = String(b.post || b.kind || "").toLowerCase().trim();
+      if (["coach", "captain", "vice", "admin"].includes(newPost)) {
+        const allAdmins = (await db.collection("admins").get()).docs;
+        const currentCoachDoc = allAdmins.find(
+          (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
+        );
+
+        if (newPost === "coach" && !isTargetCoach) {
+          if (currentCoachDoc && !isRequesterCoach) {
+            return res.status(403).json({
+              error: "Only the active Coach can appoint or transfer the Coach post.",
+            });
+          }
+          if (currentCoachDoc && currentCoachDoc.id !== curDoc.id) {
+            await db.collection("admins").doc(currentCoachDoc.id).update({
+              kind: "admin",
+              post: "admin",
+            });
+          }
+        }
+
+        if (newPost === "captain" || newPost === "vice") {
+          if (currentCoachDoc && !isRequesterCoach) {
+            return res.status(403).json({
+              error: "Only the Coach can appoint Captain or Vice-captain.",
+            });
+          }
+        }
+
+        upd.kind = newPost;
+        upd.post = newPost;
+      }
+    }
+
+    if (b.playerId !== undefined) {
       const rawPid = b.playerId ? str(b.playerId, 40).trim() : "";
-      upd.playerId = upd.kind === "player" && rawPid ? rawPid : null;
+      upd.playerId = rawPid || null;
       if (
-        upd.kind === "player" &&
         upd.playerId &&
         !(await db.collection("players").doc(upd.playerId).get()).exists
       )
@@ -1873,16 +2045,128 @@ app.put(
           .status(400)
           .json({ error: "Chosen player not found in squad roster" });
     }
+
+    if (b.name !== undefined) {
+      const nm = str(b.name, 40).trim();
+      if (nm) upd.name = nm;
+    }
+
     await ref.update(upd);
     done(res);
   }),
 );
+
 app.delete(
   "/api/admins/:id",
   auth,
   owner,
   h(async (req, res) => {
-    await db.collection("admins").doc(req.params.id).delete();
+    const ref = db.collection("admins").doc(req.params.id);
+    const curDoc = await ref.get();
+    if (!curDoc.exists)
+      return res.status(404).json({ error: "No such admin" });
+    const curData = curDoc.data();
+    const isTargetCoach = curData.kind === "coach" || curData.post === "coach";
+
+    // Rule: "No one can remove coach"
+    if (isTargetCoach) {
+      return res.status(403).json({
+        error: "The Coach cannot be removed. Coach can only be replaced by another person.",
+      });
+    }
+
+    // Rule: "coach can remove anyone" - non-coaches can remove general admins but cannot remove Coach
+    await ref.delete();
+    done(res);
+  }),
+);
+
+// Dedicated endpoint: Replace Coach by himself/herself with another person
+app.post(
+  "/api/admins/replace-coach",
+  auth,
+  owner,
+  h(async (req, res) => {
+    const allAdmins = (await db.collection("admins").get()).docs;
+    const currentCoachDoc = allAdmins.find(
+      (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
+    );
+
+    // Only active Coach can execute replacement (or if no coach exists yet)
+    if (currentCoachDoc && req.user.role !== "coach") {
+      return res.status(403).json({
+        error: "Only the active Coach can replace the Coach.",
+      });
+    }
+
+    const b = req.body || {};
+    const { newAdminId, name, code, playerId } = b;
+
+    // Option 1: Transfer Coach post to an existing admin
+    if (newAdminId) {
+      const targetRef = db.collection("admins").doc(newAdminId);
+      const targetDoc = await targetRef.get();
+      if (!targetDoc.exists) {
+        return res.status(404).json({ error: "Target admin not found" });
+      }
+      if (currentCoachDoc && currentCoachDoc.id !== newAdminId) {
+        await db.collection("admins").doc(currentCoachDoc.id).update({
+          kind: "admin",
+          post: "admin",
+        });
+      }
+      await targetRef.update({
+        kind: "coach",
+        post: "coach",
+        disabled: false,
+      });
+      return done(res);
+    }
+
+    // Option 2: Replace with a new person
+    const coachName = str(name, 40).trim();
+    const coachCode = String(code || "");
+    if (!coachName || coachCode.length < 4 || coachCode.length > 30) {
+      return res.status(400).json({
+        error: "New coach requires a name and code of 4 to 30 characters",
+      });
+    }
+
+    if (
+      allAdmins.some(
+        (d) =>
+          (!currentCoachDoc || d.id !== currentCoachDoc.id) &&
+          String(d.data().name).trim().toLowerCase() === coachName.toLowerCase(),
+      )
+    ) {
+      return res.status(409).json({
+        error: "An admin with that name already exists. Choose a different name.",
+      });
+    }
+
+    const rawPid = playerId ? str(playerId, 40).trim() : "";
+    if (rawPid && !(await db.collection("players").doc(rawPid).get()).exists) {
+      return res.status(400).json({ error: "Chosen player not found in squad" });
+    }
+
+    if (currentCoachDoc) {
+      await db.collection("admins").doc(currentCoachDoc.id).update({
+        kind: "admin",
+        post: "admin",
+      });
+    }
+
+    const salt = crypto.randomBytes(16).toString("hex");
+    await db.collection("admins").add({
+      name: coachName,
+      disabled: false,
+      kind: "coach",
+      post: "coach",
+      playerId: rawPid || null,
+      created: Date.now(),
+      salt,
+      hash: crypto.scryptSync(coachCode, salt, 32).toString("hex"),
+    });
     done(res);
   }),
 );

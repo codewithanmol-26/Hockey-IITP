@@ -318,7 +318,8 @@ async function chat({ message, user, userProfile, history = [] }) {
     user &&
     (user.role === "admin" ||
       user.role === "captain" ||
-      user.role === "vice");
+      user.role === "vice" ||
+      user.role === "coach");
 
   const isAskingAttendance =
     /attendance|present|absent|percentage|attended|my record|stats/i.test(
@@ -427,17 +428,19 @@ async function chat({ message, user, userProfile, history = [] }) {
   }
 
   const roleDesc = userProfile
-    ? userProfile.role === "admin"
-      ? userProfile.adminType === "instructor"
-        ? `Instructor (${userProfile.name})`
-        : `Player Admin (${userProfile.name})`
-      : userProfile.role === "player"
-        ? `Team Player (${userProfile.name}${userProfile.position ? ", Position: " + userProfile.position : ""}${userProfile.roll ? ", Roll: " + userProfile.roll : ""})`
-        : userProfile.role === "captain"
-          ? `Team Captain (${userProfile.name || "Captain"})`
-          : userProfile.role === "vice"
-            ? `Team Vice-Captain (${userProfile.name || "Vice-Captain"})`
-            : "Guest / Visitor (Not in team)"
+    ? userProfile.role === "coach"
+      ? `👑 Head Coach (${userProfile.name || "Coach"}) - Supreme Administrator with Full Authority`
+      : userProfile.role === "admin"
+        ? userProfile.adminType === "instructor"
+          ? `Instructor (${userProfile.name})`
+          : `Player Admin (${userProfile.name})`
+        : userProfile.role === "player"
+          ? `Team Player (${userProfile.name}${userProfile.position ? ", Position: " + userProfile.position : ""}${userProfile.roll ? ", Roll: " + userProfile.roll : ""})`
+          : userProfile.role === "captain"
+            ? `Team Captain (${userProfile.name || "Captain"})`
+            : userProfile.role === "vice"
+              ? `Team Vice-Captain (${userProfile.name || "Vice-Captain"})`
+              : "Guest / Visitor (Not in team)"
     : "Guest / Visitor (Not in team)";
 
   const prompt = `You are the official IIT Patna Hockey Team AI Assistant.

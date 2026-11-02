@@ -1025,7 +1025,13 @@ function loginTab(m) {
 $("t1").onclick = () => loginTab("player");
 $("t2").onclick = () => loginTab("admin");
 $("em").onchange = () => {
-  $("anw").hidden = $("em").value !== "admin";
+  const v = $("em").value;
+  $("anw").hidden = v !== "admin" && v !== "coach";
+  if (v === "coach") {
+    $("an").placeholder = "Coach name (or leave empty if only 1 coach)";
+  } else if (v === "admin") {
+    $("an").placeholder = "Name registered in admin list";
+  }
 };
 function saveToken(t) {
   token = t;
@@ -1220,18 +1226,20 @@ function useData(d, force) {
   if (!force && key === lastJs && loaded && !err) return;
   lastJs = key;
   role = d.role;
-  admin = ["captain", "vice", "admin"].includes(role);
+  admin = ["coach", "captain", "vice", "admin"].includes(role);
   pl = role === "player";
   me = d.me || "";
   myCodeType = d.codeType || "alnum";
-  owner = role === "captain" || role === "vice" || role === "admin";
+  owner = ["coach", "captain", "vice", "admin"].includes(role);
   WHO =
     d.name ||
-    (role === "captain"
-      ? "Captain"
-      : role === "vice"
-        ? "Vice-captain"
-        : "Admin");
+    (role === "coach"
+      ? "Coach"
+      : role === "captain"
+        ? "Captain"
+        : role === "vice"
+          ? "Vice-captain"
+          : "Admin");
   const by = (a, b) =>
       (a.n || 999) - (b.n || 999) ||
       String(a.name).localeCompare(String(b.name)),
@@ -1281,6 +1289,16 @@ function useData(d, force) {
 window.getHockeyUserContext = function () {
   if (!token) {
     return { role: "guest", title: "Guest / Visitor", name: "Guest" };
+  }
+  if (role === "coach") {
+    return {
+      role: "coach",
+      post: "coach",
+      title: "Coach (Head Coach)",
+      name: WHO || "Coach",
+      id: ADMID,
+      playerId: MYPID,
+    };
   }
   if (role === "admin") {
     const isInst = !myKind || myKind === "instructor" || !MYPID;
@@ -1742,13 +1760,15 @@ function drawMenu() {
   const myId = role === "player" ? me : MYPID || "";
   const lp = myId ? P.find((x) => x.id === myId) : null;
   const roleName =
-    role === "captain"
-      ? "Captain"
-      : role === "vice"
-        ? "Vice-captain"
-        : role === "admin"
-          ? "Admin"
-          : "Player";
+    role === "coach"
+      ? "Coach"
+      : role === "captain"
+        ? "Captain"
+        : role === "vice"
+          ? "Vice-captain"
+          : role === "admin"
+            ? "Admin"
+            : "Player";
   const userSub = lp
     ? [lp.position || "Hockey player", lp.roll].filter(Boolean).join(" · ")
     : roleName === "Admin"
@@ -2043,11 +2063,13 @@ function openChangeCode() {
       `;
     } else {
       const rName =
-        role === "captain"
-          ? "Captain"
-          : role === "vice"
-            ? "Vice-captain"
-            : "Admin";
+        role === "coach"
+          ? "Coach"
+          : role === "captain"
+            ? "Captain"
+            : role === "vice"
+              ? "Vice-captain"
+              : "Admin";
       h = `
         <h2 id="codedlg-title">Change ${rName} Code</h2>
         <p class="mute" id="codedlg-sub">Set a private code for your ${rName} account. Accepts any characters, numbers, or symbols.</p>
@@ -2742,13 +2764,15 @@ function drawSidebar() {
     return;
   }
   const rn =
-    role === "captain"
-      ? "Captain"
-      : role === "vice"
-        ? "Vice-captain"
-        : role === "admin"
-          ? "Admin"
-          : "Player";
+    role === "coach"
+      ? "Coach"
+      : role === "captain"
+        ? "Captain"
+        : role === "vice"
+          ? "Vice-captain"
+          : role === "admin"
+            ? "Admin"
+            : "Player";
 
   const allTabs = tabsFor();
   const mainKeys = ["me", "leaderboard", "take", "plan", "stats", "schedule"];
@@ -2945,13 +2969,15 @@ function render() {
     .querySelectorAll("button")
     .forEach((b) => (b.onclick = () => go(b.dataset.t)));
   const rn =
-    role === "captain"
-      ? "Captain"
-      : role === "vice"
-        ? "Vice-captain"
-        : role === "admin"
-          ? "Admin"
-          : "Player";
+    role === "coach"
+      ? "Coach"
+      : role === "captain"
+        ? "Captain"
+        : role === "vice"
+          ? "Vice-captain"
+          : role === "admin"
+            ? "Admin"
+            : "Player";
   $("who").textContent = loaded ? (WHO === rn ? rn : WHO + " · " + rn) : "";
   $("hp").innerHTML = loaded ? avatar(WHO, MYPH, 34) : "";
 
@@ -4858,7 +4884,7 @@ const openProf = (k, id) => {
 function openMyProfile() {
   if (role === "player") openProf("p", me);
   else if (MYPID && P.some((x) => x.id === MYPID)) openProf("p", MYPID);
-  else if (role === "admin") openProf("a", ADMID);
+  else if (role === "admin" || role === "coach") openProf("a", ADMID);
   else openProf("s", role);
 }
 function bindProfLinks() {
@@ -5094,17 +5120,298 @@ function vRemoved() {
     };
   bind();
 }
+const POST_CONFIG = {
+  coach: { label: "Coach", badge: '<span class="pill gold">👑 Coach</span>', icon: "👑", order: 0 },
+  captain: { label: "Captain", badge: '<span class="pill blue">🎖️ Captain</span>', icon: "🎖️", order: 1 },
+  vice: { label: "Vice-captain", badge: '<span class="pill teal">🥈 Vice-captain</span>', icon: "🥈", order: 2 },
+  admin: { label: "Admin", badge: '<span class="pill purple">🛡️ Admin</span>', icon: "🛡️", order: 3 },
+};
+
+function getAdminPost(a) {
+  if (!a) return "admin";
+  const p = String(a.post || a.kind || "admin").toLowerCase().trim();
+  return POST_CONFIG[p] ? p : "admin";
+}
+
+function openReplaceCoachDialog() {
+  const currentCoach = ADM.find((a) => !a.disabled && getAdminPost(a) === "coach");
+  const otherAdmins = ADM.filter((a) => a.id !== (currentCoach ? currentCoach.id : "") && !a.disabled);
+
+  const d = document.createElement("dialog");
+  d.className = "confirm-dialog";
+  d.innerHTML = `
+    <div class="confirm-content" style="max-width:440px; text-align:left;">
+      <h3 style="margin-top:0; display:flex; align-items:center; gap:8px;">🔄 Replace Head Coach</h3>
+      <p class="mute" style="font-size:0.86rem; line-height:1.45;">
+        As the current Coach, you can replace yourself by appointing another person as Coach. Choose either to appoint a brand new person or promote an existing administrator.
+      </p>
+      
+      <div style="display:flex; gap:8px; margin:12px 0;">
+        <button type="button" class="tab-btn on" id="rc-tab-new" style="flex:1; padding:7px 10px; font-size:0.82rem; border-radius:8px;">Appoint New Person</button>
+        <button type="button" class="tab-btn" id="rc-tab-exist" style="flex:1; padding:7px 10px; font-size:0.82rem; border-radius:8px;">Promote Existing Admin</button>
+      </div>
+
+      <div id="rc-panel-new">
+        <label class="fl">New Coach Full Name<input id="rc-name" placeholder="Full name of new coach" maxlength="40"></label>
+        <label class="fl">Login Code<input id="rc-code" type="password" placeholder="Code (4+ characters)" maxlength="30" autocomplete="new-password"></label>
+        <label class="fl">Link to Squad Player (Optional)
+          <select id="rc-player">
+            <option value="">Staff / External (Not in squad)</option>
+            ${P.map((x) => `<option value="${esc(x.id)}" data-n="${esc(x.name)}">${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+
+      <div id="rc-panel-exist" hidden>
+        <label class="fl">Select Administrator to make Coach
+          <select id="rc-target">
+            <option value="">Choose an administrator…</option>
+            ${otherAdmins.map((a) => `<option value="${esc(a.id)}">${esc(a.name)} (${getAdminPost(a)})</option>`).join("")}
+          </select>
+        </label>
+        <p class="hint" style="font-size:0.8rem;">Promoting an existing administrator will grant them Coach privileges. You will step down to an Admin.</p>
+      </div>
+
+      <p id="rc-err" class="err" role="alert" style="margin:8px 0;"></p>
+
+      <div class="ctl" style="justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button type="button" id="rc-cancel">Cancel</button>
+        <button type="button" class="pri" id="rc-submit">Confirm Replacement</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(d);
+  d.showModal();
+
+  let mode = "new";
+  const tabNew = d.querySelector("#rc-tab-new");
+  const tabExist = d.querySelector("#rc-tab-exist");
+  const panelNew = d.querySelector("#rc-panel-new");
+  const panelExist = d.querySelector("#rc-panel-exist");
+  const errEl = d.querySelector("#rc-err");
+
+  tabNew.onclick = () => {
+    mode = "new";
+    tabNew.classList.add("on");
+    tabExist.classList.remove("on");
+    panelNew.hidden = false;
+    panelExist.hidden = true;
+    errEl.textContent = "";
+  };
+
+  tabExist.onclick = () => {
+    mode = "exist";
+    tabExist.classList.add("on");
+    tabNew.classList.remove("on");
+    panelNew.hidden = true;
+    panelExist.hidden = false;
+    errEl.textContent = "";
+  };
+
+  const selPlayer = d.querySelector("#rc-player");
+  const inputName = d.querySelector("#rc-name");
+  selPlayer.onchange = () => {
+    const o = selPlayer.selectedOptions[0];
+    if (o && o.dataset.n) inputName.value = o.dataset.n;
+  };
+
+  d.querySelector("#rc-cancel").onclick = () => {
+    d.close();
+    d.remove();
+  };
+
+  d.querySelector("#rc-submit").onclick = async () => {
+    errEl.textContent = "";
+    if (mode === "new") {
+      const name = inputName.value.trim();
+      const code = d.querySelector("#rc-code").value;
+      const playerId = selPlayer.value;
+      if (!name || code.length < 4) {
+        errEl.textContent = "Please enter a full name and code of 4+ characters.";
+        return;
+      }
+      if (!confirm(`Are you sure you want to appoint "${name}" as Head Coach? You will step down to Admin.`)) return;
+
+      run(async () => {
+        try {
+          await api("/api/admins/replace-coach", {
+            method: "POST",
+            body: { name, code, playerId },
+          });
+          d.close();
+          d.remove();
+          alert(`Coach successfully replaced by "${name}"! Your account is now Admin.`);
+          await load(true);
+        } catch (e) {
+          errEl.textContent = e.message || "Failed to replace coach.";
+        }
+      });
+    } else {
+      const targetId = d.querySelector("#rc-target").value;
+      if (!targetId) {
+        errEl.textContent = "Please select an administrator to make Coach.";
+        return;
+      }
+      const targetAdm = otherAdmins.find((x) => x.id === targetId);
+      const targetName = targetAdm ? targetAdm.name : "this admin";
+      if (!confirm(`Are you sure you want to transfer the Coach post to "${targetName}"? You will step down to Admin.`)) return;
+
+      run(async () => {
+        try {
+          await api("/api/admins/replace-coach", {
+            method: "POST",
+            body: { newAdminId: targetId },
+          });
+          d.close();
+          d.remove();
+          alert(`Coach post successfully transferred to "${targetName}"! Your account is now Admin.`);
+          await load(true);
+        } catch (e) {
+          errEl.textContent = e.message || "Failed to transfer coach post.";
+        }
+      });
+    }
+  };
+}
+
 function vAdmins() {
-  const st = [
-    ["captain", "Captain"],
-    ["vice", "Vice-captain"],
-  ];
-  $("view").innerHTML =
-    `<div class="card"><h2>Team staff</h2>${st.map((s) => `<div class="row link" role="button" tabindex="0" data-sf="${s[0]}"><span class="sw-row">${avatar(s[1], STAFF[s[0]], 40)}<span><b>${s[1]}</b><br><span class="mute">Full access</span></span></span><span class="chev">›</span></div>`).join("")}</div>
-  <div class="card"><h2>Admins</h2><p class="mute">Admins can take attendance and edit everything except this list. They log in under <b>Captain / Admin</b> → Admin with their name and code. Use the switch to turn an admin's access on or off without deleting them. Tap an admin to open their profile.</p>
-  <div class="ctl"><label class="fl" style="flex:1;margin:0">Admin role / type<select id="akind"><option value="instructor">Instructor / General Admin</option><option value="player">Team Player</option></select></label><label class="fl" id="aplw" style="flex:1;margin:0" hidden>Which player<select id="apl"><option value="">Choose a player…</option>${P.map((x) => `<option value="${esc(x.id)}" data-n="${esc(x.name)}">${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}</select></label></div>
-  <div class="ctl"><input id="an2" placeholder="Name (used to log in)" maxlength="40"><input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30" autocomplete="new-password"><button class="pri" id="aadd">Add admin</button></div>
-  ${ADM.map((a) => `<div class="row link" role="button" tabindex="0" data-af="${esc(a.id)}"><span class="sw-row"><button class="sw ${a.disabled ? "" : "on"}" role="switch" aria-checked="${!a.disabled}" aria-label="Access for ${esc(a.name)}" data-tg="${esc(a.id)}"></button>${avatar(a.name, a.photo, 40)}<span>${esc(a.name)}<br><span class="pill ${a.disabled ? "r" : "g"}">${a.disabled ? "Access off" : "Access on"}</span> <span class="pill">${a.kind === "player" ? "Player" : a.kind === "instructor" ? "Instructor" : "Type not set"}</span></span></span><button class="dng" data-adm="${esc(a.id)}">Remove</button></div>`).join("") || empty("🛡️", "No extra admins yet.")}</div>`;
+  const isCoach = role === "coach";
+  const coachAdmin = ADM.find((x) => !x.disabled && getAdminPost(x) === "coach");
+  const hasCoach = !!coachAdmin;
+
+  // Sort admins by post hierarchy: Coach -> Captain -> Vice-captain -> Admin
+  const sortedAdm = [...ADM].sort((a, b) => {
+    const pa = getAdminPost(a);
+    const pb = getAdminPost(b);
+    const oa = POST_CONFIG[pa] ? POST_CONFIG[pa].order : 3;
+    const ob = POST_CONFIG[pb] ? POST_CONFIG[pb].order : 3;
+    if (oa !== ob) return oa - ob;
+    return String(a.name).localeCompare(String(b.name));
+  });
+
+  const canAppointCoach = !hasCoach || isCoach;
+  const canAppointLeader = !hasCoach || isCoach;
+
+  $("view").innerHTML = `
+    <div class="card">
+      <h2>Leadership Posts & Hierarchy</h2>
+      <p class="mute" style="margin-bottom:12px;">Team administrators hold one of 4 posts. Each post defines authority:</p>
+      
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; align-items:flex-start; gap:10px; background:var(--soft); padding:8px 12px; border-radius:10px; border:1px solid var(--line);">
+          <span class="pill gold" style="font-size:0.75rem; white-space:nowrap; margin-top:2px;">👑 Coach</span>
+          <div style="font-size:0.8rem; color:var(--ink); line-height:1.4;">
+            <b>Head Coach (Supreme Access)</b>: Full authority across the entire portal. Can make anyone Captain or Vice-captain. Cannot be removed; replaced only by himself/herself.
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:flex-start; gap:10px; background:var(--soft); padding:8px 12px; border-radius:10px; border:1px solid var(--line);">
+          <span class="pill blue" style="font-size:0.75rem; white-space:nowrap; margin-top:2px;">🎖️ Captain</span>
+          <div style="font-size:0.8rem; color:var(--ink); line-height:1.4;">
+            <b>Team Captain</b>: Leads team practice, match readiness, and squad attendance.
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:flex-start; gap:10px; background:var(--soft); padding:8px 12px; border-radius:10px; border:1px solid var(--line);">
+          <span class="pill teal" style="font-size:0.75rem; white-space:nowrap; margin-top:2px;">🥈 Vice-captain</span>
+          <div style="font-size:0.8rem; color:var(--ink); line-height:1.4;">
+            <b>Team Vice-captain</b>: Assists with team drills, player attendance, and practice scheduling.
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:flex-start; gap:10px; background:var(--soft); padding:8px 12px; border-radius:10px; border:1px solid var(--line);">
+          <span class="pill purple" style="font-size:0.75rem; white-space:nowrap; margin-top:2px;">🛡️ Admin</span>
+          <div style="font-size:0.8rem; color:var(--ink); line-height:1.4;">
+            <b>General Administrator</b>: Takes attendance and manages day-to-day practice records.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Add Administrator / Appoint Post</h2>
+      <p class="mute">Select the post and member type. If the person is a squad player, choosing them links their attendance and profile.</p>
+      
+      <div class="ctl" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+        <label class="fl" style="flex:1; min-width:140px; margin:0;">Post
+          <select id="apost">
+            <option value="coach" ${canAppointCoach ? "" : "disabled"}>👑 Coach ${canAppointCoach ? (isCoach ? "(Replaces you)" : "") : "(Active Coach only)"}</option>
+            <option value="captain" ${canAppointLeader ? "" : "disabled"}>🎖️ Captain ${canAppointLeader ? "" : "(Coach only)"}</option>
+            <option value="vice" ${canAppointLeader ? "" : "disabled"}>🥈 Vice-captain ${canAppointLeader ? "" : "(Coach only)"}</option>
+            <option value="admin" selected>🛡️ Admin</option>
+          </select>
+        </label>
+        
+        <label class="fl" style="flex:1; min-width:140px; margin:0;">Member Type
+          <select id="akind">
+            <option value="instructor">Staff / External</option>
+            <option value="player">Squad Player</option>
+          </select>
+        </label>
+        
+        <label class="fl" id="aplw" style="flex:1; min-width:180px; margin:0;" hidden>Which Squad Player
+          <select id="apl">
+            <option value="">Choose a player…</option>
+            ${P.map((x) => `<option value="${esc(x.id)}" data-n="${esc(x.name)}">${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+
+      <div class="ctl" style="display:flex; flex-wrap:wrap; gap:10px;">
+        <input id="an2" placeholder="Full name (used to log in)" maxlength="40" style="flex:1; min-width:140px;">
+        <input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30" autocomplete="new-password" style="flex:1; min-width:140px;">
+        <button class="pri" id="aadd" style="white-space:nowrap;">+ Add Admin</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <h2 style="margin:0;">Active Leadership & Admins (${sortedAdm.length})</h2>
+        ${isCoach ? `<button type="button" class="sec btn-sm" id="btn-top-rep-coach">🔄 Replace Coach</button>` : ""}
+      </div>
+      
+      ${
+        sortedAdm.map((a) => {
+          const post = getAdminPost(a);
+          const isCoachCard = post === "coach";
+          const cfg = POST_CONFIG[post] || POST_CONFIG.admin;
+          const linkedPlayer = a.playerId ? P.find((x) => x.id === a.playerId) : null;
+          
+          return `
+            <div class="row link" role="button" tabindex="0" data-af="${esc(a.id)}">
+              <span class="sw-row">
+                ${
+                  isCoachCard
+                    ? `<span style="font-size:1.1rem; padding:0 4px;" title="Coach cannot be disabled">👑</span>`
+                    : `<button class="sw ${a.disabled ? "" : "on"}" role="switch" aria-checked="${!a.disabled}" aria-label="Access for ${esc(a.name)}" data-tg="${esc(a.id)}"></button>`
+                }
+                ${avatar(a.name, a.photo, 40)}
+                <span>
+                  <b>${esc(a.name)}</b><br>
+                  ${cfg.badge}
+                  <span class="pill ${a.disabled ? "r" : "g"}">${a.disabled ? "Access off" : "Access on"}</span>
+                  ${a.playerId ? `<span class="pill g">⚽ Player${linkedPlayer ? ": " + esc(linkedPlayer.name) : ""}</span>` : `<span class="pill">👔 Staff</span>`}
+                </span>
+              </span>
+              
+              <div style="display:flex; align-items:center; gap:6px;">
+                ${
+                  isCoachCard
+                    ? (isCoach
+                        ? `<button class="sec btn-sm" data-rep="${esc(a.id)}" title="Replace Coach with another person">🔄 Replace</button>`
+                        : `<span class="pill" style="opacity:0.85;" title="Coach cannot be removed">🔒 Permanent</span>`
+                      )
+                    : `<button class="dng" data-adm="${esc(a.id)}" title="Remove administrator">Remove</button>`
+                }
+              </div>
+            </div>
+          `;
+        }).join("") || empty("🛡️", "No administrators added yet.")
+      }
+    </div>
+  `;
+
   $("akind").onchange = () => {
     $("aplw").hidden = $("akind").value !== "player";
   };
@@ -5112,8 +5419,13 @@ function vAdmins() {
     const o = $("apl").selectedOptions[0];
     if (o && o.dataset.n) $("an2").value = o.dataset.n;
   };
+  if ($("btn-top-rep-coach")) {
+    $("btn-top-rep-coach").onclick = () => openReplaceCoachDialog();
+  }
+
   $("aadd").onclick = () => {
-    let kind = $("akind") ? $("akind").value : "instructor";
+    const post = $("apost") ? $("apost").value : "admin";
+    const kind = $("akind") ? $("akind").value : "instructor";
     const pid = $("apl") ? $("apl").value : "",
       name = $("an2").value.trim(),
       code = $("ac").value;
@@ -5121,20 +5433,29 @@ function vAdmins() {
       return alert("Enter a name and a code of at least 4 characters.");
     if (kind === "player" && !pid)
       return alert("Please choose which player from the dropdown to link this admin to.");
+
+    if (post === "coach" && hasCoach) {
+      if (!confirm("Appointing a new Coach will replace the current Coach. Proceed?")) return;
+    }
+
     run(async () => {
       await api("/api/admins", {
         method: "POST",
-        body: { name, code, kind, playerId: kind === "player" ? pid : "" },
+        body: { name, code, post, kind, playerId: kind === "player" ? pid : "" },
       });
       await load(true);
-      alert('Admin "' + name + '" added successfully!');
+      alert(`${POST_CONFIG[post] ? POST_CONFIG[post].label : "Admin"} "${name}" added successfully!`);
     });
   };
+
   document.querySelectorAll("[data-tg]").forEach(
     (b) =>
       (b.onclick = (e) => {
         e.stopPropagation();
         const a = ADM.find((x) => x.id === b.dataset.tg);
+        if (a && getAdminPost(a) === "coach") {
+          return alert("The Coach account cannot be disabled. Coach can only be replaced by another person.");
+        }
         run(async () => {
           await api("/api/admins/" + a.id, {
             method: "PUT",
@@ -5144,14 +5465,27 @@ function vAdmins() {
         });
       }),
   );
+
+  document.querySelectorAll("[data-rep]").forEach(
+    (b) =>
+      (b.onclick = (e) => {
+        e.stopPropagation();
+        openReplaceCoachDialog();
+      }),
+  );
+
   document.querySelectorAll("[data-adm]").forEach(
     (b) =>
       (b.onclick = (e) => {
         e.stopPropagation();
         const a = ADM.find((x) => x.id === b.dataset.adm);
+        if (!a) return;
+        if (getAdminPost(a) === "coach") {
+          return alert("The Coach cannot be removed. Coach can only be replaced by another person.");
+        }
         if (
           confirm(
-            'Remove admin "' + a.name + '"? They will be logged out at once.',
+            'Remove administrator "' + a.name + '"? They will be logged out at once.',
           )
         )
           run(async () => {
@@ -5160,12 +5494,10 @@ function vAdmins() {
           });
       }),
   );
+
   document
     .querySelectorAll("[data-af]")
     .forEach((r) => (r.onclick = () => openProf("a", r.dataset.af)));
-  document
-    .querySelectorAll("[data-sf]")
-    .forEach((r) => (r.onclick = () => openProf("s", r.dataset.sf)));
 }
 
 // ---- profile detail page ----
@@ -5209,7 +5541,7 @@ function vProfile() {
       .join(" · ");
     h = `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
-    <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill g">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill g">🎖️ Vice-captain</span>' : ""}${ADM.some((a) => a.kind === "player" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill g">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
+    <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill blue">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "coach" && a.playerId === id) || (role === "coach" && MYPID === id) ? '<span class="pill gold">👑 Coach</span>' : ""}${ADM.some((a) => getAdminPost(a) === "captain" && a.playerId === id) ? '<span class="pill blue">🎖️ Captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "vice" && a.playerId === id) ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "admin" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill purple">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
     ${canPh ? photoBtns(own, photoPath, p.photo, `<button class="pri" id="pedit">✏️ Edit profile</button>${own ? '<button class="sec" id="pcode">🔑 Change password</button>' : ""}`) : ""}
     ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
     <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} sessions</p><div class="dots">${dots}</div></div>` : ""}</div></div>
@@ -5298,24 +5630,73 @@ function vProfile() {
     if (k === "a") {
       const a =
         ADM.find((x) => x.id === id) ||
-        (role === "admin" && id === ADMID
-          ? { id, name: WHO, photo: MYPH, disabled: false }
+        ((role === "admin" || role === "coach") && id === ADMID
+          ? { id, name: WHO, photo: MYPH, disabled: false, post: role }
           : null);
       if (!a) {
         prof = null;
         return render();
       }
-      own = role === "admin" && id === ADMID;
+      const post = getAdminPost(a);
+      const isTargetCoach = post === "coach";
+      const isViewerCoach = role === "coach";
+      own = (role === "admin" || role === "coach") && id === ADMID;
       name = a.name;
       ph = a.photo;
-      sub = "Admin";
+      sub = POST_CONFIG[post] ? POST_CONFIG[post].label : "Admin";
       photoPath = "/api/admins/" + id + "/photo";
       canPh = own || owner;
       const lpl =
-        a.kind === "player" && a.playerId
+        a.playerId
           ? [...P, ...RM].find((x) => x.id === a.playerId)
           : null;
-      acts = `${kv("Role", "Admin")}${kv("Type", a.kind === "player" ? "Player" + (lpl ? " · " + esc(lpl.name) : "") : a.kind === "instructor" ? "Instructor" : "<i>not set</i>")}${lpl ? `<div class="chips"><button id="apv">👤 View player profile</button></div>` : ""}${owner && ADM.some((x) => x.id === id) ? `<div class="edit"><label class="fl">Change type<select id="ak"><option value="">Choose…</option><option value="player" ${a.kind === "player" ? "selected" : ""}>Player</option><option value="instructor" ${a.kind === "instructor" ? "selected" : ""}>Instructor</option></select></label><label class="fl" id="akpw" ${a.kind === "player" ? "" : "hidden"}>Which player<select id="akp">${P.map((x) => `<option value="${esc(x.id)}" ${a.playerId === x.id ? "selected" : ""}>${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}</select></label><button id="aks">Save type</button></div>` : ""}${kv("Access", a.disabled ? '<span class="pill r">Off</span>' : '<span class="pill g">On</span>')}${a.created ? kv("Added", when(a.created)) : ""}${owner && ADM.some((x) => x.id === id) ? `<div class="chips" style="margin-top:12px"><button id="atg">${a.disabled ? "Turn access on" : "Turn access off"}</button><button class="dng" id="arm">Remove admin</button></div>` : ""}`;
+      acts = `${kv("Post / Role", POST_CONFIG[post].badge)}
+        ${kv("Member Type", a.playerId ? "Squad Player" + (lpl ? " · " + esc(lpl.name) : "") : "Staff / Instructor")}
+        ${lpl ? `<div class="chips"><button id="apv">👤 View player profile</button></div>` : ""}
+        ${
+          isViewerCoach
+            ? `<div class="edit">
+                <label class="fl">Change Post / Role
+                  <select id="apost_edit">
+                    <option value="coach" ${post === "coach" ? "selected" : ""}>👑 Coach ${post === "coach" ? "(Current)" : "(Transfers Coach Post)"}</option>
+                    <option value="captain" ${post === "captain" ? "selected" : ""}>🎖️ Captain</option>
+                    <option value="vice" ${post === "vice" ? "selected" : ""}>🥈 Vice-captain</option>
+                    <option value="admin" ${post === "admin" ? "selected" : ""}>🛡️ Admin</option>
+                  </select>
+                </label>
+                <label class="fl">Link to Squad Player
+                  <select id="akp">
+                    <option value="">Staff / External (Not in squad)</option>
+                    ${P.map((x) => `<option value="${esc(x.id)}" ${a.playerId === x.id ? "selected" : ""}>${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}
+                  </select>
+                </label>
+                <button id="aks" class="pri">Save Changes</button>
+              </div>`
+            : (owner && !isTargetCoach
+                ? `<div class="edit">
+                    <label class="fl">Link to Squad Player
+                      <select id="akp">
+                        <option value="">Staff / External (Not in squad)</option>
+                        ${P.map((x) => `<option value="${esc(x.id)}" ${a.playerId === x.id ? "selected" : ""}>${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}
+                      </select>
+                    </label>
+                    <button id="aks" class="pri">Save Link</button>
+                  </div>`
+                : "")
+        }
+        ${kv("Access Status", isTargetCoach ? '<span class="pill gold">Permanent (Supreme)</span>' : a.disabled ? '<span class="pill r">Off</span>' : '<span class="pill g">On</span>')}
+        ${a.created ? kv("Added", when(a.created)) : ""}
+        ${
+          isTargetCoach
+            ? (isViewerCoach
+                ? `<div class="chips" style="margin-top:12px"><button class="sec" id="arep_coach">🔄 Replace Coach with another person</button></div>`
+                : `<div class="note" style="margin-top:10px">🔒 The Coach account cannot be disabled or removed.</div>`
+              )
+            : (owner
+                ? `<div class="chips" style="margin-top:12px"><button id="atg">${a.disabled ? "Turn access on" : "Turn access off"}</button><button class="dng" id="arm">Remove admin</button></div>`
+                : ""
+              )
+        }`;
     } else {
       own = role === id;
       name = id === "captain" ? "Captain" : "Vice-captain";
@@ -5333,18 +5714,24 @@ function vProfile() {
     if ($("apv"))
       $("apv").onclick = () =>
         openProf("p", (ADM.find((x) => x.id === id) || {}).playerId);
-    if ($("ak"))
-      $("ak").onchange = () => {
-        $("akpw").hidden = $("ak").value !== "player";
-      };
+    if ($("arep_coach")) $("arep_coach").onclick = () => openReplaceCoachDialog();
     if ($("aks"))
       $("aks").onclick = () => {
-        const kd = $("ak").value;
-        if (!kd) return alert("Choose Player or Instructor.");
+        const upd = {};
+        if ($("apost_edit")) {
+          upd.post = $("apost_edit").value;
+          const a = ADM.find((x) => x.id === id);
+          if (upd.post === "coach" && getAdminPost(a) !== "coach") {
+            if (!confirm("Making this admin the Head Coach will transfer the Coach post to them. Proceed?")) return;
+          }
+        }
+        if ($("akp")) {
+          upd.playerId = $("akp").value || "";
+        }
         run(async () => {
           await api("/api/admins/" + id, {
             method: "PUT",
-            body: { kind: kd, playerId: kd === "player" ? $("akp").value : "" },
+            body: upd,
           });
           await load(true);
         });
@@ -5353,6 +5740,9 @@ function vProfile() {
     if ($("atg"))
       $("atg").onclick = () => {
         const a = ADM.find((x) => x.id === id);
+        if (a && getAdminPost(a) === "coach") {
+          return alert("The Coach account cannot be disabled. Coach can only be replaced by another person.");
+        }
         run(async () => {
           await api("/api/admins/" + id, {
             method: "PUT",
@@ -5363,7 +5753,11 @@ function vProfile() {
       };
     if ($("arm"))
       $("arm").onclick = () => {
-        if (confirm("Remove this admin? They will be logged out at once."))
+        const a = ADM.find((x) => x.id === id);
+        if (a && getAdminPost(a) === "coach") {
+          return alert("The Coach cannot be removed. Coach can only be replaced by another person.");
+        }
+        if (confirm("Remove this administrator? They will be logged out at once."))
           run(async () => {
             await api("/api/admins/" + id, { method: "DELETE" });
             prof = null;

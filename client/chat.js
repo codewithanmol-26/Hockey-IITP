@@ -290,7 +290,7 @@
       const botDiv = document.createElement("div");
       botDiv.className = "chat-msg bot welcome-msg";
 
-      const isAdmin = prof && (prof.role === "admin" || prof.role === "captain" || prof.role === "vice");
+      const isAdmin = prof && (prof.role === "admin" || prof.role === "captain" || prof.role === "vice" || prof.role === "coach");
       const nameDisplay = prof.name && prof.name !== "Guest" ? prof.name : "there";
       const rolePill = prof.title ? `<span class="bubble-role-pill">${escapeHtml(prof.title)}</span>` : "";
 
@@ -319,7 +319,7 @@
     const chipsContainer = document.getElementById("chat-chips");
     if (chipsContainer) {
       chipsContainer.innerHTML = "";
-      const isAdmin = prof && (prof.role === "admin" || prof.role === "captain" || prof.role === "vice");
+      const isAdmin = prof && (prof.role === "admin" || prof.role === "captain" || prof.role === "vice" || prof.role === "coach");
       const chipList = isAdmin
         ? [
             { label: "📊 Squad Attendance", q: "Show me an overview of squad attendance and top attendees." },
@@ -363,6 +363,13 @@
       badge.className = "chat-user-badge guest";
       badge.innerHTML = `👥 Guest • Visitor`;
       badge.title = "Browsing as guest. Team records are private.";
+      return;
+    }
+
+    if (prof.role === "coach") {
+      badge.className = "chat-user-badge coach";
+      badge.innerHTML = `👑 Coach: ${escapeHtml(prof.name || "Head Coach")}`;
+      badge.title = "Signed in as Coach (Supreme Admin Access)";
       return;
     }
 

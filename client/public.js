@@ -1111,7 +1111,7 @@ function myInfoCard() {
     tp = st.reduce((a, x) => a + x.t, 0),
     tr = tp ? Math.round((st.reduce((a, x) => a + x.pr, 0) * 100) / tp) : 0;
   return `<div class="card"><h2>My details</h2><div class="stats"><div><b>${P.length}</b>Players</div><div><b>${rsess("all")}</b>Sessions</div><div><b>${tr}%</b>Team turnout</div></div>
-  ${kvp("Name", esc(WHO))}${kvp("Role", role === "captain" ? "Captain" : role === "vice" ? "Vice-captain" : "Admin")}${kvp("Access", role === "admin" ? "Attendance and team editing" : "Full: attendance, players, admins")}
+  ${kvp("Name", esc(WHO))}${kvp("Role", role === "coach" ? "Coach" : role === "captain" ? "Captain" : role === "vice" ? "Vice-captain" : "Admin")}${kvp("Access", role === "coach" ? "Supreme access: players, plans, admins, staff" : role === "admin" ? "Attendance and team editing" : "Full: attendance, players, admins")}
   <div class="chips"><button id="myp">👤 Open my profile</button><button data-go="take">✅ Take attendance</button></div></div>`;
 }
 function featTiles() {
@@ -1167,13 +1167,15 @@ function openNames() {
   d.showModal();
 }
 const roleLabel = () =>
-  role === "captain"
-    ? "Captain"
-    : role === "vice"
-      ? "Vice-captain"
-      : role === "admin"
-        ? "Admin"
-        : "Player";
+  role === "coach"
+    ? "Coach"
+    : role === "captain"
+      ? "Captain"
+      : role === "vice"
+        ? "Vice-captain"
+        : role === "admin"
+          ? "Admin"
+          : "Player";
 
 // ---------------------------------------------------------------- photo cropper
 // cropFile(file,{title,ars:[[label,ratio]],out,q,cap,skip}) -> Promise<JPEG data URL | null>. ratio 0 = the picture's own shape.
@@ -1516,7 +1518,7 @@ const ownCoverKey = () =>
     ? ["p", me]
     : MYPID
       ? ["p", MYPID]
-      : role === "admin"
+      : role === "admin" || role === "coach"
         ? ["a", ADMID]
         : ["s", role];
 
@@ -1553,8 +1555,10 @@ function welcomeHero() {
       ]
         .filter(Boolean)
         .join(" · ")
-    : role === "admin"
-      ? "Admin" +
+    : role === "coach"
+      ? "👑 Head Coach"
+      : role === "admin"
+        ? "Admin" +
         (ADM.find((a) => a.id === ADMID) &&
         ADM.find((a) => a.id === ADMID).kind === "instructor"
           ? " · Instructor"
