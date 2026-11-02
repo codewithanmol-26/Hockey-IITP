@@ -322,11 +322,8 @@ function drawPublic() {
       </div>
 
       <div class="hero-cta-group">
-        <button class="btn-hero-primary" data-plog>
-          <span>Member Login &amp; Attendance</span> →
-        </button>
-        <a href="#pub-schedule" class="btn-hero-secondary">
-          <span>📅 View Schedule</span>
+        <a href="#pub-schedule" class="btn-hero-primary">
+          <span>📅 View Practice Schedule</span>
         </a>
         <a href="#pub-progress" class="btn-hero-secondary">
           <span>📊 Check My Progress</span>
@@ -460,7 +457,6 @@ function drawPublic() {
               <span><b>Track Eligibility:</b> Minimum 75% recorded turnout required for tournament travel squad consideration.</span>
             </div>
           </div>
-          <button class="pri" style="margin-top:10px" data-plog>Log In to Submit Availability</button>
         </div>
       </div>
     </section>
@@ -486,43 +482,6 @@ function drawPublic() {
         <div id="pub-lookup-result" hidden></div>
       </div>
     </section>
-
-    <!-- 4b. Squad Dedication Leaderboard Showcase -->
-    ${
-      p && p.leaderboardTop && p.leaderboardTop.length
-        ? `
-      <section class="pub-sec" id="pub-leaderboard">
-        <div class="sec-header">
-          <span class="sec-kicker">SQUAD DEDICATION</span>
-          <h2 class="sec-title">Top Dedicated Players</h2>
-          <p class="sec-lead">Players who put in the most practice hours on turf lead the squad leaderboard. Consistency beats talent!</p>
-        </div>
-        <div class="card" style="margin:0;padding:22px">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px">
-            ${p.leaderboardTop
-              .map(
-                (tp, idx) => `
-              <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--soft);border:1px solid var(--line)">
-                <span style="font-size:1.6rem">${idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : "#" + (idx + 1)}</span>
-                ${avatar(tp.name, tp.photo, 44)}
-                <div style="min-width:0;flex:1">
-                  <b style="font-size:0.95rem;color:var(--ink);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(tp.name)}</b>
-                  <span class="mute" style="font-size:0.78rem">${esc(tp.position || "Player")} · <b>${tp.hours} hrs</b></span>
-                  <span class="pill g" style="font-size:0.72rem;margin-top:2px;display:inline-block">${tp.points.toLocaleString()} XP</span>
-                </div>
-              </div>
-            `,
-              )
-              .join("")}
-          </div>
-          <div style="margin-top:16px;text-align:center">
-            <button class="pri" data-plog style="border-radius:12px;padding:10px 20px;font-weight:700">Member Login to View Full Leaderboard 🏆</button>
-          </div>
-        </div>
-      </section>
-      `
-        : ""
-    }
 
     <!-- 5. Announcements & Fixtures Section -->
     <section class="pub-sec" id="pub-announcements">
@@ -696,11 +655,6 @@ function drawPublic() {
           <p class="footer-desc">
             Official web portal of the Indian Institute of Technology Patna Field Hockey Team. Practice tracking, turnout records, official rules, and squad coordination.
           </p>
-          <div style="margin-top:6px">
-            <a href="${(PUB && PUB.group) || window.WA_GROUP || "#"}" target="_blank" rel="noopener" class="btn-wa-footer" id="btn-join-wa">
-              💬 Join Squad WhatsApp Group
-            </a>
-          </div>
         </div>
 
         <div class="footer-col">
@@ -935,11 +889,6 @@ function pubMenu() {
   let h = menuHead("Menu");
   if (!standalone()) h += mi("📲", "Open in app / install", openInApp);
   h += mi("📲", "Share this app", shareApp);
-  const g = (PUB && PUB.group) || window.WA_GROUP || "";
-  if (g)
-    h += mi("💬", "Join WhatsApp group", () =>
-      window.open(g, "_blank", "noopener"),
-    );
   m.innerHTML = h;
   wireMenu(m);
 }
