@@ -2267,8 +2267,9 @@ function openEditCoach() {
     <label class="fl">Official Email ID
       <input id="ed-coach-email" type="email" value="${esc(curEmail)}" maxlength="120" placeholder="kiran.chaudhary16@iitp.ac.in">
     </label>
-    <div style="margin:14px 0 6px">
-      <button type="button" class="sec full" id="ed-coach-code">🔑 Change Password / Pattern Lock</button>
+    <div style="margin:14px 0 6px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" class="sec" style="flex:1;" id="ed-coach-code">🔑 Change Password</button>
+      <button type="button" class="ghost2" style="flex:1;" id="ed-coach-forgot">📧 Forgot Password? (OTP)</button>
     </div>
     <div class="ctl">
       <button class="pri" id="ed-coach-save">Save Changes</button>
@@ -2278,8 +2279,14 @@ function openEditCoach() {
   $("ed-coach-cancel").onclick = () => d.close();
   $("ed-coach-code").onclick = () => {
     d.close();
-    openChangeCode();
+    openChangeCode(false);
   };
+  if ($("ed-coach-forgot")) {
+    $("ed-coach-forgot").onclick = () => {
+      d.close();
+      openChangeCode(true);
+    };
+  }
   $("ed-coach-save").onclick = () => {
     const name = ($("ed-coach-name").value || "").trim();
     const email = ($("ed-coach-email").value || "").trim();
@@ -2306,13 +2313,15 @@ function openEditCoach() {
 let myCodeType = "alnum";
 let changeNewType = "alnum";
 
-function openChangeCode() {
+function openChangeCode(startForgot = false) {
   const dlg = $("codedlg");
   const body = $("codedlg-body");
   if (!dlg || !body) return;
 
   const isPl = role === "player";
   changeNewType = myCodeType || "alnum";
+  let isForgot = !!startForgot;
+  let chgOtpTimer = 0;
 
   const renderCurInput = (type) => {
     if (type === "pattern") {
@@ -2344,6 +2353,36 @@ function openChangeCode() {
         <span class="chg-lbl">Current Password / Code</span>
         <input id="curcode" type="password" placeholder="Enter current password or code" autocomplete="current-password" required>
       </label>
+    `;
+  };
+
+  const renderForgotOtpBox = () => {
+    return `
+      <div class="card" style="margin:0 0 12px; padding:12px 14px; background:linear-gradient(135deg, rgba(15,74,168,0.06), transparent); border:1px solid rgba(15,74,168,0.25); border-radius:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:1.1rem;">📧</span>
+            <b style="font-size:0.92rem; color:var(--ink);">Forgot Password · Verify via Email OTP</b>
+          </div>
+          <button type="button" id="btn-toggle-normal" class="btn-link" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.82rem; cursor:pointer; text-decoration:underline;">
+            I know my current code
+          </button>
+        </div>
+        <p class="mute" style="margin:0 0 10px; font-size:0.82rem; line-height:1.4;">
+          Get a 6-digit OTP on your registered email to set a new password, PIN, or pattern lock without entering your current one.
+        </p>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+          <button type="button" class="pri btn-sm" id="btn-chg-send-otp">📧 Send OTP to Email</button>
+          <button type="button" class="sec btn-sm" id="btn-chg-paste-otp" style="display:none;">📋 Paste Code</button>
+        </div>
+        <div id="chg-otp-input-area" style="display:none; margin-top:8px;">
+          <label class="fl">
+            <span class="chg-lbl">Enter 6-digit Email OTP</span>
+            <input id="chg-otp-code" type="text" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit code" autocomplete="one-time-code" style="font-size:1.05rem; letter-spacing:2px; font-weight:600;">
+          </label>
+          <p id="chg-otp-status" class="ok" style="margin:4px 0 0; font-size:0.8rem;"></p>
+        </div>
+      </div>
     `;
   };
 
@@ -2402,12 +2441,20 @@ function openChangeCode() {
     `;
   };
 
-  const btnLabel = (type) =>
-    type === "pattern"
+  const btnLabel = (type) => {
+    if (isForgot) {
+      return type === "pattern"
+        ? "Verify OTP & Set Pattern"
+        : type === "numeric"
+          ? "Verify OTP & Set PIN"
+          : "Verify OTP & Set Password";
+    }
+    return type === "pattern"
       ? "Save New Pattern"
       : type === "numeric"
         ? "Save New PIN"
         : "Save New Password";
+  };
 
   const renderDialog = () => {
     const roleTitle =
@@ -2424,12 +2471,24 @@ function openChangeCode() {
       ? `roll <b>${esc(me || "Player")}</b>`
       : `<b>${esc(WHO || roleTitle)}</b> (${roleTitle})`;
 
+    const dlgTitle = isForgot ? "Reset Password / Credentials" : "Change Password / Credentials";
+    const dlgSub = isForgot
+      ? `Verify via email OTP and set new credentials for ${userLabel}. Choose from all types of security: any-character password, numeric PIN, or pattern lock.`
+      : `Update credentials for ${userLabel}. Choose from all types of security: any-character password (letters, numbers, symbols), numeric PIN, or pattern lock.`;
+
     const h = `
-      <h2 id="codedlg-title">Change Password / Credentials</h2>
-      <p class="mute" id="codedlg-sub">Update credentials for ${userLabel}. Choose from all types of security: any-character password (letters, numbers, symbols), numeric PIN, or pattern lock.</p>
+      <h2 id="codedlg-title">${dlgTitle}</h2>
+      <p class="mute" id="codedlg-sub">${dlgSub}</p>
       <form id="codeform" autocomplete="off">
         <div id="chg-cur-wrap">
-          ${renderCurInput(myCodeType)}
+          ${isForgot ? renderForgotOtpBox() : `
+            ${renderCurInput(myCodeType)}
+            <div style="display:flex; justify-content:flex-end; margin-top:4px; margin-bottom:6px;">
+              <button type="button" class="btn-link" id="btn-toggle-forgot" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.83rem; font-weight:600; cursor:pointer; padding:2px 0; text-decoration:underline;">
+                🔑 Forgot current password / pattern? Verify with Email OTP
+              </button>
+            </div>
+          `}
         </div>
         <div class="fl" style="margin-top:14px">
           <span class="chg-lbl">Choose Password / Security Type</span>
@@ -2478,24 +2537,121 @@ function openChangeCode() {
   };
 
   const bindDialogEvents = () => {
-    if ($("codex")) $("codex").onclick = () => dlg.close();
+    if ($("codex")) {
+      $("codex").onclick = () => {
+        clearInterval(chgOtpTimer);
+        dlg.close();
+      };
+    }
 
-    // Bind current credential input (pattern or code)
-    bindCurInputEvents();
+    if ($("btn-toggle-forgot")) {
+      $("btn-toggle-forgot").onclick = () => {
+        clearInterval(chgOtpTimer);
+        isForgot = true;
+        renderDialog();
+      };
+    }
 
-    // Dynamically verify credential type from server to guarantee pattern lock renders
-    api("/api/me/code-type")
-      .then((r) => {
-        if (r && r.codeType && r.codeType !== myCodeType) {
-          myCodeType = r.codeType;
-          const curWrap = $("chg-cur-wrap");
-          if (curWrap) {
-            curWrap.innerHTML = renderCurInput(myCodeType);
-            bindCurInputEvents();
+    if ($("btn-toggle-normal")) {
+      $("btn-toggle-normal").onclick = () => {
+        clearInterval(chgOtpTimer);
+        isForgot = false;
+        renderDialog();
+      };
+    }
+
+    if (isForgot) {
+      const sendOtpBtn = $("btn-chg-send-otp");
+      const pasteOtpBtn = $("btn-chg-paste-otp");
+      const otpArea = $("chg-otp-input-area");
+      const otpStatus = $("chg-otp-status");
+      const otpInput = $("chg-otp-code");
+
+      if (sendOtpBtn) {
+        sendOtpBtn.onclick = async () => {
+          sendOtpBtn.disabled = true;
+          try {
+            const r = await api("/api/auth/forgot-code-otp", { method: "POST" });
+            toast("Verification code sent to " + (r.sentTo || "email"));
+            if (otpArea) otpArea.style.display = "";
+            if (pasteOtpBtn) pasteOtpBtn.style.display = "";
+            if (otpStatus) {
+              otpStatus.className = "ok";
+              otpStatus.textContent = `Verification code sent to ${r.sentTo || "email"}. Valid for 10 minutes.`;
+            }
+            if (otpInput) otpInput.focus();
+
+            let n = r.wait || 60;
+            clearInterval(chgOtpTimer);
+            const tick = () => {
+              if (!sendOtpBtn) {
+                clearInterval(chgOtpTimer);
+                return;
+              }
+              sendOtpBtn.disabled = n > 0;
+              sendOtpBtn.textContent = n > 0 ? `Resend code in ${n}s` : "📧 Resend OTP";
+              if (n-- <= 0) clearInterval(chgOtpTimer);
+            };
+            tick();
+            chgOtpTimer = setInterval(tick, 1000);
+          } catch (err) {
+            toast(err.message || "Failed to send code", true);
+            sendOtpBtn.disabled = false;
+            if (otpStatus) {
+              otpStatus.className = "err";
+              otpStatus.textContent = err.message || "Failed to send verification code.";
+            }
           }
-        }
-      })
-      .catch(() => {});
+        };
+      }
+
+      if (pasteOtpBtn) {
+        pasteOtpBtn.onclick = async () => {
+          try {
+            let text = "";
+            if (navigator.clipboard && navigator.clipboard.readText) {
+              text = await navigator.clipboard.readText();
+            } else {
+              text = prompt("Paste 6-digit OTP:") || "";
+            }
+            const digits = (text || "").replace(/\D/g, "").slice(0, 6);
+            if (digits && otpInput) {
+              otpInput.value = digits;
+              toast("OTP pasted!");
+            }
+          } catch (x) {
+            const text = prompt("Paste 6-digit OTP:") || "";
+            const digits = (text || "").replace(/\D/g, "").slice(0, 6);
+            if (digits && otpInput) {
+              otpInput.value = digits;
+              toast("OTP pasted!");
+            }
+          }
+        };
+      }
+
+      if (otpInput) {
+        otpInput.oninput = (e) => {
+          e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
+        };
+      }
+    } else {
+      // Bind current credential input (pattern or code)
+      bindCurInputEvents();
+
+      // Dynamically verify credential type from server to guarantee pattern lock renders
+      api("/api/me/code-type")
+        .then((r) => {
+          if (r && r.codeType && r.codeType !== myCodeType) {
+            myCodeType = r.codeType;
+            const curWrap = $("chg-cur-wrap");
+            if (curWrap && !isForgot) {
+              renderDialog();
+            }
+          }
+        })
+        .catch(() => {});
+    }
 
     // Bind segmented buttons for new type
     const pty = $("chg-pty");
@@ -2527,13 +2683,22 @@ function openChangeCode() {
           msg.className = "err";
           msg.textContent = "";
         }
+
         const cur = ($("curcode") ? $("curcode").value : "").trim();
         const nw = ($("newcode") ? $("newcode").value : "").trim();
         const nw2 = ($("newcode2") ? $("newcode2").value : "").trim();
+        const otpVal = ($("chg-otp-code") ? $("chg-otp-code").value : "").trim();
 
-        if (!cur) {
-          if (msg) msg.textContent = myCodeType === "pattern" ? "Please draw your current pattern." : "Please enter your current credential.";
-          return;
+        if (isForgot) {
+          if (!/^\d{6}$/.test(otpVal)) {
+            if (msg) msg.textContent = "Please send and enter the complete 6-digit verification code.";
+            return;
+          }
+        } else {
+          if (!cur) {
+            if (msg) msg.textContent = myCodeType === "pattern" ? "Please draw your current pattern." : "Please enter your current credential.";
+            return;
+          }
         }
 
         if (changeNewType === "pattern") {
@@ -2569,7 +2734,7 @@ function openChangeCode() {
           }
         }
 
-        if (cur === nw) {
+        if (!isForgot && cur === nw) {
           if (msg) msg.textContent = "New credentials must be different from current ones.";
           return;
         }
@@ -2577,20 +2742,30 @@ function openChangeCode() {
         const btn = $("codebtn");
         if (btn) {
           btn.disabled = true;
-          btn.textContent = "Saving...";
+          btn.textContent = isForgot ? "Verifying & Saving..." : "Saving...";
         }
 
         try {
-          const res = await api("/api/auth/change-code", {
-            method: "POST",
-            body: { currentCode: cur, newCode: nw, ctype: changeNewType },
-          });
+          let res;
+          if (isForgot) {
+            res = await api("/api/auth/reset-with-otp", {
+              method: "POST",
+              body: { otp: otpVal, newCode: nw, ctype: changeNewType },
+            });
+          } else {
+            res = await api("/api/auth/change-code", {
+              method: "POST",
+              body: { currentCode: cur, newCode: nw, ctype: changeNewType },
+            });
+          }
+
           myCodeType = res.codeType || changeNewType;
           if (msg) {
             msg.className = "ok";
             msg.textContent = res.message || "Updated successfully!";
           }
           setTimeout(() => {
+            clearInterval(chgOtpTimer);
             dlg.close();
             if (btn) {
               btn.disabled = false;
@@ -2601,7 +2776,7 @@ function openChangeCode() {
         } catch (err) {
           if (msg) {
             msg.className = "err";
-            msg.textContent = err.message || "Failed to update. Check current credential.";
+            msg.textContent = err.message || (isForgot ? "Failed to reset. Check verification code." : "Failed to update. Check current credential.");
           }
           if (btn) {
             btn.disabled = false;
@@ -5684,6 +5859,7 @@ function vAdmins() {
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button type="button" class="pri btn-sm" id="btn-adm-edit-coach">✏️ Edit Coach Profile</button>
           <button type="button" class="sec btn-sm" id="btn-adm-code-coach">🔑 Change Password</button>
+          <button type="button" class="ghost2 btn-sm" id="btn-adm-forgot-coach">📧 Forgot Password?</button>
         </div>
       </div>
     </div>
@@ -5830,7 +6006,10 @@ function vAdmins() {
     $("btn-adm-edit-coach").onclick = () => openEditCoach();
   }
   if ($("btn-adm-code-coach")) {
-    $("btn-adm-code-coach").onclick = () => openChangeCode();
+    $("btn-adm-code-coach").onclick = () => openChangeCode(false);
+  }
+  if ($("btn-adm-forgot-coach")) {
+    $("btn-adm-forgot-coach").onclick = () => openChangeCode(true);
   }
 
   $("aadd").onclick = () => {

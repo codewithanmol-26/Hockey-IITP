@@ -743,6 +743,243 @@ app.post(
   }),
 );
 
+// ---- In-App Forgot Password / Code Recovery via Email OTP ----
+const handleForgotCodeOtp = async (req, res) => {
+  const u = await who(req);
+  if (!u) return res.status(401).json({ error: "Login required." });
+
+  if (limited("otpip" + req.ip, 12, 3600e3)) {
+    return res.status(429).json({ error: "Too many attempts. Please wait a while." });
+  }
+
+  let email = "";
+  let otpDocKey = "";
+  let recipientName = u.name || "Member";
+
+  if (u.role === "coach") {
+    email = "kiran.chaudhary16@iitp.ac.in";
+    const staffDoc = await db.collection("config").doc("staff").get().catch(() => null);
+    if (staffDoc && staffDoc.exists && staffDoc.data().coachEmail) {
+      email = staffDoc.data().coachEmail;
+    }
+    otpDocKey = "coach_kiran";
+    recipientName = (staffDoc && staffDoc.exists && staffDoc.data().coach) || "Head Coach Kiran Chaudhary";
+  } else if (u.role === "player") {
+    const plDoc = await db.collection("players").doc(u.id).get().catch(() => null);
+    if (!plDoc || !plDoc.exists) {
+      return res.status(404).json({ error: "Player profile not found." });
+    }
+    const plData = plDoc.data();
+    email = (plData.email || "").trim();
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({
+        error: "No valid email address registered for your player profile. Please ask Coach or Captain to update your email.",
+      });
+    }
+    otpDocKey = u.id;
+    recipientName = plData.name || "Player";
+  } else {
+    // Admin, Captain, Vice-Captain
+    if (u.id) {
+      const aDoc = await db.collection("admins").doc(u.id).get().catch(() => null);
+      if (aDoc && aDoc.exists) {
+        const aData = aDoc.data();
+        if (aData.email && EMAIL_RE.test(aData.email)) {
+          email = aData.email.trim();
+        } else if (aData.playerId) {
+          const plDoc = await db.collection("players").doc(aData.playerId).get().catch(() => null);
+          if (plDoc && plDoc.exists && EMAIL_RE.test(plDoc.data().email || "")) {
+            email = plDoc.data().email.trim();
+          }
+        }
+        recipientName = aData.name || u.name || "Admin";
+      }
+      otpDocKey = "admin_" + u.id;
+    }
+    if (!email) {
+      return res.status(400).json({
+        error: "No email address found for your account. Please contact Head Coach Kiran Chaudhary to update your access code.",
+      });
+    }
+  }
+
+  const ref = db.collection("otps").doc(otpDocKey);
+  const cur = await ref.get().catch(() => null);
+  const now = Date.now();
+  const c = cur && cur.exists ? cur.data() : {};
+  if (c.at && now - c.at < 60000) {
+    const waitSec = Math.ceil((60000 - (now - c.at)) / 1000);
+    return res.status(429).json({
+      error: `Please wait ${waitSec} seconds before requesting another code.`,
+      wait: waitSec,
+    });
+  }
+
+  const hourStart = c.hs && now - c.hs < 3600e3 ? c.hs : now;
+  const sends = c.hs && now - c.hs < 3600e3 ? c.sends || 0 : 0;
+  if (sends >= 6) {
+    return res.status(429).json({
+      error: "Too many codes requested. Please try again in an hour.",
+    });
+  }
+
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+  await ref.set({
+    h: otpHash(otpDocKey, email, code),
+    email,
+    exp: now + 600e3,
+    n: 0,
+    at: now,
+    hs: hourStart,
+    sends: sends + 1,
+  });
+
+  await sendEmail(
+    email,
+    `Password Reset Verification Code: ${code} - IITP Hockey`,
+    `Hello ${recipientName},\n\nYour 6-digit password reset verification code is: ${code}\n\nEnter this code in the portal to set your new password, PIN, or pattern lock.\n\nValid for 10 minutes.`,
+    `<div style="font-family:sans-serif;padding:24px;background:#f8fafc;border-radius:12px;max-width:500px;margin:auto;"><h2 style="color:#0b2a4a;margin-top:0;">🏑 IITP Hockey Password Reset</h2><p>Hello ${recipientName},</p><p>Use the 6-digit verification code below to set your new credentials:</p><div style="font-size:36px;font-weight:bold;letter-spacing:6px;color:#0b2a4a;padding:12px 0;">${code}</div><p style="color:#64748b;font-size:12px;">Valid for 10 minutes. If you did not request this, please ignore this email.</p></div>`,
+  );
+
+  return res.json({
+    ok: true,
+    sentTo: maskEmail(email),
+    wait: 60,
+  });
+};
+
+const handleResetWithOtp = async (req, res) => {
+  const u = await who(req);
+  if (!u) return res.status(401).json({ error: "Login required." });
+
+  const { otp, newCode, ctype } = req.body || {};
+  const cleanOtp = String(otp || "").trim();
+  if (!/^\d{6}$/.test(cleanOtp)) {
+    return res.status(400).json({ error: "Please enter the complete 6-digit verification code." });
+  }
+
+  let otpDocKey = "";
+  if (u.role === "coach") {
+    otpDocKey = "coach_kiran";
+  } else if (u.role === "player") {
+    otpDocKey = u.id;
+  } else {
+    otpDocKey = "admin_" + (u.id || "");
+  }
+
+  const ref = db.collection("otps").doc(otpDocKey);
+  const o = await ref.get().catch(() => null);
+  if (!o || !o.exists || o.data().exp < Date.now()) {
+    return res.status(400).json({ error: "That verification code has expired. Please send code again." });
+  }
+
+  const d = o.data();
+  if (d.n >= 5) {
+    return res.status(423).json({ error: "Too many wrong attempts. Please send a new code." });
+  }
+
+  if (!eq(otpHash(otpDocKey, d.email, cleanOtp), d.h)) {
+    await ref.update({ n: (d.n || 0) + 1 }).catch(() => {});
+    return res.status(401).json({ error: "Wrong verification code. " + (4 - (d.n || 0)) + " tries left." });
+  }
+
+  const nw = String(newCode || "");
+  const newType = CODE_TYPES.includes(ctype) ? ctype : "alnum";
+  const bad = codeProblem(newType, nw);
+  if (bad) return res.status(400).json({ error: bad });
+
+  const typeLabel = newType === "pattern" ? "Pattern lock" : newType === "numeric" ? "PIN" : "Password";
+
+  // 1. Player Reset
+  if (u.role === "player") {
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = hashCode(nw, salt);
+    await db.collection("accounts").doc(u.id).set({
+      salt,
+      hash,
+      created: Date.now(),
+      type: newType,
+    });
+    await ref.delete().catch(() => {});
+    bust();
+    return res.json({
+      ok: true,
+      message: `Your ${typeLabel.toLowerCase()} has been reset successfully!`,
+      codeType: newType,
+    });
+  }
+
+  // 2. Coach Reset
+  if (u.role === "coach") {
+    const snap = await db.collection("admins").get();
+    const coachDoc = snap.docs.find(
+      (doc) => !doc.data().disabled && (doc.data().post === "coach" || doc.data().kind === "coach"),
+    );
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = hashCode(nw, salt);
+    if (coachDoc) {
+      await db.collection("admins").doc(coachDoc.id).update({
+        salt,
+        hash,
+        type: newType,
+        email: "kiran.chaudhary16@iitp.ac.in",
+        playerId: null,
+      });
+    }
+
+    const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
+    const customCodes = customCodesDoc && customCodesDoc.exists ? customCodesDoc.data() || {} : {};
+    customCodes.coach = { salt, hash, type: newType, at: Date.now() };
+    if (coachDoc) {
+      customCodes[coachDoc.id] = { salt, hash, type: newType, at: Date.now() };
+    }
+    await db.collection("config").doc("custom_codes").set(customCodes);
+    await ref.delete().catch(() => {});
+    bust();
+    return res.json({
+      ok: true,
+      message: `Your Coach ${typeLabel.toLowerCase()} has been reset successfully!`,
+      codeType: newType,
+    });
+  }
+
+  // 3. Captain / Vice-captain / Admin Reset
+  if (u.id) {
+    const aDoc = await db.collection("admins").doc(u.id).get();
+    if (!aDoc.exists || aDoc.data().disabled) {
+      return res.status(401).json({ error: "Account not found or disabled." });
+    }
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = hashCode(nw, salt);
+    await db.collection("admins").doc(u.id).update({
+      salt,
+      hash,
+      type: newType,
+    });
+
+    const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
+    const customCodes = customCodesDoc && customCodesDoc.exists ? customCodesDoc.data() || {} : {};
+    customCodes[u.id] = { salt, hash, type: newType, at: Date.now() };
+    if (u.role === "captain" || u.role === "vice") {
+      customCodes[u.role] = { salt, hash, type: newType, at: Date.now() };
+    }
+    await db.collection("config").doc("custom_codes").set(customCodes);
+    await ref.delete().catch(() => {});
+    bust();
+    const roleTitle = u.role === "captain" ? "Captain" : u.role === "vice" ? "Vice-captain" : "Admin";
+    return res.json({
+      ok: true,
+      message: `Your ${roleTitle} ${typeLabel.toLowerCase()} has been reset successfully!`,
+      codeType: newType,
+    });
+  }
+
+  return res.status(400).json({ error: "Cannot reset password for this role." });
+};
+
+app.post("/api/auth/forgot-code-otp", h(handleForgotCodeOtp));
+app.post("/api/auth/reset-with-otp", h(handleResetWithOtp));
+
 // Step 1: send the code. If the captain already saved an e-mail for you, the code goes there. Otherwise you type your own e-mail.
 app.post(
   "/api/player/otp",
