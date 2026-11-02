@@ -10,7 +10,7 @@
 
 // ---------------------------------------------------------------- 2. six-box code
 function sixBox(id) {
-  return `<div class="six" id="${id}" role="group" aria-label="6 digit code">${[0, 1, 2, 3, 4, 5].map((i) => `<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" ${i ? 'autocomplete="off"' : 'autocomplete="one-time-code"'} aria-label="Digit ${i + 1} of 6">`).join("")}</div>`;
+  return `<div class="six" id="${id}" role="group" aria-label="6 digit code">${[0, 1, 2, 3, 4, 5].map((i) => `<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" ${i ? 'autocomplete="off"' : 'autocomplete="one-time-code"'} aria-label="Digit ${i + 1} of 6">`).join("")}</div>`;
 }
 function bindSix(id, onFull) {
   const box = document.getElementById(id);
@@ -23,7 +23,8 @@ function bindSix(id, onFull) {
       ins[k].value = ch;
       k++;
     }
-    ins[Math.min(k, 5)].focus();
+    const nextIdx = Math.min(k, 5);
+    ins[nextIdx].focus();
     if (onFull && box.val().length === 6) onFull();
   };
   box.val = () => ins.map((x) => x.value).join("");
@@ -32,20 +33,31 @@ function bindSix(id, onFull) {
     ins[0].focus();
   };
   box.fill = (from, digits) => fill(from, digits);
-  box.onpaste = (e) => {
+
+  const handlePaste = (e, idx = 0) => {
     e.preventDefault();
-    const d = (
-      (e.clipboardData || window.clipboardData).getData("text") || ""
-    )
-      .replace(/\D/g, "")
-      .slice(0, 6);
-    if (d) fill(0, d);
+    const raw =
+      (e.clipboardData || window.clipboardData).getData("text") || "";
+    const d = raw.replace(/\D/g, "").slice(0, 6);
+    if (!d) return;
+    if (d.length === 6) fill(0, d);
+    else fill(idx, d);
   };
+
+  box.onpaste = (e) => handlePaste(e, 0);
+
   ins.forEach((el, i) => {
     el.oninput = () => {
       const d = el.value.replace(/\D/g, "");
-      el.value = "";
-      if (d) fill(i, d);
+      if (d.length > 1) {
+        fill(i, d.slice(0, 6));
+      } else if (d.length === 1) {
+        el.value = d;
+        if (i < 5) ins[i + 1].focus();
+        if (box.val().length === 6 && onFull) onFull();
+      } else {
+        el.value = "";
+      }
     };
     el.onkeydown = (e) => {
       if (e.key === "Backspace" && !el.value && i > 0) {
@@ -60,15 +72,7 @@ function bindSix(id, onFull) {
         ins[i + 1].focus();
       }
     };
-    el.onpaste = (e) => {
-      e.preventDefault();
-      const d = (
-        (e.clipboardData || window.clipboardData).getData("text") || ""
-      )
-        .replace(/\D/g, "")
-        .slice(0, 6);
-      if (d) fill(0, d);
-    };
+    el.onpaste = (e) => handlePaste(e, i);
     el.onfocus = () => el.select();
   });
 }

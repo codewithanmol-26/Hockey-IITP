@@ -104,11 +104,11 @@ const auth = async (req, res, next) => {
   }
 };
 const owner = (req, res, next) =>
-  ["coach", "captain", "vice", "admin"].includes(req.user.role)
+  req.user && req.user.role === "coach"
     ? next()
     : res
         .status(403)
-        .json({ error: "Only team admins and staff can do this" });
+        .json({ error: "Only Head Coach has administrative access." });
 const h = (fn) => (req, res, next) => fn(req, res).catch(next);
 
 // Security types a player can choose for their personal code. All are stored the same way (salted hash of the text).
@@ -158,7 +158,6 @@ app.post(
         : {};
 
     if (role === "coach") {
-      const want = String(name || "").trim().toLowerCase();
       const allDocs = (await db.collection("admins").get()).docs;
       let coachDocs = allDocs.filter(
         (d) =>
@@ -170,6 +169,7 @@ app.post(
         const hash = crypto.scryptSync("1234", salt, 32).toString("hex");
         const newRef = await db.collection("admins").add({
           name: "Kiran Chaudhary",
+          email: "kiran.chaudhary16@iitp.ac.in",
           disabled: false,
           kind: "coach",
           post: "coach",
@@ -181,27 +181,27 @@ app.post(
         const createdDoc = await newRef.get();
         coachDocs = [createdDoc];
       }
-      let candidates = coachDocs;
-      if (want) {
-        const filtered = coachDocs.filter(
-          (d) => String(d.data().name).trim().toLowerCase() === want,
-        );
-        if (filtered.length) candidates = filtered;
-      }
-      const hit = candidates.find((d) =>
-        eq(
-          crypto.scryptSync(c, d.data().salt, 32).toString("hex"),
-          d.data().hash,
-        ),
-      );
-      if (hit) {
-        payload = { role: "coach", id: hit.id, name: hit.data().name, post: "coach" };
-      } else if (c === "1234" && coachDocs.length) {
-        const cd = coachDocs[0];
-        payload = { role: "coach", id: cd.id, name: cd.data().name, post: "coach" };
+      const coachDoc = coachDocs[0];
+      const match =
+        eq(crypto.scryptSync(c, coachDoc.data().salt, 32).toString("hex"), coachDoc.data().hash) ||
+        (c === "1234");
+      if (match) {
+        payload = {
+          role: "coach",
+          id: coachDoc.id,
+          name: coachDoc.data().name || "Kiran Chaudhary",
+          email: "kiran.chaudhary16@iitp.ac.in",
+          post: "coach",
+        };
       } else if (customCodes.coach && customCodes.coach.hash) {
         if (eq(hashCode(c, customCodes.coach.salt), customCodes.coach.hash)) {
-          payload = { role: "coach", name: "Kiran Chaudhary" };
+          payload = {
+            role: "coach",
+            id: coachDoc.id,
+            name: "Kiran Chaudhary",
+            email: "kiran.chaudhary16@iitp.ac.in",
+            post: "coach",
+          };
         }
       }
     } else if (role === "captain") {
@@ -611,6 +611,93 @@ app.post(
     });
   }),
 );
+// Coach OTP: allows Head Coach Kiran Chaudhary to reset their code via official email
+app.post(
+  "/api/coach/forgot-otp",
+  h(async (req, res) => {
+    if (limited("otpip" + req.ip, 12, 3600e3))
+      return res.status(429).json({ error: "Too many tries. Please wait a while." });
+    const email = "kiran.chaudhary16@iitp.ac.in";
+    const ref = db.collection("otps").doc("coach_kiran"),
+      cur = await ref.get(),
+      now = Date.now(),
+      c = cur.exists ? cur.data() : {};
+    if (c.at && now - c.at < 60000)
+      return res.status(429).json({
+        error: "Wait " + Math.ceil((60000 - (now - c.at)) / 1000) + " seconds before asking for another code.",
+        wait: Math.ceil((60000 - (now - c.at)) / 1000),
+      });
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+    await ref.set({
+      h: otpHash("coach_kiran", email, code),
+      email,
+      exp: now + 600e3,
+      n: 0,
+      at: now,
+    });
+    const host = req.headers["x-forwarded-host"] || req.headers.host || "hockey-iitp.anmol.website";
+    const proto = req.headers["x-forwarded-proto"] || (req.secure ? "https" : "https");
+    const appUrl = `${proto}://${host}`;
+    const autoFillUrl = `${appUrl}/?role=coach&otp=${encodeURIComponent(code)}&mode=reset`;
+
+    await sendEmail(
+      email,
+      `Head Coach Password Reset Code: ${code} - IITP Hockey`,
+      `Hello Head Coach Kiran Chaudhary,\n\nYour 6-digit password reset code is: ${code}\n\nAuto-fill link: ${autoFillUrl}\n\nThis code is valid for 10 minutes.`,
+      `<div style="font-family:sans-serif;padding:24px;background:#f8fafc;border-radius:12px;max-width:500px;margin:auto;"><h2 style="color:#0b2a4a;margin-top:0;">🏑 Head Coach Password Reset</h2><p>Hello Coach Kiran Chaudhary,</p><p>Use the 6-digit verification code below to reset your portal password:</p><div style="font-size:36px;font-weight:bold;letter-spacing:6px;color:#0b2a4a;padding:12px 0;">${code}</div><p><a href="${autoFillUrl}" style="display:inline-block;background:#0f4aa8;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">🚀 Open App & Reset Password</a></p><p style="color:#64748b;font-size:12px;">Valid for 10 minutes. If you did not request this, please ignore this email.</p></div>`,
+    );
+    res.json({ ok: true, sentTo: maskEmail(email), wait: 60 });
+  }),
+);
+
+app.post(
+  "/api/coach/reset-password",
+  h(async (req, res) => {
+    const { otp, code, ctype } = req.body || {};
+    const ref = db.collection("otps").doc("coach_kiran"),
+      o = await ref.get();
+    if (!o.exists || o.data().exp < Date.now())
+      return res.status(400).json({ error: "That reset code has expired. Please send code again." });
+    const d = o.data();
+    if (d.n >= 5)
+      return res.status(423).json({ error: "Too many wrong tries. Send a new code." });
+    if (!/^\d{6}$/.test(String(otp || "")) || !eq(otpHash("coach_kiran", d.email, String(otp)), d.h)) {
+      await ref.update({ n: (d.n || 0) + 1 });
+      return res.status(401).json({ error: "Wrong e-mail code. " + (4 - (d.n || 0)) + " tries left." });
+    }
+    const c = String(code || "");
+    const newType = CODE_TYPES.includes(ctype) ? ctype : "alnum";
+    const bad = codeProblem(newType, c);
+    if (bad) return res.status(400).json({ error: bad });
+
+    const snap = await db.collection("admins").get();
+    const coachDoc = snap.docs.find(
+      (doc) => !doc.data().disabled && (doc.data().post === "coach" || doc.data().kind === "coach"),
+    );
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = crypto.scryptSync(c, salt, 32).toString("hex");
+    if (coachDoc) {
+      await db.collection("admins").doc(coachDoc.id).update({
+        salt,
+        hash,
+        type: newType,
+        email: "kiran.chaudhary16@iitp.ac.in",
+        playerId: null,
+      });
+    }
+    await ref.delete();
+    bust();
+    const token = staffToken({
+      role: "coach",
+      id: coachDoc ? coachDoc.id : "coach",
+      name: "Kiran Chaudhary",
+      email: "kiran.chaudhary16@iitp.ac.in",
+      post: "coach",
+    });
+    res.json({ token, ok: true });
+  }),
+);
+
 // Step 1: send the code. If the captain already saved an e-mail for you, the code goes there. Otherwise you type your own e-mail.
 app.post(
   "/api/player/otp",
@@ -980,7 +1067,12 @@ app.get(
         myKind,
         ...all,
       };
-      if (!["coach", "captain", "vice", "admin"].includes(p.role)) delete full.admins; // only team admins/staff manage the admin list
+      if (p.role !== "coach") delete full.admins; // Only Head Coach has admin access to manage the admin list
+      full.staff = {
+        ...(all.staff || {}),
+        coach: "Kiran Chaudhary",
+        coachEmail: "kiran.chaudhary16@iitp.ac.in",
+      };
       return res.json(full);
     }
     const me = p.id,
@@ -1448,8 +1540,16 @@ app.post(
   auth,
   h(async (req, res) => {
     const b = req.body || {};
-    if (!str(b.name).trim())
+    const pName = str(b.name).trim();
+    if (!pName)
       return res.status(400).json({ error: "Name required" });
+    const pEmail = str(b.email).trim().toLowerCase();
+    if (
+      pName.toLowerCase() === "kiran chaudhary" ||
+      pEmail === "kiran.chaudhary16@iitp.ac.in"
+    ) {
+      return res.status(400).json({ error: "The Head Coach is staff and cannot be added as a player." });
+    }
     const roll = str(b.roll, 12).trim(),
       rid = roll.replace(/[^A-Za-z0-9_-]/g, "");
     const ref = rid
@@ -1464,13 +1564,11 @@ app.post(
       });
     await ref.set({
       n: Number(b.n) || 999,
-      name: str(b.name, 40).trim(),
+      name: pName,
       roll,
       position: str(b.position, 40).trim(),
       joined: str(b.joined, 10),
-      ...(EMAIL_RE.test(str(b.email, 120).trim())
-        ? { email: str(b.email, 120).trim() }
-        : {}),
+      ...(EMAIL_RE.test(pEmail) ? { email: pEmail } : {}),
     });
     done(res);
   }),
@@ -1503,8 +1601,16 @@ app.put(
   auth,
   h(async (req, res) => {
     const b = req.body || {};
-    if (!str(b.name).trim())
+    const pName = str(b.name).trim();
+    if (!pName)
       return res.status(400).json({ error: "Name required" });
+    const pEmail = str(b.email).trim().toLowerCase();
+    if (
+      pName.toLowerCase() === "kiran chaudhary" ||
+      pEmail === "kiran.chaudhary16@iitp.ac.in"
+    ) {
+      return res.status(400).json({ error: "The Head Coach is staff and cannot be added as a player." });
+    }
     if (
       b.roll !== undefined &&
       String(b.roll).trim() &&
@@ -1512,7 +1618,7 @@ app.put(
     )
       return res.status(400).json({ error: ROLL_MSG });
     const upd = {
-      name: str(b.name, 40).trim(),
+      name: pName,
       roll: normRoll(b.roll),
       position: str(b.position, 40).trim(),
       joined: /^\d{4}-\d{2}-\d{2}$/.test(b.joined || "") ? b.joined : "",
@@ -1520,10 +1626,9 @@ app.put(
     for (const k of ["size", "jerseyName", "jerseyNo"])
       if (b[k] !== undefined) upd[k] = str(b[k], 40).trim();
     if (b.email !== undefined) {
-      const e = str(b.email, 120).trim();
-      if (e && !EMAIL_RE.test(e))
+      if (pEmail && !EMAIL_RE.test(pEmail))
         return res.status(400).json({ error: "Enter a valid e-mail address." });
-      upd.email = e;
+      upd.email = pEmail;
     }
     await db.collection("players").doc(req.params.id).update(upd); // works for removed students too: their details are kept
     done(res);
@@ -1551,6 +1656,13 @@ async function addStudents(list) {
       name = str(s.name, 40).trim();
     if (!rid || !name) {
       skipped.push(name || s.roll || "(blank)");
+      continue;
+    }
+    if (
+      name.toLowerCase() === "kiran chaudhary" ||
+      (s.email && str(s.email).trim().toLowerCase() === "kiran.chaudhary16@iitp.ac.in")
+    ) {
+      skipped.push(name + " (Head Coach is staff and cannot be a player)");
       continue;
     }
     if (!ROLL_RE.test(rid)) {
@@ -1989,8 +2101,11 @@ app.post(
       });
     }
 
+    if (post === "coach" && b.playerId) {
+      return res.status(400).json({ error: "The Head Coach is staff and cannot be a player." });
+    }
     const rawPid = b.playerId ? str(b.playerId, 40).trim() : "";
-    const playerId = rawPid || null;
+    const playerId = post === "coach" ? null : (rawPid || null);
     if (
       playerId &&
       !(await db.collection("players").doc(playerId).get()).exists
@@ -2092,8 +2207,15 @@ app.put(
     }
 
     if (b.playerId !== undefined) {
-      const rawPid = b.playerId ? str(b.playerId, 40).trim() : "";
-      upd.playerId = rawPid || null;
+      if (isTargetCoach || b.post === "coach") {
+        if (b.playerId) {
+          return res.status(400).json({ error: "The Head Coach is staff and cannot be a player." });
+        }
+        upd.playerId = null;
+      } else {
+        const rawPid = b.playerId ? str(b.playerId, 40).trim() : "";
+        upd.playerId = rawPid || null;
+      }
       if (
         upd.playerId &&
         !(await db.collection("players").doc(upd.playerId).get()).exists
@@ -2176,6 +2298,7 @@ app.post(
         kind: "coach",
         post: "coach",
         disabled: false,
+        playerId: null,
       });
       return done(res);
     }
@@ -2201,10 +2324,7 @@ app.post(
       });
     }
 
-    const rawPid = playerId ? str(playerId, 40).trim() : "";
-    if (rawPid && !(await db.collection("players").doc(rawPid).get()).exists) {
-      return res.status(400).json({ error: "Chosen player not found in squad" });
-    }
+    const rawPid = null;
 
     if (currentCoachDoc) {
       await db.collection("admins").doc(currentCoachDoc.id).update({
@@ -3519,14 +3639,15 @@ async function ensureDefaultCoach() {
   if (!db) return;
   try {
     const snap = await db.collection("admins").get();
-    const hasCoach = snap.docs.some(
+    const coachDoc = snap.docs.find(
       (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
     );
-    if (!hasCoach) {
+    if (!coachDoc) {
       const salt = crypto.randomBytes(16).toString("hex");
       const hash = crypto.scryptSync("1234", salt, 32).toString("hex");
       await db.collection("admins").add({
         name: "Kiran Chaudhary",
+        email: "kiran.chaudhary16@iitp.ac.in",
         disabled: false,
         kind: "coach",
         post: "coach",
@@ -3536,6 +3657,12 @@ async function ensureDefaultCoach() {
         hash,
       });
       console.log("Seeded default Head Coach: Kiran Chaudhary with password 1234");
+    } else {
+      await db.collection("admins").doc(coachDoc.id).update({
+        name: "Kiran Chaudhary",
+        email: "kiran.chaudhary16@iitp.ac.in",
+        playerId: null,
+      }).catch(() => {});
     }
   } catch (err) {
     console.error("ensureDefaultCoach error:", err.message);

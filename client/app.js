@@ -900,14 +900,16 @@ let RL = [],
   TPL = "",
   pl = false,
   owner = false,
+  isCoach = false,
+  isStaff = false,
   openS = { rules: new Set([0]), warmup: new Set([0]) },
   lastJs = "";
 
-// ---- all tabs. [id, icon, full name, who sees it (a = admins, o = captain/vice only), short name for the bar] ----
+// ---- all tabs. [id, icon, full name, who sees it (a = Head Coach only, s = staff: coach/captain/vice/admin, o = coach only), short name for the bar] ----
 const TABS = [
   ["me", "🏠", "Home", "", "Home"],
   ["leaderboard", "🏆", "Leaderboard", "", "Leaderboard"],
-  ["take", "✅", "Take attendance", "a", "Take"],
+  ["take", "✅", "Take attendance", "s", "Take"],
   ["plan", "📅", "Playing days", "", "Days"],
   ["stats", "📊", "Attendance", "", "Stats"],
   ["schedule", "⏰", "Schedule", "", "Schedule"],
@@ -915,15 +917,19 @@ const TABS = [
   ["warmup", "🔥", "Warm-up", "", ""],
   ["gallery", "🖼️", "Gallery", "", ""],
   ["train", "⌚", "Training & health", "", ""],
-  ["players", "👥", "Players", "a", ""],
+  ["players", "👥", "Players", "s", ""],
   ["removed", "🗑️", "Removed students", "a", ""],
-  ["admins", "🛡️", "Admins", "o", ""],
-  ["helpbox", "💬", "Help messages", "a", ""],
+  ["admins", "🛡️", "Admins", "a", ""],
+  ["helpbox", "💬", "Help messages", "s", ""],
 ];
 const PRIMARY = ["me", "take", "plan", "stats", "schedule"];
 const tabsFor = () =>
   TABS.filter(
-    (t) => !t[3] || (t[3] === "a" && admin) || (t[3] === "o" && owner),
+    (t) =>
+      !t[3] ||
+      (t[3] === "a" && admin) ||
+      (t[3] === "s" && isStaff) ||
+      (t[3] === "o" && owner),
   );
 let prevTab = "me";
 const go = (t) => {
@@ -1027,13 +1033,48 @@ function loginTab(m) {
 }
 $("t1").onclick = () => loginTab("player");
 $("t2").onclick = () => loginTab("admin");
+let coachOtpTimer = 0;
+function coachCount(sec) {
+  clearInterval(coachOtpTimer);
+  let n = sec;
+  const tick = () => {
+    const b = $("btn-coach-otp-send");
+    if (!b) {
+      clearInterval(coachOtpTimer);
+      return;
+    }
+    b.disabled = n > 0;
+    b.textContent = n > 0 ? "Resend code in " + n + "s" : "📧 Send OTP to Coach Email";
+    if (n-- <= 0) clearInterval(coachOtpTimer);
+  };
+  tick();
+  coachOtpTimer = setInterval(tick, 1000);
+}
+
 function updateAdminForgot() {
   const box = $("aforgot-box");
   if (!box || box.hidden) return;
   const v = $("em").value;
   let t = "";
   if (v === "coach") {
-    t = `<b>🏑 Head Coach Password Recovery:</b><br>The initial early code for Coach is <b>1234</b>.<br>Once logged in, you can update your code anytime from <b>Profile → Change Code</b>.<br>If forgotten after changing, please contact the database administrator.`;
+    t = `<b>🏑 Head Coach Password Recovery:</b><br>
+    Official Coach Email: <b>kiran.chaudhary16@iitp.ac.in</b><br>
+    Early default password is <b>1234</b>.<br>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="button" class="pri btn-sm" id="btn-coach-otp-send">📧 Send OTP to Coach Email</button>
+    </div>
+    <div id="coach-otp-form" hidden style="margin-top:10px;padding:10px;background:var(--soft);border-radius:8px;border:1px solid var(--line);">
+      <p style="margin:0 0 6px;font-size:0.85rem;">Enter the 6-digit verification code sent to <b>kiran.chaudhary16@iitp.ac.in</b> and your new password:</p>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <input id="coach-otp-val" placeholder="6-digit OTP" maxlength="6" inputmode="numeric" style="flex:1;">
+        <button type="button" class="sec btn-sm" id="btn-coach-paste-otp">📋 Paste</button>
+      </div>
+      <input id="coach-new-pw" type="password" placeholder="New password (any type, 4+ chars)" maxlength="30" style="width:100%;box-sizing:border-box;margin-bottom:8px;">
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="pri btn-sm" id="btn-coach-otp-submit">Reset Password & Log In</button>
+      </div>
+      <div id="coach-otp-err" class="err" style="margin-top:6px;"></div>
+    </div>`;
   } else if (v === "captain" || v === "vice") {
     t = `<b>🏑 ${v === "captain" ? "Captain" : "Vice-Captain"} Password Recovery:</b><br>Your login code is set and managed by <b>Head Coach Kiran Chaudhary</b>.<br>Please contact the Coach to view or reset your access code.`;
   } else {
@@ -1042,6 +1083,84 @@ function updateAdminForgot() {
   box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div>${t}</div><button type="button" class="mx" style="flex-shrink:0" title="Close" aria-label="Close" id="aforgot-close">✕</button></div>`;
   const clr = $("aforgot-close");
   if (clr) clr.onclick = () => (box.hidden = true);
+
+  if (v === "coach") {
+    const sendBtn = $("btn-coach-otp-send");
+    if (sendBtn) {
+      sendBtn.onclick = async () => {
+        sendBtn.disabled = true;
+        try {
+          const r = await api("/api/coach/forgot-otp", { method: "POST" });
+          toast("Verification code sent to " + (r.sentTo || "Coach email"));
+          const form = $("coach-otp-form");
+          if (form) form.hidden = false;
+          const otpInput = $("coach-otp-val");
+          if (otpInput) otpInput.focus();
+          coachCount(r.wait || 60);
+        } catch (err) {
+          toast(err.message || "Failed to send code", true);
+          sendBtn.disabled = false;
+        }
+      };
+    }
+    const pasteBtn = $("btn-coach-paste-otp");
+    if (pasteBtn) {
+      pasteBtn.onclick = async () => {
+        try {
+          let text = "";
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            text = await navigator.clipboard.readText();
+          } else {
+            text = prompt("Paste 6-digit OTP:") || "";
+          }
+          const digits = (text || "").replace(/\D/g, "").slice(0, 6);
+          if (digits) {
+            $("coach-otp-val").value = digits;
+            toast("OTP pasted!");
+          }
+        } catch (x) {
+          const text = prompt("Paste 6-digit OTP:") || "";
+          const digits = text.replace(/\D/g, "").slice(0, 6);
+          if (digits) {
+            $("coach-otp-val").value = digits;
+            toast("OTP pasted!");
+          }
+        }
+      };
+    }
+    const submitBtn = $("btn-coach-otp-submit");
+    if (submitBtn) {
+      submitBtn.onclick = async () => {
+        const errEl = $("coach-otp-err");
+        if (errEl) errEl.textContent = "";
+        const otp = ($("coach-otp-val").value || "").trim();
+        const code = ($("coach-new-pw").value || "").trim();
+        if (!/^\d{6}$/.test(otp)) {
+          if (errEl) errEl.textContent = "Please enter the complete 6-digit code.";
+          return;
+        }
+        if (code.length < 4) {
+          if (errEl) errEl.textContent = "New password must be at least 4 characters.";
+          return;
+        }
+        submitBtn.disabled = true;
+        try {
+          const r = await api("/api/coach/reset-password", {
+            method: "POST",
+            body: { otp, code },
+          });
+          toast("Password reset successful! Logging in...");
+          saveToken(r.token);
+          box.hidden = true;
+          tab = "me";
+          boot();
+        } catch (x) {
+          if (errEl) errEl.textContent = x.message || "Failed to reset password.";
+          submitBtn.disabled = false;
+        }
+      };
+    }
+  }
 }
 const aforgotBtn = $("aforgot");
 if (aforgotBtn) {
@@ -1054,9 +1173,8 @@ if (aforgotBtn) {
 }
 $("em").onchange = () => {
   const v = $("em").value;
-  $("anw").hidden = v !== "admin" && v !== "coach";
+  $("anw").hidden = v !== "admin";
   if (v === "coach") {
-    $("an").placeholder = "Coach name (default: Kiran Chaudhary)";
     $("an").value = "Kiran Chaudhary";
   } else if (v === "admin") {
     $("an").placeholder = "Name registered in admin list";
@@ -1093,6 +1211,8 @@ function logout() {
   admin = false;
   pl = false;
   owner = false;
+  isCoach = false;
+  isStaff = false;
   me = "";
   WHO = "";
   tab = "me";
@@ -1146,9 +1266,37 @@ function logout() {
 function handleUrlAuthParams() {
   try {
     const params = new URLSearchParams(window.location.search);
+    const roleParam = (params.get("role") || "").trim().toLowerCase();
     const roll = (params.get("roll") || "").trim().toUpperCase();
     const otp = (params.get("otp") || "").trim().replace(/\D/g, "").slice(0, 6);
     const mode = (params.get("mode") || "").trim().toLowerCase();
+
+    if (roleParam === "coach") {
+      if (window.history && window.history.replaceState) {
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+      showLogin();
+      loginTab("admin");
+      if ($("em")) {
+        $("em").value = "coach";
+        $("anw").hidden = true;
+      }
+      const box = $("aforgot-box");
+      if (box) {
+        box.hidden = false;
+        updateAdminForgot();
+        const form = $("coach-otp-form");
+        if (form) form.hidden = false;
+        if (otp && $("coach-otp-val")) {
+          $("coach-otp-val").value = otp;
+          toast("Coach verification code filled from email link!");
+          if ($("coach-new-pw")) $("coach-new-pw").focus();
+        }
+      }
+      return;
+    }
+
     if (!roll && !otp) return;
 
     if (window.history && window.history.replaceState) {
@@ -1270,11 +1418,13 @@ function useData(d, force) {
   if (!force && key === lastJs && loaded && !err) return;
   lastJs = key;
   role = d.role;
-  admin = ["coach", "captain", "vice", "admin"].includes(role);
+  isCoach = role === "coach";
+  admin = role === "coach";
+  owner = role === "coach";
+  isStaff = ["coach", "captain", "vice", "admin"].includes(role);
   pl = role === "player";
   me = d.me || "";
   myCodeType = d.codeType || "alnum";
-  owner = ["coach", "captain", "vice", "admin"].includes(role);
   WHO =
     d.name ||
     (role === "coach"
@@ -1424,12 +1574,15 @@ async function load(force) {
 $("lf").onsubmit = async (e) => {
   e.preventDefault();
   $("er").textContent = "";
+  const selectedRole = $("em").value;
+  let nameVal = $("an").value.trim();
+  if (selectedRole === "coach" && !nameVal) nameVal = "Kiran Chaudhary";
   try {
     const r = await api("/api/login", {
       method: "POST",
       body: {
-        role: $("em").value,
-        name: $("an").value.trim(),
+        role: selectedRole,
+        name: nameVal,
         code: $("pw").value.trim(),
       },
     });
@@ -1781,8 +1934,8 @@ function pOtp(sentTo, wait, isReset) {
     }
   };
   pCount(wait || 60);
-  bindSix("po");
-  $("po").querySelector("input").focus();
+  const firstPoInput = $("po") ? $("po").querySelector("input") : null;
+  if (firstPoInput) firstPoInput.focus();
 }
 $("pf").onsubmit = async (e) => {
   e.preventDefault();
@@ -5289,12 +5442,7 @@ function openReplaceCoachDialog() {
       <div id="rc-panel-new">
         <label class="fl">New Coach Full Name<input id="rc-name" placeholder="Full name of new coach" maxlength="40"></label>
         <label class="fl">Login Code<input id="rc-code" type="password" placeholder="Code (4+ characters)" maxlength="30" autocomplete="new-password"></label>
-        <label class="fl">Link to Squad Player (Optional)
-          <select id="rc-player">
-            <option value="">Staff / External (Not in squad)</option>
-            ${P.map((x) => `<option value="${esc(x.id)}" data-n="${esc(x.name)}">${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}
-          </select>
-        </label>
+        <p class="hint" style="font-size:0.8rem; margin:6px 0 0;"><b>Staff Requirement:</b> The Head Coach is official staff and cannot be a squad player.</p>
       </div>
 
       <div id="rc-panel-exist" hidden>
@@ -5344,12 +5492,7 @@ function openReplaceCoachDialog() {
     errEl.textContent = "";
   };
 
-  const selPlayer = d.querySelector("#rc-player");
   const inputName = d.querySelector("#rc-name");
-  selPlayer.onchange = () => {
-    const o = selPlayer.selectedOptions[0];
-    if (o && o.dataset.n) inputName.value = o.dataset.n;
-  };
 
   d.querySelector("#rc-cancel").onclick = () => {
     d.close();
@@ -5361,7 +5504,7 @@ function openReplaceCoachDialog() {
     if (mode === "new") {
       const name = inputName.value.trim();
       const code = d.querySelector("#rc-code").value;
-      const playerId = selPlayer.value;
+      const playerId = null;
       if (!name || code.length < 4) {
         errEl.textContent = "Please enter a full name and code of 4+ characters.";
         return;
@@ -5372,7 +5515,7 @@ function openReplaceCoachDialog() {
         try {
           await api("/api/admins/replace-coach", {
             method: "POST",
-            body: { name, code, playerId },
+            body: { name, code, playerId: null },
           });
           d.close();
           d.remove();
@@ -5547,9 +5690,19 @@ function vAdmins() {
     </div>
   `;
 
-  $("akind").onchange = () => {
-    $("aplw").hidden = $("akind").value !== "player";
+  const syncPostKind = () => {
+    const p = $("apost") ? $("apost").value : "admin";
+    if (p === "coach") {
+      $("akind").value = "instructor";
+      $("akind").disabled = true;
+      $("aplw").hidden = true;
+    } else {
+      $("akind").disabled = false;
+      $("aplw").hidden = $("akind").value !== "player";
+    }
   };
+  $("apost").onchange = syncPostKind;
+  $("akind").onchange = syncPostKind;
   $("apl").onchange = () => {
     const o = $("apl").selectedOptions[0];
     if (o && o.dataset.n) $("an2").value = o.dataset.n;
@@ -5560,8 +5713,8 @@ function vAdmins() {
 
   $("aadd").onclick = () => {
     const post = $("apost") ? $("apost").value : "admin";
-    const kind = $("akind") ? $("akind").value : "instructor";
-    const pid = $("apl") ? $("apl").value : "",
+    const kind = post === "coach" ? "instructor" : ($("akind") ? $("akind").value : "instructor");
+    const pid = post === "coach" ? "" : ($("apl") ? $("apl").value : ""),
       name = $("an2").value.trim(),
       code = $("ac").value;
     if (!name || code.length < 4)
@@ -5576,7 +5729,7 @@ function vAdmins() {
     run(async () => {
       await api("/api/admins", {
         method: "POST",
-        body: { name, code, post, kind, playerId: kind === "player" ? pid : "" },
+        body: { name, code, post, kind, playerId: kind === "player" ? pid : null },
       });
       await load(true);
       alert(`${POST_CONFIG[post] ? POST_CONFIG[post].label : "Admin"} "${name}" added successfully!`);
@@ -5674,20 +5827,102 @@ function vProfile() {
     ]
       .filter(Boolean)
       .join(" · ");
+    const isPlayerCap = ADM.some((x) => !x.disabled && getAdminPost(x) === "captain" && x.playerId === id);
+    const isPlayerVice = ADM.some((x) => !x.disabled && getAdminPost(x) === "vice" && x.playerId === id);
+    let coachLeaderBtns = "";
+    if (owner && !gone) {
+      if (isPlayerCap) {
+        coachLeaderBtns += '<button class="sec" id="prmcap">Demote from Captain</button>';
+      } else if (isPlayerVice) {
+        coachLeaderBtns += '<button class="sec" id="prmvice">Demote from Vice-captain</button>';
+      } else {
+        coachLeaderBtns += '<button class="sec" id="pmkcap">🎖️ Appoint Captain</button><button class="sec" id="pmkvice">🥈 Appoint Vice-captain</button>';
+      }
+    }
     h = `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
-    <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill blue">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "coach" && a.playerId === id) || (role === "coach" && MYPID === id) ? '<span class="pill gold">👑 Coach</span>' : ""}${ADM.some((a) => getAdminPost(a) === "captain" && a.playerId === id) ? '<span class="pill blue">🎖️ Captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "vice" && a.playerId === id) ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "admin" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill purple">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
+    <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill blue">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "captain" && a.playerId === id) ? '<span class="pill blue">🎖️ Captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "vice" && a.playerId === id) ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "admin" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill purple">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
     ${canPh ? photoBtns(own, photoPath, p.photo, `<button class="pri" id="pedit">✏️ Edit profile</button>${own ? '<button class="sec" id="pcode">🔑 Change password</button>' : ""}`) : ""}
     ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
     <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} sessions</p><div class="dots">${dots}</div></div>` : ""}</div></div>
     <div class="card"><h2>Details</h2>${kv("Roll number", esc(p.roll))}${kv("Position", esc(p.position))}${kv("Joined", p.joined ? fmt(p.joined) : "")}
       ${kv("E-mail", p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : "")}${kv("Jersey", jersey)}
-      ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}${owner && !gone && !ADM.some((a) => a.kind === "player" && a.playerId === id) ? '<button class="sec" id="pmkadmin">🛡️ Make admin</button>' : ""}</div>` : ""}
+      ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}${coachLeaderBtns}${owner && !gone && !isPlayerCap && !isPlayerVice && !ADM.some((a) => a.kind === "player" && a.playerId === id) ? '<button class="sec" id="pmkadmin">🛡️ Make admin</button>' : ""}</div>` : ""}
       ${own ? `<div class="chips" style="margin-top:12px"><button type="button" class="sec" id="powncode">🔑 Change Password</button></div>` : ""}</div></div>`;
     $("view").innerHTML = h;
     if ($("pedit")) $("pedit").onclick = () => openEdit(p, own);
     if ($("pcode")) $("pcode").onclick = () => openChangeCode();
     if ($("powncode")) $("powncode").onclick = () => openChangeCode();
+    if ($("pmkcap"))
+      $("pmkcap").onclick = () => {
+        const code = prompt("Enter a login code (4 to 30 characters) for " + p.name + " to log in as Captain (or leave blank to use 1234):", "1234");
+        if (code === null) return;
+        const pass = code.trim() || "1234";
+        if (pass.length < 4) return alert("Code must be at least 4 characters.");
+        run(async () => {
+          const existing = ADM.find((a) => a.playerId === id);
+          if (existing) {
+            await api("/api/admins/" + existing.id, {
+              method: "PUT",
+              body: { post: "captain", kind: "captain", playerId: id },
+            });
+          } else {
+            await api("/api/admins", {
+              method: "POST",
+              body: { name: p.name, code: pass, post: "captain", kind: "captain", playerId: id },
+            });
+          }
+          await load(true);
+          alert(p.name + " has been appointed as Team Captain!");
+        });
+      };
+    if ($("pmkvice"))
+      $("pmkvice").onclick = () => {
+        const code = prompt("Enter a login code (4 to 30 characters) for " + p.name + " to log in as Vice-captain (or leave blank to use 1234):", "1234");
+        if (code === null) return;
+        const pass = code.trim() || "1234";
+        if (pass.length < 4) return alert("Code must be at least 4 characters.");
+        run(async () => {
+          const existing = ADM.find((a) => a.playerId === id);
+          if (existing) {
+            await api("/api/admins/" + existing.id, {
+              method: "PUT",
+              body: { post: "vice", kind: "vice", playerId: id },
+            });
+          } else {
+            await api("/api/admins", {
+              method: "POST",
+              body: { name: p.name, code: pass, post: "vice", kind: "vice", playerId: id },
+            });
+          }
+          await load(true);
+          alert(p.name + " has been appointed as Team Vice-captain!");
+        });
+      };
+    if ($("prmcap"))
+      $("prmcap").onclick = () => {
+        if (!confirm("Remove Captain status for " + p.name + "? They will remain a regular squad player.")) return;
+        run(async () => {
+          const existing = ADM.find((a) => !a.disabled && getAdminPost(a) === "captain" && a.playerId === id);
+          if (existing) {
+            await api("/api/admins/" + existing.id, { method: "DELETE" });
+          }
+          await load(true);
+          alert(p.name + " is no longer Captain.");
+        });
+      };
+    if ($("prmvice"))
+      $("prmvice").onclick = () => {
+        if (!confirm("Remove Vice-captain status for " + p.name + "? They will remain a regular squad player.")) return;
+        run(async () => {
+          const existing = ADM.find((a) => !a.disabled && getAdminPost(a) === "vice" && a.playerId === id);
+          if (existing) {
+            await api("/api/admins/" + existing.id, { method: "DELETE" });
+          }
+          await load(true);
+          alert(p.name + " is no longer Vice-captain.");
+        });
+      };
     if ($("pmkadmin"))
       $("pmkadmin").onclick = () => {
         const code = prompt("Enter a login code (4 to 30 characters) for " + p.name + " to log in as Admin:");
@@ -5789,33 +6024,25 @@ function vProfile() {
         ${kv("Member Type", a.playerId ? "Squad Player" + (lpl ? " · " + esc(lpl.name) : "") : "Staff / Instructor")}
         ${lpl ? `<div class="chips"><button id="apv">👤 View player profile</button></div>` : ""}
         ${
-          isViewerCoach
-            ? `<div class="edit">
-                <label class="fl">Change Post / Role
-                  <select id="apost_edit">
-                    <option value="coach" ${post === "coach" ? "selected" : ""}>👑 Coach ${post === "coach" ? "(Current)" : "(Transfers Coach Post)"}</option>
-                    <option value="captain" ${post === "captain" ? "selected" : ""}>🎖️ Captain</option>
-                    <option value="vice" ${post === "vice" ? "selected" : ""}>🥈 Vice-captain</option>
-                    <option value="admin" ${post === "admin" ? "selected" : ""}>🛡️ Admin</option>
-                  </select>
-                </label>
-                <label class="fl">Link to Squad Player
-                  <select id="akp">
-                    <option value="">Staff / External (Not in squad)</option>
-                    ${P.map((x) => `<option value="${esc(x.id)}" ${a.playerId === x.id ? "selected" : ""}>${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}
-                  </select>
-                </label>
-                <button id="aks" class="pri">Save Changes</button>
-              </div>`
-            : (owner && !isTargetCoach
+          isTargetCoach
+            ? `<div class="note" style="margin-top:10px;"><b>Staff Account:</b> Head Coach Kiran Chaudhary is official staff and cannot be a squad player.</div>`
+            : (isViewerCoach
                 ? `<div class="edit">
-                    <label class="fl">Link to Squad Player
+                    <label class="fl">Change Post / Role
+                      <select id="apost_edit">
+                        <option value="coach">👑 Coach (Transfers Coach Post)</option>
+                        <option value="captain" ${post === "captain" ? "selected" : ""}>🎖️ Captain</option>
+                        <option value="vice" ${post === "vice" ? "selected" : ""}>🥈 Vice-captain</option>
+                        <option value="admin" ${post === "admin" ? "selected" : ""}>🛡️ Admin</option>
+                      </select>
+                    </label>
+                    <label class="fl" id="akp_wrap">Link to Squad Player
                       <select id="akp">
                         <option value="">Staff / External (Not in squad)</option>
                         ${P.map((x) => `<option value="${esc(x.id)}" ${a.playerId === x.id ? "selected" : ""}>${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}
                       </select>
                     </label>
-                    <button id="aks" class="pri">Save Link</button>
+                    <button id="aks" class="pri">Save Changes</button>
                   </div>`
                 : "")
         }
@@ -5839,17 +6066,21 @@ function vProfile() {
       sub = name;
       photoPath = "";
       canPh = own;
-      acts = `${kv("Role", name)}${kv("Access", "Full: attendance, players, admins")}${own && owner ? `<div class="note" style="margin-top:10px">You are not linked to a player record yet. If you also play, link yourself to get the same profile as the other players. <div class="chips"><button class="pri" id="lkme">🔗 Link my player profile</button></div></div>` : ""}`;
+      acts = `${kv("Role", name)}${kv("Access", "Staff access: attendance, players")}`;
     }
     $("view").innerHTML =
       `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, own ? '<button class="sec" id="pcode">🔑 Change code</button>' : "") : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
     if ($("pcode")) $("pcode").onclick = () => openChangeCode();
-    if ($("lkme")) $("lkme").onclick = openNames;
     if (k === "s") bindCover("s", id);
     if ($("apv"))
       $("apv").onclick = () =>
         openProf("p", (ADM.find((x) => x.id === id) || {}).playerId);
     if ($("arep_coach")) $("arep_coach").onclick = () => openReplaceCoachDialog();
+    if ($("apost_edit")) {
+      $("apost_edit").onchange = () => {
+        if ($("akp_wrap")) $("akp_wrap").hidden = $("apost_edit").value === "coach";
+      };
+    }
     if ($("aks"))
       $("aks").onclick = () => {
         const upd = {};
@@ -5858,10 +6089,13 @@ function vProfile() {
           const a = ADM.find((x) => x.id === id);
           if (upd.post === "coach" && getAdminPost(a) !== "coach") {
             if (!confirm("Making this admin the Head Coach will transfer the Coach post to them. Proceed?")) return;
+            upd.playerId = null;
           }
         }
-        if ($("akp")) {
-          upd.playerId = $("akp").value || "";
+        if ($("akp") && upd.post !== "coach") {
+          upd.playerId = $("akp").value || null;
+        } else if (upd.post === "coach") {
+          upd.playerId = null;
         }
         run(async () => {
           await api("/api/admins/" + id, {
