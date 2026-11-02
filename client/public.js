@@ -1061,7 +1061,7 @@ function myInfoCard() {
     tp = st.reduce((a, x) => a + x.t, 0),
     tr = tp ? Math.round((st.reduce((a, x) => a + x.pr, 0) * 100) / tp) : 0;
   return `<div class="card"><h2>My details</h2><div class="stats"><div><b>${P.length}</b>Players</div><div><b>${rsess("all")}</b>Sessions</div><div><b>${tr}%</b>Team turnout</div></div>
-  ${kvp("Name", esc(WHO))}${kvp("Role", role === "coach" ? "Coach" : role === "captain" ? "Captain" : role === "vice" ? "Vice-captain" : "Admin")}${kvp("Access", role === "coach" ? "Supreme access: players, plans, admins, staff" : role === "admin" ? "Attendance and team editing" : "Full: attendance, players, admins")}
+  ${kvp("Name", esc(WHO))}${kvp("Role", role === "coach" ? "Coach" : role === "captain" ? "Captain" : role === "vice" ? "Vice-captain" : "Admin")}${kvp("Access", role === "coach" ? "Supreme access: all administrative tools & appointing admins" : "Full administrative access: attendance, players, records & tools")}
   <div class="chips"><button id="myp">👤 Open my profile</button><button id="mye">✏️ Edit details</button><button data-go="take">✅ Take attendance</button></div></div>`;
 }
 function featTiles() {

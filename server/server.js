@@ -107,14 +107,14 @@ const auth = async (req, res, next) => {
     next(e);
   }
 };
-// owner = the leaders: Head Coach (full access), Captain and Vice-captain. Plain admins never pass.
-// Appointing / replacing the Coach, Captain or Vice-captain has its own stricter rules inside those routes (Coach only).
-const LEADER_ROLES = ["coach", "captain", "vice"];
+// owner = administrators: Head Coach, Captain, Vice-captain, and Admin.
+// All administrators have full permission across tools and records; adding a new admin is reserved for Coach.
+const LEADER_ROLES = ["coach", "captain", "vice", "admin"];
 const owner = (req, res, next) =>
   req.user && LEADER_ROLES.includes(req.user.role)
     ? next()
     : res.status(403).json({
-        error: "Only the Coach, Captain or Vice-captain can do this.",
+        error: "Administrator login required.",
       });
 const h = (fn) => (req, res, next) => fn(req, res).catch(next);
 
@@ -2467,17 +2467,17 @@ app.post(
     );
     const isRequesterCoach = req.user.role === "coach";
 
+    // Rule: "add another admin only will be in hand of coach"
+    if (currentCoachDoc && !isRequesterCoach) {
+      return res.status(403).json({
+        error: "Only the Head Coach can add new administrators.",
+      });
+    }
+
     // There is exactly one Coach. A new Coach can only come through Replace Coach (the old Coach is then removed).
     if (post === "coach" && currentCoachDoc) {
       return res.status(400).json({
         error: "There is already a Coach. Use Replace Coach when the Coach retires.",
-      });
-    }
-
-    // Rule: Coach can make anyone captain/vice-captain (non-coaches cannot appoint them if coach exists)
-    if (currentCoachDoc && !isRequesterCoach && (post === "captain" || post === "vice")) {
-      return res.status(403).json({
-        error: "Only the Coach can appoint Captain or Vice-captain.",
       });
     }
 
@@ -2560,14 +2560,6 @@ app.put(
           return res.status(400).json({
             error: "The Coach cannot be changed to another post. Use Replace Coach when the Coach retires.",
           });
-        }
-
-        if (newPost === "captain" || newPost === "vice") {
-          if (currentCoachDoc && !isRequesterCoach) {
-            return res.status(403).json({
-              error: "Only the Coach can appoint Captain or Vice-captain.",
-            });
-          }
         }
 
         upd.kind = newPost;
@@ -3884,7 +3876,17 @@ app.post(
     const user = await who(req);
     let userProfile = null;
     if (user) {
-      if (user.role === "admin") {
+      if (user.role === "coach") {
+        const coachDoc = await findCoachDoc();
+        const cData = coachDoc && coachDoc.exists ? coachDoc.data() : {};
+        userProfile = {
+          role: "coach",
+          title: "Head Coach & Director",
+          name: cData.name || user.name || "Kiran Chaudhary",
+          id: user.id || "coach",
+          supreme: true,
+        };
+      } else if (user.role === "admin") {
         const aDoc = await db
           .collection("admins")
           .doc(user.id)
