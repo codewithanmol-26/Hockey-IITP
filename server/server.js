@@ -2609,7 +2609,41 @@ app.put(
     if (isTargetCoach && (upd.name || upd.email !== undefined))
       await setCoachIdentity(upd.name, upd.email).catch(() => {});
 
+    if (b.code !== undefined && String(b.code).trim()) {
+      const newCode = String(b.code).trim();
+      if (newCode.length < 4 || newCode.length > 30) {
+        return res.status(400).json({ error: "Code must be between 4 and 30 characters." });
+      }
+      const salt = crypto.randomBytes(16).toString("hex");
+      const hash = hashCode(newCode, salt);
+      upd.salt = salt;
+      upd.hash = hash;
+      const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
+      const customCodes = customCodesDoc && customCodesDoc.exists ? customCodesDoc.data() || {} : {};
+      customCodes[req.params.id] = { salt, hash, type: "alnum", at: Date.now() };
+      const effectivePost = upd.kind || curData.kind || curData.post;
+      if (effectivePost === "coach") {
+        customCodes.coach = { salt, hash, type: "alnum", at: Date.now() };
+      } else if (effectivePost === "captain") {
+        customCodes.captain = { salt, hash, type: "alnum", at: Date.now() };
+      } else if (effectivePost === "vice") {
+        customCodes.vice = { salt, hash, type: "alnum", at: Date.now() };
+      }
+      await db.collection("config").doc("custom_codes").set(customCodes);
+    }
+
+    if (upd.kind === "captain" || curData.kind === "captain" || upd.kind === "vice" || curData.kind === "vice") {
+      const staffDoc = await db.collection("config").doc("staff").get().catch(() => null);
+      const staff = staffDoc && staffDoc.exists ? staffDoc.data() || {} : {};
+      if (upd.name) {
+        if (upd.kind === "captain") staff.captain = upd.name;
+        if (upd.kind === "vice") staff.vice = upd.name;
+      }
+      await db.collection("config").doc("staff").set(staff).catch(() => {});
+    }
+
     await ref.update(upd);
+    bust();
     done(res);
   }),
 );

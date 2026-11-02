@@ -122,15 +122,16 @@ function teamBlock(team) {
   const viceName = (t.vice && t.vice.name) || DEFNAME.vice;
 
   return `<div class="leadership-cards">
-    <div class="leader-card featured">
+    <div class="leader-card featured" data-view-coach style="cursor:pointer;" title="View Head Coach Profile" role="button" tabindex="0">
       <div class="user-drawer-avatar">${avatar(coachName, (t.coach && t.coach.photo) || "", 68)}</div>
       <div class="leader-meta">
         <span class="leader-role-badge">Head Coach & Director</span>
         <h3 class="leader-name">${esc(coachName)}</h3>
         <p class="leader-bio">Leading IIT Patna Field Hockey with elite tactical training, circle penetration strategies, and conditioning.</p>
+        <div style="margin-top:6px;"><span class="pill gold" style="font-size:0.75rem;">👤 View Coach Profile →</span></div>
       </div>
     </div>
-    <div class="leader-card">
+    <div class="leader-card"${t.captain && t.captain.pid ? ` data-view-player="${esc(t.captain.pid)}" style="cursor:pointer;" title="View Captain Profile"` : ""}>
       <div class="user-drawer-avatar">${avatar(captName, (t.captain && t.captain.photo) || "", 60)}</div>
       <div class="leader-meta">
         <span class="leader-role-badge" style="background:#f59e0b22;color:#d97706">Team Captain</span>
@@ -138,7 +139,7 @@ function teamBlock(team) {
         <p class="leader-bio">On-field commander, midfield distributor & squad coordination.</p>
       </div>
     </div>
-    <div class="leader-card">
+    <div class="leader-card"${t.vice && t.vice.pid ? ` data-view-player="${esc(t.vice.pid)}" style="cursor:pointer;" title="View Vice-Captain Profile"` : ""}>
       <div class="user-drawer-avatar">${avatar(viceName, (t.vice && t.vice.photo) || "", 60)}</div>
       <div class="leader-meta">
         <span class="leader-role-badge" style="background:#3b82f622;color:#2563eb">Vice-Captain</span>
@@ -1074,7 +1075,14 @@ function bindHome() {
   document
     .querySelectorAll("#view [data-go]")
     .forEach((b) => (b.onclick = () => go(b.dataset.go)));
+  if (gid("wel-profile-btn")) gid("wel-profile-btn").onclick = openMyProfile;
   if (gid("myp")) gid("myp").onclick = openMyProfile;
+  document
+    .querySelectorAll("[data-view-coach]")
+    .forEach((el) => (el.onclick = () => openProf("coach")));
+  document
+    .querySelectorAll("[data-view-player]")
+    .forEach((el) => (el.onclick = () => openProf("p", el.dataset.viewPlayer)));
   if (gid("mye"))
     gid("mye").onclick = () => {
       if (role === "coach") {
@@ -1547,7 +1555,7 @@ function welcomeHero() {
     stat = `<div><b>${P.length}</b>Players</div><div><b>${rsess("all")}</b>Sessions</div><div><b>${t ? Math.round((q.reduce((a, x) => a + x.pr, 0) * 100) / t) : 0}%</b>Team turnout</div>`;
   }
   const day = Math.floor(Date.now() / 864e5);
-  return `<div class="card hero wel" id="wel"><div class="wtop">${avatar(WHO, MYPH, 64)}<div class="wtx"><span class="wg">${g} 👋</span><h2>${first}</h2><span class="mute">${esc(sub)}</span></div></div>
+  return `<div class="card hero wel" id="wel"><div class="wtop" id="wel-profile-btn" style="cursor:pointer;" title="View your profile" role="button" tabindex="0">${avatar(WHO, MYPH, 64)}<div class="wtx"><span class="wg">${g} 👋</span><h2>${first}</h2><span class="mute">${esc(sub)}</span></div></div>
   <div class="wnext"><span class="wl">🏑 Next practice</span><div>${nextTxt}</div><small>${nextSub}</small></div>
   <div class="stats wst">${stat}</div><p class="wq">“${QUOTES[day % QUOTES.length]}”</p></div>`;
 }

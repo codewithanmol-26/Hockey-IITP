@@ -2115,7 +2115,6 @@ function drawMenu() {
   if (admin)
     h +=
       `<div class="ms">Admin section & tools</div>` +
-      mi("✏️", "Edit Coach profile", openEditCoach) +
       mi("➕", "Add students", openAdd) +
       mi("✉️", "Edit message template", openTpl) +
       mi("🔗", "Edit WhatsApp group link", openGroup) +
@@ -2130,8 +2129,7 @@ function drawMenu() {
       mi("🔥", "Edit warm-up drills", () => {
         ed = true;
         go("warmup");
-      }) +
-      (owner ? mi("🎖️", "Edit captain & coach names", openNames) : "");
+      });
   h +=
     `<div class="ms">Share</div>` +
     mi("📊", "Share attendance report", () => openReport()) +
@@ -3407,10 +3405,6 @@ function drawSidebar() {
         admin
           ? `<div class="sb-nav-group">
               <div class="sb-group-title">ADMIN TOOLS</div>
-              <button type="button" class="sb-nav-tool" id="sb-tool-edit-coach">
-                <span class="sb-nav-icon">✏️</span>
-                <span class="sb-nav-label">Edit Coach Profile</span>
-              </button>
               <button type="button" class="sb-nav-tool" id="sb-tool-add">
                 <span class="sb-nav-icon">➕</span>
                 <span class="sb-nav-label">Add Students</span>
@@ -3431,14 +3425,6 @@ function drawSidebar() {
                 <span class="sb-nav-icon">🏑</span>
                 <span class="sb-nav-label">Indian Hockey Fixtures</span>
               </button>
-              ${
-                owner
-                  ? `<button type="button" class="sb-nav-tool" id="sb-tool-names">
-                      <span class="sb-nav-icon">🎖️</span>
-                      <span class="sb-nav-label">Staff Names</span>
-                    </button>`
-                  : ""
-              }
             </div>`
           : ""
       }
@@ -3475,9 +3461,6 @@ function drawSidebar() {
   const cBtn = sb.querySelector("#sb-btn-code");
   if (cBtn) cBtn.onclick = () => openChangeCode();
 
-  const tCoach = sb.querySelector("#sb-tool-edit-coach");
-  if (tCoach) tCoach.onclick = () => openEditCoach();
-
   const tAdd = sb.querySelector("#sb-tool-add");
   if (tAdd) tAdd.onclick = () => openAdd();
 
@@ -3492,9 +3475,6 @@ function drawSidebar() {
 
   const tFix = sb.querySelector("#sb-tool-fix");
   if (tFix) tFix.onclick = () => openMatches();
-
-  const tNam = sb.querySelector("#sb-tool-names");
-  if (tNam) tNam.onclick = () => openNames();
 
   const thmBtn = sb.querySelector("#sb-thm");
   if (thmBtn)
@@ -5429,6 +5409,12 @@ function bindPhoto(own, path, currentPhoto) {
   );
 }
 const openProf = (k, id) => {
+  if (k === "coach" || id === "coach") {
+    prof = { k: "coach", id: "coach" };
+    render();
+    window.scrollTo(0, 0);
+    return;
+  }
   if (k === "s" && TEAM[id] && TEAM[id].pid) {
     k = "p";
     id = TEAM[id].pid;
@@ -5440,7 +5426,8 @@ const openProf = (k, id) => {
 function openMyProfile() {
   if (role === "player") openProf("p", me);
   else if (MYPID && P.some((x) => x.id === MYPID)) openProf("p", MYPID);
-  else if (role === "admin" || role === "coach") openProf("a", ADMID);
+  else if (role === "coach") openProf("coach");
+  else if (role === "admin") openProf("a", ADMID);
   else openProf("s", role);
 }
 function bindProfLinks() {
@@ -5452,8 +5439,29 @@ const kv = (a, b) =>
   b ? `<div class="kv"><span>${a}</span><b>${b}</b></div>` : "";
 
 function vPlayers() {
+  const coachAdm = ADM.find((x) => !x.disabled && getAdminPost(x) === "coach");
+  const coachName = (coachAdm && coachAdm.name) || STAFF.coach || "Kiran Chaudhary";
+  const coachPh = (coachAdm && coachAdm.photo) || (role === "coach" ? MYPH : "");
   const S = Object.fromEntries(stats("all").map((x) => [x.p.id, x]));
-  $("view").innerHTML = `<div class="card"><h2>Players (${P.length})</h2>
+
+  $("view").innerHTML = `
+  <div class="card" style="margin-bottom:14px; border:1px solid rgba(245,158,11,0.25); background:linear-gradient(135deg, rgba(245,158,11,0.06), transparent);">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div style="display:flex; align-items:center; gap:12px; cursor:pointer;" id="pl-coach-card" role="button" tabindex="0">
+        ${avatar(coachName, coachPh, 50)}
+        <div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <b style="font-size:1.05rem;">${esc(coachName)}</b>
+            <span class="pill gold" style="font-size:0.75rem;">👑 Head Coach</span>
+          </div>
+          <div class="mute" style="font-size:0.8rem; margin-top:2px;">Head Coach &amp; Director · Official Staff</div>
+        </div>
+      </div>
+      <button type="button" class="sec btn-sm" id="btn-view-coach-prof">👤 View Coach Profile</button>
+    </div>
+  </div>
+
+  <div class="card"><h2>Squad Players (${P.length})</h2>
   <div class="ctl"><input id="pq" type="search" placeholder="Search name or roll no" aria-label="Search players"><button id="padd">➕ Add students</button></div>
   <p class="mute" style="margin:0 0 8px">Tap a player to open their profile.</p>
   <div class="tiles">${
@@ -5463,6 +5471,9 @@ function vPlayers() {
     }).join("") || empty("👥", "No players yet.")
   }</div>
   ${P.length ? "" : '<p class="mute" style="text-align:center">Add students using the ➕ Add students button above.</p>'}</div>`;
+
+  if ($("pl-coach-card")) $("pl-coach-card").onclick = () => openProf("coach");
+  if ($("btn-view-coach-prof")) $("btn-view-coach-prof").onclick = () => openProf("coach");
   $("padd").onclick = openAdd;
   $("pq").oninput = (e) => {
     const q = e.target.value.trim().toLowerCase();
@@ -5842,28 +5853,6 @@ function vAdmins() {
   const canAppointLeader = !hasCoach || isCoach;
 
   $("view").innerHTML = `
-    <div class="card" style="border:1px solid rgba(245,158,11,0.3); background:linear-gradient(135deg, rgba(245,158,11,0.06), transparent); margin-bottom:14px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-        <div style="display:flex; align-items:center; gap:12px;">
-          ${avatar(coachAdmin ? coachAdmin.name : "Coach", coachAdmin ? coachAdmin.photo : MYPH, 52)}
-          <div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <h3 style="margin:0; font-size:1.15rem;">${esc(coachAdmin ? coachAdmin.name : "Coach")}</h3>
-              <span class="pill gold">👑 Head Coach</span>
-            </div>
-            <div class="mute" style="font-size:0.85rem; margin-top:3px;">
-              Official Email: <b>${esc(STAFF.coachEmail || "not set")}</b> · Official Staff
-            </div>
-          </div>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="pri btn-sm" id="btn-adm-edit-coach">✏️ Edit Coach Profile</button>
-          <button type="button" class="sec btn-sm" id="btn-adm-code-coach">🔑 Change Password</button>
-          <button type="button" class="ghost2 btn-sm" id="btn-adm-forgot-coach">📧 Forgot Password?</button>
-        </div>
-      </div>
-    </div>
-
     <div class="card">
       <h2>Leadership Posts & Hierarchy</h2>
       <p class="mute" style="margin-bottom:12px;">Team administrators hold one of 4 posts. Each post defines authority:</p>
@@ -5972,7 +5961,8 @@ function vAdmins() {
                         ? `<button class="sec btn-sm" data-rep="${esc(a.id)}" title="Replace Coach with another person">🔄 Replace</button>`
                         : `<span class="pill" style="opacity:0.85;" title="Coach cannot be removed">🔒 Permanent</span>`
                       )
-                    : `<button class="dng" data-adm="${esc(a.id)}" title="Remove administrator">Remove</button>`
+                    : `<button type="button" class="sec btn-sm" data-edadm="${esc(a.id)}" title="Edit administrator">✏️ Edit</button>
+                       <button type="button" class="dng btn-sm" data-adm="${esc(a.id)}" title="Remove administrator">Remove</button>`
                 }
               </div>
             </div>
@@ -6001,15 +5991,6 @@ function vAdmins() {
   };
   if ($("btn-top-rep-coach")) {
     $("btn-top-rep-coach").onclick = () => openReplaceCoachDialog();
-  }
-  if ($("btn-adm-edit-coach")) {
-    $("btn-adm-edit-coach").onclick = () => openEditCoach();
-  }
-  if ($("btn-adm-code-coach")) {
-    $("btn-adm-code-coach").onclick = () => openChangeCode(false);
-  }
-  if ($("btn-adm-forgot-coach")) {
-    $("btn-adm-forgot-coach").onclick = () => openChangeCode(true);
   }
 
   $("aadd").onclick = () => {
@@ -6084,9 +6065,104 @@ function vAdmins() {
       }),
   );
 
+  document.querySelectorAll("[data-edadm]").forEach(
+    (b) =>
+      (b.onclick = (e) => {
+        e.stopPropagation();
+        openEditAdmin(b.dataset.edadm);
+      }),
+  );
+
   document
     .querySelectorAll("[data-af]")
     .forEach((r) => (r.onclick = () => openProf("a", r.dataset.af)));
+}
+
+function openEditAdmin(adminId) {
+  const a = ADM.find((x) => x.id === adminId);
+  if (!a) return alert("Administrator not found.");
+  const post = getAdminPost(a);
+
+  let d = $("cdlg");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "cdlg";
+    document.body.appendChild(d);
+  }
+
+  const roleName = POST_CONFIG[post] ? POST_CONFIG[post].label : "Admin";
+
+  d.innerHTML = `
+    <h2>✏️ Edit ${esc(roleName)} (${esc(a.name)})</h2>
+    <p class="mute" style="margin-bottom:12px;">Modify post, name, linked squad player, or reset login code.</p>
+    
+    <label class="fl">Full Name
+      <input id="eda-name" value="${esc(a.name)}" maxlength="40" placeholder="Full name">
+    </label>
+
+    <label class="fl">Post / Leadership Role
+      <select id="eda-post">
+        <option value="captain" ${post === "captain" ? "selected" : ""}>🎖️ Captain</option>
+        <option value="vice" ${post === "vice" ? "selected" : ""}>🥈 Vice-captain</option>
+        <option value="admin" ${post === "admin" ? "selected" : ""}>🛡️ Admin</option>
+      </select>
+    </label>
+
+    <label class="fl" id="eda-pl-wrap">Link to Squad Player
+      <select id="eda-pl">
+        <option value="">Staff / External (Not in squad)</option>
+        ${P.map((p) => `<option value="${esc(p.id)}" ${a.playerId === p.id ? "selected" : ""}>${esc(p.name)}${p.roll ? " · " + esc(p.roll) : ""}</option>`).join("")}
+      </select>
+    </label>
+
+    <label class="fl">New Login Code (Leave empty to keep unchanged)
+      <input id="eda-code" type="password" placeholder="New code (4 to 30 characters)" maxlength="30" autocomplete="new-password">
+    </label>
+
+    <label class="fl">Access Status
+      <select id="eda-dis">
+        <option value="0" ${!a.disabled ? "selected" : ""}>Active (Access On)</option>
+        <option value="1" ${a.disabled ? "selected" : ""}>Disabled (Access Off)</option>
+      </select>
+    </label>
+
+    <div class="ctl" style="margin-top:14px;">
+      <button class="pri" id="eda-save">Save Changes</button>
+      <button type="button" id="eda-cancel">Cancel</button>
+    </div>
+  `;
+
+  $("eda-cancel").onclick = () => d.close();
+  $("eda-save").onclick = () => {
+    const name = ($("eda-name").value || "").trim();
+    const newPost = $("eda-post").value;
+    const pid = $("eda-pl").value || "";
+    const code = ($("eda-code").value || "").trim();
+    const disabled = $("eda-dis").value === "1";
+
+    if (!name) return alert("Administrator name is required.");
+    if (code && code.length < 4) return alert("New code must be at least 4 characters.");
+
+    run(async () => {
+      const body = {
+        name,
+        post: newPost,
+        kind: newPost,
+        playerId: pid || null,
+        disabled,
+      };
+      if (code) body.code = code;
+
+      await api("/api/admins/" + adminId, {
+        method: "PUT",
+        body,
+      });
+      d.close();
+      toast(`${POST_CONFIG[newPost] ? POST_CONFIG[newPost].label : "Admin"} updated successfully!`);
+      await load(true);
+    });
+  };
+  d.showModal();
 }
 
 // ---- profile detail page ----
@@ -6298,6 +6374,62 @@ function vProfile() {
       sub,
       acts = "",
       canPh = false;
+
+    const coachAdmin = ADM.find((x) => !x.disabled && getAdminPost(x) === "coach");
+    const isCoachProfile = k === "coach" || id === "coach" || (k === "s" && id === "coach") || (coachAdmin && id === coachAdmin.id);
+
+    if (isCoachProfile) {
+      const a = coachAdmin || {
+        id: "coach",
+        name: STAFF.coach || WHO || "Kiran Chaudhary",
+        photo: (coachAdmin && coachAdmin.photo) || (role === "coach" ? MYPH : ""),
+        disabled: false,
+        post: "coach",
+        email: STAFF.coachEmail || "kiran.chaudhary16@iitp.ac.in",
+      };
+      name = a.name;
+      ph = a.photo || (role === "coach" ? MYPH : "");
+      sub = "👑 Head Coach & Director";
+      photoPath = a.id && a.id !== "coach" ? "/api/admins/" + a.id + "/photo" : "";
+      own = role === "coach";
+      canPh = own;
+
+      acts = `
+        ${kv("Post / Role", '<span class="pill gold">👑 Head Coach & Director</span>')}
+        ${kv("Member Type", "Official Staff (Supreme Access)")}
+        ${kv("Official Email", esc(a.email || STAFF.coachEmail || "kiran.chaudhary16@iitp.ac.in"))}
+        ${kv("Access Status", '<span class="pill gold">Permanent (Supreme)</span>')}
+        <div class="note" style="margin-top:12px;">
+          <b>Leadership:</b> Leads IIT Patna Field Hockey with elite tactical training, circle penetration strategies, and team conditioning. Official staff member with supreme administrative authority.
+        </div>
+        ${
+          own
+            ? `<div class="chips" style="margin-top:14px;">
+                <button type="button" class="pri" id="aedit">✏️ Edit Coach Profile</button>
+                <button type="button" class="sec" id="pcode">🔑 Change Password</button>
+                <button type="button" class="sec" id="arep_coach">🔄 Replace Coach with another person</button>
+              </div>`
+            : ""
+        }
+      `;
+
+      const adminActionBtns = [];
+      if (own) {
+        adminActionBtns.push('<button class="pri" id="aedit_top">✏️ Edit Profile</button>');
+        adminActionBtns.push('<button class="sec" id="pcode_top">🔑 Change Password</button>');
+      }
+
+      $("view").innerHTML =
+        `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+
+      if ($("aedit")) $("aedit").onclick = () => openEditCoach();
+      if ($("aedit_top")) $("aedit_top").onclick = () => openEditCoach();
+      if ($("pcode")) $("pcode").onclick = () => openChangeCode();
+      if ($("pcode_top")) $("pcode_top").onclick = () => openChangeCode();
+      if ($("arep_coach")) $("arep_coach").onclick = () => openReplaceCoachDialog();
+      return;
+    }
+
     if (k === "a") {
       const a =
         ADM.find((x) => x.id === id) ||
