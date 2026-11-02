@@ -771,7 +771,7 @@ app.get(
         : {};
 
     if (r === "coach") {
-      const type = (customCodes.coach && customCodes.coach.type) || "pattern";
+      const type = (customCodes.coach && customCodes.coach.type) || "alnum";
       return res.json({ role: "coach", codeType: type });
     }
     if (r === "captain") {
@@ -785,7 +785,7 @@ app.get(
     if (r === "admin") {
       if (n) {
         if (n === "kiran chaudhary" || n.includes("kiran")) {
-          const type = (customCodes.coach && customCodes.coach.type) || "pattern";
+          const type = (customCodes.coach && customCodes.coach.type) || "alnum";
           return res.json({ role: "coach", codeType: type });
         }
         const snap = await db.collection("admins").get();
@@ -797,7 +797,7 @@ app.get(
         if (hit) {
           const da = hit.data();
           if (da.post === "coach" || da.kind === "coach") {
-            const type = (customCodes.coach && customCodes.coach.type) || (customCodes[hit.id] && customCodes[hit.id].type) || "pattern";
+            const type = (customCodes.coach && customCodes.coach.type) || (customCodes[hit.id] && customCodes[hit.id].type) || "alnum";
             return res.json({ role: "coach", codeType: type });
           }
           const type = (customCodes[hit.id] && customCodes[hit.id].type) || "alnum";

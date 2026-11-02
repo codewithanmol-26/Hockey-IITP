@@ -1024,7 +1024,7 @@ function showApp() {
   }
   document.title = "IITP Hockey Attendance";
 }
-let staffCredMode = "pattern"; // default to pattern for Coach
+let staffCredMode = "alnum"; // single password by default for Coach & staff
 let staffUserToggled = false;
 
 function renderStaffCredBox() {
@@ -1032,6 +1032,8 @@ function renderStaffCredBox() {
   if (!wrap) return;
   const isPat = staffCredMode === "pattern";
   const isNum = staffCredMode === "numeric";
+  const roleVal = $("em") ? $("em").value : "coach";
+  const isCoach = roleVal === "coach";
 
   if (isPat) {
     wrap.innerHTML = `
@@ -1075,8 +1077,11 @@ function renderStaffCredBox() {
   } else {
     wrap.innerHTML = `
       <label class="fl">
-        <span class="fl-lbl">${isNum ? "PIN (numbers only)" : "Code / Password"}</span>
-        <input id="staff-pw-txt" type="password" ${isNum ? 'inputmode="numeric"' : ''} placeholder="${isNum ? "Enter 4-8 digit PIN" : "Your code or password"}" autocomplete="current-password">
+        <span class="fl-lbl">${isCoach ? "Coach Password" : (isNum ? "PIN (numbers only)" : "Code / Password")}</span>
+        <div style="position:relative;display:flex;align-items:center;">
+          <input id="staff-pw-txt" type="password" ${isNum ? 'inputmode="numeric"' : ''} placeholder="${isCoach ? "Enter Coach password" : (isNum ? "Enter 4-8 digit PIN" : "Your code or password")}" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding-right:36px;">
+          <button type="button" id="staff-pw-eye" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password" aria-label="Toggle password visibility">👁️</button>
+        </div>
       </label>
       <div style="margin-top:4px;margin-bottom:8px">
         <button type="button" class="btn-link" id="btn-toggle-staff-mode" style="background:none;border:none;color:var(--pri,#0f4aa8);font-size:0.82rem;font-weight:600;cursor:pointer;padding:2px 0;text-decoration:underline;">
@@ -1092,6 +1097,15 @@ function renderStaffCredBox() {
       };
       const pw = $("pw");
       if (pw && pw.value) txt.value = pw.value;
+    }
+    const eye = $("staff-pw-eye");
+    if (eye) {
+      eye.onclick = () => {
+        const t = $("staff-pw-txt");
+        if (!t) return;
+        t.type = t.type === "password" ? "text" : "password";
+        eye.textContent = t.type === "password" ? "👁️" : "🙈";
+      };
     }
   }
 
@@ -1118,7 +1132,7 @@ async function detectStaffCodeType() {
     }
   } catch (e) {
     if (!staffUserToggled) {
-      staffCredMode = v === "coach" ? "pattern" : "alnum";
+      staffCredMode = "alnum";
       renderStaffCredBox();
     }
   }
@@ -2441,8 +2455,8 @@ function openChangeCode(startForgot = false) {
   if (!dlg || !body) return;
 
   const isPl = role === "player";
-  changeNewType = myCodeType || (isCoach ? "pattern" : "alnum");
-  let curInputMode = myCodeType || (isCoach ? "pattern" : "alnum");
+  changeNewType = myCodeType || "alnum";
+  let curInputMode = myCodeType || "alnum";
   let userToggledCur = false;
   let isForgot = !!startForgot;
   let chgOtpTimer = 0;
@@ -2474,8 +2488,11 @@ function openChangeCode(startForgot = false) {
     }
     return `
       <label class="fl">
-        <span class="chg-lbl">Current Password / Code</span>
-        <input id="curcode" type="password" placeholder="Enter current password or code" autocomplete="current-password" required>
+        <span class="chg-lbl">${isCoach ? "Current Coach Password" : "Current Password / Code"}</span>
+        <div style="position:relative;display:flex;align-items:center;">
+          <input id="curcode" type="password" placeholder="${isCoach ? "Enter current Coach password (or 1234)" : "Enter current password or code"}" autocomplete="current-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
+          <button type="button" class="chg-eye-btn" data-t="curcode" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
+        </div>
       </label>
     `;
   };
@@ -2554,12 +2571,18 @@ function openChangeCode(startForgot = false) {
     }
     return `
       <label class="fl">
-        <span class="chg-lbl">New Password (All Character Types)</span>
-        <input id="newcode" type="password" placeholder="Any characters: letters, numbers, symbols (4–30 chars)" maxlength="30" autocomplete="new-password" required>
+        <span class="chg-lbl">${isCoach ? "New Coach Password" : "New Password (All Character Types)"}</span>
+        <div style="position:relative;display:flex;align-items:center;">
+          <input id="newcode" type="password" placeholder="Any characters: letters, numbers, symbols (4–30 chars)" maxlength="30" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
+          <button type="button" class="chg-eye-btn" data-t="newcode" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
+        </div>
       </label>
       <label class="fl">
         <span class="chg-lbl">Confirm New Password</span>
-        <input id="newcode2" type="password" placeholder="Repeat new password" maxlength="30" autocomplete="new-password" required>
+        <div style="position:relative;display:flex;align-items:center;">
+          <input id="newcode2" type="password" placeholder="Repeat new password" maxlength="30" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
+          <button type="button" class="chg-eye-btn" data-t="newcode2" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
+        </div>
       </label>
       <div class="chg-hint">💡 Accepts all types of characters: uppercase & lowercase letters, numbers, symbols (@#$%^&* etc.), spaces, or punctuation (4–30 characters). Not restricted to alphanumeric.</div>
     `;
@@ -2806,10 +2829,28 @@ function openChangeCode(startForgot = false) {
         const msg = $("codemsg");
         if (msg) msg.textContent = "";
         bindNewInputs();
+
+    body.querySelectorAll(".chg-eye-btn").forEach((btn) => {
+      btn.onclick = () => {
+        const inp = $(btn.dataset.t);
+        if (!inp) return;
+        inp.type = inp.type === "password" ? "text" : "password";
+        btn.textContent = inp.type === "password" ? "👁️" : "🙈";
+      };
+    });
       };
     }
 
     bindNewInputs();
+
+    body.querySelectorAll(".chg-eye-btn").forEach((btn) => {
+      btn.onclick = () => {
+        const inp = $(btn.dataset.t);
+        if (!inp) return;
+        inp.type = inp.type === "password" ? "text" : "password";
+        btn.textContent = inp.type === "password" ? "👁️" : "🙈";
+      };
+    });
 
     // Form submit
     const form = $("codeform");
