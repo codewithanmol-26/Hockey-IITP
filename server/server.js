@@ -606,7 +606,7 @@ app.post(
       hasAccount: acc.exists,
       codeType: acc.exists ? acc.data().type || "alnum" : "alnum",
       emailHint:
-        !acc.exists && EMAIL_RE.test(pl.email || "") ? maskEmail(pl.email) : "",
+        EMAIL_RE.test(pl.email || "") ? maskEmail(pl.email) : "",
       domain: SIGNUP_DOMAIN,
     });
   }),
@@ -619,19 +619,27 @@ app.post(
       return res
         .status(429)
         .json({ error: "Too many tries. Please wait a while." });
-    const pl = await findPlayer((req.body || {}).roll);
+    const b = req.body || {};
+    const isReset = !!b.reset;
+    const pl = await findPlayer(b.roll);
     if (!pl)
       return res.status(404).json({
         error:
           "This roll number is not on the team list. Ask the captain to add you.",
       });
-    if ((await db.collection("accounts").doc(pl.id).get()).exists)
+    const hasAcc = (await db.collection("accounts").doc(pl.id).get()).exists;
+    if (!isReset && hasAcc)
       return res.status(409).json({
         error:
-          "Already signed up. Log in with your code. Forgot it? Ask the captain to reset it.",
+          "Already signed up. Log in with your code. Forgot it? Click Forgot Password to reset it.",
+      });
+    if (isReset && !hasAcc)
+      return res.status(404).json({
+        error:
+          "No account found for this roll number yet. Please enter roll number and sign up first.",
       });
     const saved = EMAIL_RE.test(pl.email || "") ? pl.email.trim() : "",
-      typed = str((req.body || {}).email, 120).trim();
+      typed = str(b.email, 120).trim();
     const email = saved || typed;
     if (!EMAIL_RE.test(email))
       return res.status(400).json({ error: "Enter a valid e-mail address." });
@@ -678,7 +686,7 @@ app.post(
     const proto =
       req.headers["x-forwarded-proto"] || (req.secure ? "https" : "https");
     const appUrl = `${proto}://${host}`;
-    const autoFillUrl = `${appUrl}/?roll=${encodeURIComponent(pl.id)}&otp=${encodeURIComponent(code)}`;
+    const autoFillUrl = `${appUrl}/?roll=${encodeURIComponent(pl.id)}&otp=${encodeURIComponent(code)}${isReset ? "&mode=reset" : ""}`;
 
     const escH = (s) =>
       String(s ?? "").replace(
@@ -693,11 +701,13 @@ app.post(
           })[c],
       );
 
-    const emailSubject = `Your Verification Code: ${code} - IITP Hockey`;
+    const emailSubject = isReset
+      ? `Your Password Reset Code: ${code} - IITP Hockey`
+      : `Your Verification Code: ${code} - IITP Hockey`;
     const emailText =
-      `IIT Patna Hockey - Player Verification\n\n` +
+      `IIT Patna Hockey - ${isReset ? "Password Reset" : "Player Verification"}\n\n` +
       `Hello ${pl.name || "Player"},\n\n` +
-      `Your 6-digit verification code is:\n` +
+      `Your 6-digit ${isReset ? "password reset" : "verification"} code is:\n` +
       `>>> ${code} <<<\n\n` +
       `Tap or copy the code above and paste it into the app.\n\n` +
       `Or open this link to auto-fill your code directly:\n` +
@@ -714,14 +724,18 @@ app.post(
             <td style="background:linear-gradient(135deg, #071a2e 0%, #0b2a4a 55%, #0f4aa8 100%);padding:28px 24px;text-align:center;">
               <div style="font-size:12px;letter-spacing:2px;font-weight:800;color:#facc15;text-transform:uppercase;margin-bottom:4px;">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div>
               <h1 style="margin:0;font-size:24px;color:#ffffff;font-weight:900;letter-spacing:-0.5px;">🏑 IITP Hockey Squad</h1>
-              <div style="font-size:13px;color:#cbd5e1;margin-top:6px;">Player Verification &amp; Account Setup</div>
+              <div style="font-size:13px;color:#cbd5e1;margin-top:6px;">${isReset ? "Password Reset Request" : "Player Verification &amp; Account Setup"}</div>
             </td>
           </tr>
           <tr>
             <td style="padding:28px 24px 20px;">
               <h2 style="margin:0 0 10px;font-size:18px;color:#0b2a4a;font-weight:700;">Hello ${escH(pl.name || "Player")},</h2>
               <p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#475569;">
-                Use the 6-digit verification code below to verify your email and complete your squad account setup for roll number <b>${escH(pl.id)}</b>.
+                ${
+                  isReset
+                    ? `Use the 6-digit verification code below to reset your password and login credentials for roll number <b>${escH(pl.id)}</b>.`
+                    : `Use the 6-digit verification code below to verify your email and complete your squad account setup for roll number <b>${escH(pl.id)}</b>.`
+                }
               </p>
 
               <!-- OTP Code Display Card with One-Tap Copy -->
@@ -812,7 +826,9 @@ app.post(
 app.post(
   "/api/player/signup",
   h(async (req, res) => {
-    const { roll, otp, code } = req.body || {};
+    const b = req.body || {};
+    const { roll, otp, code } = b;
+    const isReset = !!b.reset;
     if (limited("su" + req.ip, 12))
       return res.status(429).json({ error: "Too many tries" });
     const pl = await findPlayer(roll);
@@ -822,15 +838,21 @@ app.post(
           "This roll number is not on the team list. Ask the captain to add you.",
       });
     const c = String(code || ""),
-      ctype = CODE_TYPES.includes((req.body || {}).ctype)
-        ? req.body.ctype
+      ctype = CODE_TYPES.includes(b.ctype)
+        ? b.ctype
         : "alnum",
       bad = codeProblem(ctype, c);
     if (bad) return res.status(400).json({ error: bad });
-    if ((await db.collection("accounts").doc(pl.id).get()).exists)
+    const hasAcc = (await db.collection("accounts").doc(pl.id).get()).exists;
+    if (!isReset && hasAcc)
       return res.status(409).json({
         error:
-          "Already signed up. Log in with your code. Forgot it? Ask the captain to reset it.",
+          "Already signed up. Log in with your code. Forgot it? Click Forgot Password to reset it.",
+      });
+    if (isReset && !hasAcc)
+      return res.status(404).json({
+        error:
+          "No account found to reset for this roll number. Please sign up first.",
       });
     const ref = db.collection("otps").doc(pl.id),
       o = await ref.get();

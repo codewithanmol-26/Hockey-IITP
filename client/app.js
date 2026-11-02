@@ -975,11 +975,14 @@ function showLogin() {
   $("pr").value = "";
   $("pa").innerHTML = "";
   $("pgo").hidden = false;
+  if ($("pforgot-roll-wrap")) $("pforgot-roll-wrap").hidden = false;
+  if ($("aforgot-box")) $("aforgot-box").hidden = true;
   $("pe").textContent = "";
   $("er").textContent = "";
   $("pw").value = "";
   $("an").value = "";
   pStep = "roll";
+  pIsReset = false;
   loginTab("player");
   document.title = "IIT Patna Hockey · Member Login";
   syncInstall();
@@ -1024,6 +1027,31 @@ function loginTab(m) {
 }
 $("t1").onclick = () => loginTab("player");
 $("t2").onclick = () => loginTab("admin");
+function updateAdminForgot() {
+  const box = $("aforgot-box");
+  if (!box || box.hidden) return;
+  const v = $("em").value;
+  let t = "";
+  if (v === "coach") {
+    t = `<b>🏑 Head Coach Password Recovery:</b><br>The initial early code for Coach is <b>1234</b>.<br>Once logged in, you can update your code anytime from <b>Profile → Change Code</b>.<br>If forgotten after changing, please contact the database administrator.`;
+  } else if (v === "captain" || v === "vice") {
+    t = `<b>🏑 ${v === "captain" ? "Captain" : "Vice-Captain"} Password Recovery:</b><br>Your login code is set and managed by <b>Head Coach Kiran Chaudhary</b>.<br>Please contact the Coach to view or reset your access code.`;
+  } else {
+    t = `<b>🏑 Admin Password Recovery:</b><br>Admin accounts are managed by <b>Head Coach Kiran Chaudhary</b>.<br>Please ask the Coach to reset your code in Admin Management.`;
+  }
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div>${t}</div><button type="button" class="mx" style="flex-shrink:0" title="Close" aria-label="Close" id="aforgot-close">✕</button></div>`;
+  const clr = $("aforgot-close");
+  if (clr) clr.onclick = () => (box.hidden = true);
+}
+const aforgotBtn = $("aforgot");
+if (aforgotBtn) {
+  aforgotBtn.onclick = () => {
+    const box = $("aforgot-box");
+    if (!box) return;
+    box.hidden = !box.hidden;
+    if (!box.hidden) updateAdminForgot();
+  };
+}
 $("em").onchange = () => {
   const v = $("em").value;
   $("anw").hidden = v !== "admin" && v !== "coach";
@@ -1034,6 +1062,7 @@ $("em").onchange = () => {
     $("an").placeholder = "Name registered in admin list";
     $("an").value = "";
   }
+  updateAdminForgot();
 };
 function saveToken(t) {
   token = t;
@@ -1119,6 +1148,7 @@ function handleUrlAuthParams() {
     const params = new URLSearchParams(window.location.search);
     const roll = (params.get("roll") || "").trim().toUpperCase();
     const otp = (params.get("otp") || "").trim().replace(/\D/g, "").slice(0, 6);
+    const mode = (params.get("mode") || "").trim().toLowerCase();
     if (!roll && !otp) return;
 
     if (window.history && window.history.replaceState) {
@@ -1140,8 +1170,20 @@ function handleUrlAuthParams() {
             method: "POST",
             body: { roll },
           });
-          if (!r.hasAccount) {
-            pOtp(r.emailHint || "your email", 60);
+          pInfo = r;
+          if (mode === "reset") {
+            pOtp(r.emailHint || "your email", 60, true);
+            if (otp) {
+              setTimeout(() => {
+                const box = $("po");
+                if (box && box.fill) {
+                  box.fill(0, otp);
+                  toast("Password reset code filled from email link!");
+                }
+              }, 120);
+            }
+          } else if (!r.hasAccount) {
+            pOtp(r.emailHint || "your email", 60, false);
             if (otp) {
               setTimeout(() => {
                 const box = $("po");
@@ -1530,18 +1572,81 @@ function patternPad(el, onDone) {
     onDone(seq.length >= 4 ? seq.join("-") : "");
   };
 }
+let pIsReset = false;
+
+async function startForgotFlow(roll) {
+  $("pe").textContent = "";
+  if (!roll) {
+    $("pe").textContent = "Please enter your roll number first, then click Forgot Password.";
+    const pr = $("pr");
+    if (pr) pr.focus();
+    return;
+  }
+  if (!/^\d{4}[A-Za-z]{2}\d{2}$/.test(roll)) {
+    $("pe").textContent = "Roll number must be 4 digits, 2 letters, then 2 digits, like 2501ME71.";
+    const pr = $("pr");
+    if (pr) pr.focus();
+    return;
+  }
+  const btn = $("pforgot") || $("pforgot-roll");
+  if (btn) btn.disabled = true;
+  try {
+    const chk = await api("/api/player/check", {
+      method: "POST",
+      body: { roll },
+    });
+    pInfo = chk;
+    if (!chk.hasAccount) {
+      pIsReset = false;
+      $("pe").textContent = "No account found for this roll number yet. Click Continue to sign up!";
+      return;
+    }
+    pIsReset = true;
+    const r = await api("/api/player/otp", {
+      method: "POST",
+      body: { roll, reset: true },
+    });
+    pInfo.sentTo = r.sentTo;
+    pOtp(r.sentTo, r.wait, true);
+  } catch (err) {
+    pIsReset = false;
+    pErr(err);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 function pForm(hasAcc, info) {
   clearInterval(pTimer);
   pInfo = info || {};
   pType = "alnum";
+  pIsReset = false;
   $("pgo").hidden = true;
+  if ($("pforgot-roll-wrap")) $("pforgot-roll-wrap").hidden = true;
   if (hasAcc) {
     pStep = "login";
     $("pa").innerHTML =
       codeInput(pInfo.codeType || "alnum", "login") +
-      `<button class="pri big" id="plg">Log in</button><p class="hint">Forgot your code? Ask the captain to press <b>Reset code</b> for you, then sign up again.</p>`;
+      `<div class="login-forgot-row">
+        <button type="button" class="btn-forgot-pw" id="pforgot">Forgot Password / Code?</button>
+      </div>` +
+      `<button class="pri big" id="plg">Log in</button>` +
+      `<div style="margin-top:10px;text-align:center">
+        <button type="button" class="btn-forgot-pw" id="pback-roll" style="text-decoration:none;font-weight:500;color:var(--mute)">← Use different roll number</button>
+      </div>`;
     $("pe").textContent = "";
     bindCode(pInfo.codeType || "alnum");
+    const fg = $("pforgot");
+    if (fg) fg.onclick = () => startForgotFlow($("pr").value.trim());
+    const br = $("pback-roll");
+    if (br)
+      br.onclick = () => {
+        pStep = "roll";
+        $("pa").innerHTML = "";
+        $("pgo").hidden = false;
+        if ($("pforgot-roll-wrap")) $("pforgot-roll-wrap").hidden = false;
+        $("pr").focus();
+      };
     if ($("pc") && $("pc").type !== "hidden") $("pc").focus();
     return;
   }
@@ -1551,14 +1656,36 @@ function pForm(hasAcc, info) {
     (pInfo.emailHint
       ? `<p>The code goes to the e-mail the captain saved for you: <b>${esc(pInfo.emailHint)}</b></p>`
       : `<label class="fl">Your e-mail${pInfo.domain ? " (@" + esc(pInfo.domain) + ")" : ""}<input id="pm" type="email" inputmode="email" autocomplete="email" placeholder="${pInfo.domain ? "you@" + esc(pInfo.domain) : "you@example.com"}" maxlength="120" required></label>`) +
-    `<button class="pri big" id="psend">Send code</button>`;
+    `<button class="pri big" id="psend">Send code</button>` +
+    `<div style="margin-top:10px;text-align:center">
+      <button type="button" class="btn-forgot-pw" id="pback-roll" style="text-decoration:none;font-weight:500;color:var(--mute)">← Use different roll number</button>
+    </div>`;
+  const br = $("pback-roll");
+  if (br)
+    br.onclick = () => {
+      pStep = "roll";
+      $("pa").innerHTML = "";
+      $("pgo").hidden = false;
+      if ($("pforgot-roll-wrap")) $("pforgot-roll-wrap").hidden = false;
+      $("pr").focus();
+    };
   $("pe").textContent = "";
   if ($("pm")) $("pm").focus();
 }
-function pOtp(sentTo, wait) {
+function pOtp(sentTo, wait, isReset) {
   pStep = "otp";
+  pIsReset = !!isReset;
+  if ($("pforgot-roll-wrap")) $("pforgot-roll-wrap").hidden = true;
+  $("pgo").hidden = true;
+  const noteText = pIsReset
+    ? `Password Reset: We sent a 6-digit verification code to <b>${esc(sentTo)}</b>. Enter the code and set your new password/PIN below.`
+    : `We sent a 6 digit code to <b>${esc(sentTo)}</b>. It works for 10 minutes. Look in spam or junk if you cannot see it.`;
+  const submitText = pIsReset
+    ? "Reset Password &amp; Log In"
+    : "Create account &amp; log in";
+
   $("pa").innerHTML =
-    `<p class="note">We sent a 6 digit code to <b>${esc(sentTo)}</b>. It works for 10 minutes. Look in spam or junk if you cannot see it.</p>
+    `<p class="note">${noteText}</p>
   <div class="fl">
     <div class="otp-header-row">
       <span>Code from the e-mail</span>
@@ -1566,11 +1693,27 @@ function pOtp(sentTo, wait) {
     </div>
     ${sixBox("po")}
   </div>
-  <div class="fl">Security type<div class="seg" id="pty">${CTYPES.map((t) => `<button type="button" data-t="${t[0]}" class="${t[0] === pType ? "on" : ""}">${t[1]}</button>`).join("")}</div></div>
+  <div class="fl">${pIsReset ? "New security type" : "Security type"}<div class="seg" id="pty">${CTYPES.map((t) => `<button type="button" data-t="${t[0]}" class="${t[0] === pType ? "on" : ""}">${t[1]}</button>`).join("")}</div></div>
   <div id="pcw">${codeInput(pType, "new")}</div>
-  <button class="pri big" id="plg">Create account &amp; log in</button><button type="button" id="presend" disabled>Send the code again</button>`;
+  <button class="pri big" id="plg">${submitText}</button><button type="button" id="presend" disabled>Send the code again</button>
+  <div style="margin-top:12px;text-align:center">
+    <button type="button" class="btn-forgot-pw" id="preset-cancel" style="text-decoration:none;font-weight:500;color:var(--mute)">← Cancel and back to login</button>
+  </div>`;
   bindCode(pType);
   bindSix("po");
+
+  const cancelBtn = $("preset-cancel");
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
+      pIsReset = false;
+      pStep = "roll";
+      $("pa").innerHTML = "";
+      $("pgo").hidden = false;
+      if ($("pforgot-roll-wrap")) $("pforgot-roll-wrap").hidden = false;
+      $("pe").textContent = "";
+      $("pr").focus();
+    };
+  }
 
   const pasteBtn = $("btn-paste-otp");
   if (pasteBtn) {
@@ -1624,7 +1767,11 @@ function pOtp(sentTo, wait) {
     try {
       const r = await api("/api/player/otp", {
         method: "POST",
-        body: { roll: $("pr").value.trim(), email: pInfo.typed || "" },
+        body: {
+          roll: $("pr").value.trim(),
+          email: pInfo.typed || "",
+          reset: pIsReset,
+        },
       });
       $("pe").textContent = "A new code was sent.";
       pCount(r.wait || 60);
@@ -1664,7 +1811,7 @@ $("pf").onsubmit = async (e) => {
         body: { roll, email: em },
       });
       pInfo.typed = em;
-      pOtp(r.sentTo, r.wait);
+      pOtp(r.sentTo, r.wait, false);
       return;
     }
     if (pStep === "otp" && $("po").val().length < 6) {
@@ -1691,10 +1838,13 @@ $("pf").onsubmit = async (e) => {
               otp: $("po").val(),
               code: $("pc").value,
               ctype: pType,
+              reset: pIsReset,
             },
           });
     clearInterval(pTimer);
     saveToken(r.token);
+    if (pIsReset) toast("Password reset successfully! Logged in.");
+    pIsReset = false;
     tab = "me";
     boot();
   } catch (x) {
@@ -1706,11 +1856,17 @@ $("pf").onsubmit = async (e) => {
 $("pr").oninput = () => {
   if (pStep !== "roll") {
     pStep = "roll";
+    pIsReset = false;
     clearInterval(pTimer);
     $("pa").innerHTML = "";
     $("pgo").hidden = false;
+    if ($("pforgot-roll-wrap")) $("pforgot-roll-wrap").hidden = false;
   }
 };
+const pfrBtn = $("pforgot-roll");
+if (pfrBtn) {
+  pfrBtn.onclick = () => startForgotFlow($("pr").value.trim());
+}
 
 // ---- install as an app ----
 let deferred = null;

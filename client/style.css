@@ -305,6 +305,30 @@ a {
   color: var(--brand);
   background: none;
 }
+.btn-forgot-pw {
+  background: none;
+  border: none;
+  color: var(--brand, #0f4aa8);
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-forgot-pw:hover {
+  opacity: 0.85;
+  color: var(--accent, #e5a823);
+}
+.login-forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 8px 0 6px;
+}
 
 /* ---------- app shell ---------- */
 header {
