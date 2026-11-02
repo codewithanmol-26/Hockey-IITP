@@ -1028,9 +1028,11 @@ $("em").onchange = () => {
   const v = $("em").value;
   $("anw").hidden = v !== "admin" && v !== "coach";
   if (v === "coach") {
-    $("an").placeholder = "Coach name (or leave empty if only 1 coach)";
+    $("an").placeholder = "Coach name (default: Kiran Chaudhary)";
+    $("an").value = "Kiran Chaudhary";
   } else if (v === "admin") {
     $("an").placeholder = "Name registered in admin list";
+    $("an").value = "";
   }
 };
 function saveToken(t) {
@@ -1435,9 +1437,9 @@ function pCount(sec) {
 // ---- security types: alphanumeric, numeric PIN or pattern (the pattern is sent as dot numbers, e.g. 0-1-2-5) ----
 let pType = "alnum";
 const CTYPES = [
-  ["alnum", "Alphanumeric"],
-  ["numeric", "Numeric"],
-  ["pattern", "Pattern"],
+  ["alnum", "All Types Password"],
+  ["numeric", "Numeric PIN"],
+  ["pattern", "Pattern Lock"],
 ];
 function codeInput(type, mode) {
   const nw = mode === "new";
@@ -1934,13 +1936,13 @@ function openChangeCode() {
   if (!dlg || !body) return;
 
   const isPl = role === "player";
-  changeNewType = isPl ? myCodeType || "alnum" : "alnum";
+  changeNewType = myCodeType || "alnum";
 
   const renderCurInput = (type) => {
     if (type === "pattern") {
       return `
         <div class="fl">
-          <span class="chg-lbl">Current Pattern</span>
+          <span class="chg-lbl">Current Pattern Lock</span>
           <p class="mute" style="margin:0 0 6px;font-size:0.8rem">Draw your current pattern to verify it's you.</p>
           <div class="pat-box">
             <div class="pat" id="chg-cur-pad"></div>
@@ -1963,8 +1965,8 @@ function openChangeCode() {
     }
     return `
       <label class="fl">
-        <span class="chg-lbl">Current password</span>
-        <input id="curcode" type="password" placeholder="Current password" autocomplete="current-password" required>
+        <span class="chg-lbl">Current Password / Code</span>
+        <input id="curcode" type="password" placeholder="Enter current password or code" autocomplete="current-password" required>
       </label>
     `;
   };
@@ -2013,14 +2015,14 @@ function openChangeCode() {
     }
     return `
       <label class="fl">
-        <span class="chg-lbl">New Password</span>
+        <span class="chg-lbl">New Password (All Character Types)</span>
         <input id="newcode" type="password" placeholder="Any characters: letters, numbers, symbols (4–30 chars)" maxlength="30" autocomplete="new-password" required>
       </label>
       <label class="fl">
         <span class="chg-lbl">Confirm New Password</span>
         <input id="newcode2" type="password" placeholder="Repeat new password" maxlength="30" autocomplete="new-password" required>
       </label>
-      <div class="chg-hint">💡 Accepts any character type: letters, numbers, symbols, spaces, or punctuation (4–30 characters).</div>
+      <div class="chg-hint">💡 Accepts all types of characters: uppercase & lowercase letters, numbers, symbols (@#$%^&* etc.), spaces, or punctuation (4–30 characters). Not restricted to alphanumeric.</div>
     `;
   };
 
@@ -2029,71 +2031,48 @@ function openChangeCode() {
       ? "Save New Pattern"
       : type === "numeric"
         ? "Save New PIN"
-        : isPl
-          ? "Save New Password"
-          : "Save New Code";
+        : "Save New Password";
 
   const renderDialog = () => {
-    let h = "";
-    if (isPl) {
-      h = `
-        <h2 id="codedlg-title">Change Password / Credentials</h2>
-        <p class="mute" id="codedlg-sub">Update credentials for roll <b>${esc(me || "Player")}</b>. You can choose any security type: alphanumeric password, numeric PIN, or pattern lock.</p>
-        <form id="codeform" autocomplete="off">
-          <div id="chg-cur-wrap">
-            ${renderCurInput(myCodeType)}
+    const roleTitle =
+      role === "coach"
+        ? "Coach"
+        : role === "captain"
+          ? "Captain"
+          : role === "vice"
+            ? "Vice-captain"
+            : role === "admin"
+              ? "Admin"
+              : "Player";
+    const userLabel = isPl
+      ? `roll <b>${esc(me || "Player")}</b>`
+      : `<b>${esc(WHO || roleTitle)}</b> (${roleTitle})`;
+
+    const h = `
+      <h2 id="codedlg-title">Change Password / Credentials</h2>
+      <p class="mute" id="codedlg-sub">Update credentials for ${userLabel}. Choose from all types of security: any-character password (letters, numbers, symbols), numeric PIN, or pattern lock.</p>
+      <form id="codeform" autocomplete="off">
+        <div id="chg-cur-wrap">
+          ${renderCurInput(myCodeType)}
+        </div>
+        <div class="fl" style="margin-top:14px">
+          <span class="chg-lbl">Choose Password / Security Type</span>
+          <div class="seg" id="chg-pty" style="display:flex; flex-wrap:wrap; gap:4px;">
+            <button type="button" data-t="alnum" class="${changeNewType === "alnum" ? "on" : ""}" style="flex:1; min-width:130px;">🔣 All Types (Any Character)</button>
+            <button type="button" data-t="numeric" class="${changeNewType === "numeric" ? "on" : ""}" style="flex:1; min-width:110px;">🔢 Numeric PIN</button>
+            <button type="button" data-t="pattern" class="${changeNewType === "pattern" ? "on" : ""}" style="flex:1; min-width:110px;">✨ Pattern Lock</button>
           </div>
-          <div class="fl" style="margin-top:14px">
-            <span class="chg-lbl">Choose New Security Type</span>
-            <div class="seg" id="chg-pty">
-              <button type="button" data-t="alnum" class="${changeNewType === "alnum" ? "on" : ""}">Alphanumeric</button>
-              <button type="button" data-t="numeric" class="${changeNewType === "numeric" ? "on" : ""}">Numeric PIN</button>
-              <button type="button" data-t="pattern" class="${changeNewType === "pattern" ? "on" : ""}">Pattern Lock</button>
-            </div>
-          </div>
-          <div id="chg-new-wrap">
-            ${renderNewInputs(changeNewType)}
-          </div>
-          <p id="codemsg" class="err" role="alert"></p>
-          <div class="ctl">
-            <button type="submit" class="pri" id="codebtn">${btnLabel(changeNewType)}</button>
-            <button type="button" id="codex">Cancel</button>
-          </div>
-        </form>
-      `;
-    } else {
-      const rName =
-        role === "coach"
-          ? "Coach"
-          : role === "captain"
-            ? "Captain"
-            : role === "vice"
-              ? "Vice-captain"
-              : "Admin";
-      h = `
-        <h2 id="codedlg-title">Change ${rName} Code</h2>
-        <p class="mute" id="codedlg-sub">Set a private code for your ${rName} account. Accepts any characters, numbers, or symbols.</p>
-        <form id="codeform" autocomplete="off">
-          <label class="fl">
-            <span class="chg-lbl">Current code</span>
-            <input id="curcode" type="password" placeholder="Current login code" autocomplete="current-password" required>
-          </label>
-          <label class="fl">
-            <span class="chg-lbl">New code</span>
-            <input id="newcode" type="password" placeholder="New code (4 to 30 characters)" minlength="4" maxlength="30" autocomplete="new-password" required>
-          </label>
-          <label class="fl">
-            <span class="chg-lbl">Confirm new code</span>
-            <input id="newcode2" type="password" placeholder="Repeat new code" minlength="4" maxlength="30" autocomplete="new-password" required>
-          </label>
-          <p id="codemsg" class="err" role="alert"></p>
-          <div class="ctl">
-            <button type="submit" class="pri" id="codebtn">Save New Code</button>
-            <button type="button" id="codex">Cancel</button>
-          </div>
-        </form>
-      `;
-    }
+        </div>
+        <div id="chg-new-wrap">
+          ${renderNewInputs(changeNewType)}
+        </div>
+        <p id="codemsg" class="err" role="alert"></p>
+        <div class="ctl">
+          <button type="submit" class="pri" id="codebtn">${btnLabel(changeNewType)}</button>
+          <button type="button" id="codex">Cancel</button>
+        </div>
+      </form>
+    `;
     body.innerHTML = h;
     bindDialogEvents();
   };
