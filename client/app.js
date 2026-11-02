@@ -1024,12 +1024,117 @@ function showApp() {
   }
   document.title = "IITP Hockey Attendance";
 }
+let staffCredMode = "pattern"; // default to pattern for Coach
+let staffUserToggled = false;
+
+function renderStaffCredBox() {
+  const wrap = $("staff-cred-wrap");
+  if (!wrap) return;
+  const isPat = staffCredMode === "pattern";
+  const isNum = staffCredMode === "numeric";
+
+  if (isPat) {
+    wrap.innerHTML = `
+      <div class="fl" style="margin-bottom:8px;">
+        <span class="fl-lbl">Draw pattern lock</span>
+        <p class="mute" style="margin:0 0 4px;font-size:0.8rem">Draw your pattern lock to log in.</p>
+        <div class="pat-box">
+          <div class="pat" id="staff-pad"></div>
+          <div class="pat-acts" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+            <button type="button" class="ghost2" id="staff-pad-clr">Clear pattern</button>
+            <span class="pat-stat mute" id="staff-pad-stat" style="font-size:0.8rem"></span>
+          </div>
+        </div>
+        <div style="margin-top:6px">
+          <button type="button" class="btn-link" id="btn-toggle-staff-mode" style="background:none;border:none;color:var(--pri,#0f4aa8);font-size:0.82rem;font-weight:600;cursor:pointer;padding:2px 0;text-decoration:underline;">
+            🔣 Or enter text password / PIN instead
+          </button>
+        </div>
+      </div>
+    `;
+    const pad = $("staff-pad");
+    if (pad) {
+      patternPad(pad, (v) => {
+        const pw = $("pw");
+        if (pw) pw.value = v;
+        const st = $("staff-pad-stat");
+        if (st) st.textContent = v ? `Pattern drawn (${v.split("-").length} dots)` : "";
+      });
+    }
+    const clr = $("staff-pad-clr");
+    if (clr) {
+      clr.onclick = () => {
+        const pad = $("staff-pad");
+        if (pad && pad.clear) pad.clear();
+        const pw = $("pw");
+        if (pw) pw.value = "";
+        const st = $("staff-pad-stat");
+        if (st) st.textContent = "";
+      };
+    }
+  } else {
+    wrap.innerHTML = `
+      <label class="fl">
+        <span class="fl-lbl">${isNum ? "PIN (numbers only)" : "Code / Password"}</span>
+        <input id="staff-pw-txt" type="password" ${isNum ? 'inputmode="numeric"' : ''} placeholder="${isNum ? "Enter 4-8 digit PIN" : "Your code or password"}" autocomplete="current-password">
+      </label>
+      <div style="margin-top:4px;margin-bottom:8px">
+        <button type="button" class="btn-link" id="btn-toggle-staff-mode" style="background:none;border:none;color:var(--pri,#0f4aa8);font-size:0.82rem;font-weight:600;cursor:pointer;padding:2px 0;text-decoration:underline;">
+          ✨ Or draw pattern lock instead
+        </button>
+      </div>
+    `;
+    const txt = $("staff-pw-txt");
+    if (txt) {
+      txt.oninput = (e) => {
+        const pw = $("pw");
+        if (pw) pw.value = e.target.value;
+      };
+      const pw = $("pw");
+      if (pw && pw.value) txt.value = pw.value;
+    }
+  }
+
+  const toggleBtn = $("btn-toggle-staff-mode");
+  if (toggleBtn) {
+    toggleBtn.onclick = () => {
+      staffUserToggled = true;
+      staffCredMode = staffCredMode === "pattern" ? "alnum" : "pattern";
+      const pw = $("pw");
+      if (pw) pw.value = "";
+      renderStaffCredBox();
+    };
+  }
+}
+
+async function detectStaffCodeType() {
+  const v = $("em") ? $("em").value : "coach";
+  const nameVal = $("an") ? $("an").value.trim() : "";
+  try {
+    const res = await api(`/api/auth/code-type?role=${encodeURIComponent(v)}&name=${encodeURIComponent(nameVal)}`);
+    if (res && res.codeType && !staffUserToggled) {
+      staffCredMode = res.codeType;
+      renderStaffCredBox();
+    }
+  } catch (e) {
+    if (!staffUserToggled) {
+      staffCredMode = v === "coach" ? "pattern" : "alnum";
+      renderStaffCredBox();
+    }
+  }
+}
+
 function loginTab(m) {
   const pm = m !== "admin";
   $("pf").hidden = !pm;
   $("lf").hidden = pm;
   $("t1").classList.toggle("on", pm);
   $("t2").classList.toggle("on", !pm);
+  if (!pm) {
+    staffUserToggled = false;
+    detectStaffCodeType();
+    renderStaffCredBox();
+  }
 }
 $("t1").onclick = () => loginTab("player");
 $("t2").onclick = () => loginTab("admin");
@@ -1179,8 +1284,17 @@ $("em").onchange = () => {
     $("an").placeholder = "Name registered in admin list";
     $("an").value = "";
   }
+  staffUserToggled = false;
+  detectStaffCodeType();
   updateAdminForgot();
 };
+if ($("an")) {
+  $("an").onblur = () => {
+    if ($("em").value === "admin" && $("an").value.trim()) {
+      detectStaffCodeType();
+    }
+  };
+}
 function saveToken(t) {
   token = t;
   try {
@@ -1575,13 +1689,25 @@ $("lf").onsubmit = async (e) => {
   $("er").textContent = "";
   const selectedRole = $("em").value;
   let nameVal = $("an").value.trim();
-    try {
+  const txt = $("staff-pw-txt");
+  if (txt && staffCredMode !== "pattern") {
+    $("pw").value = txt.value.trim();
+  }
+  const codeVal = ($("pw") ? $("pw").value : "").trim();
+  if (!codeVal) {
+    $("er").textContent =
+      staffCredMode === "pattern"
+        ? "Please draw your pattern lock."
+        : "Please enter your code or password.";
+    return;
+  }
+  try {
     const r = await api("/api/login", {
       method: "POST",
       body: {
         role: selectedRole,
         name: nameVal,
-        code: $("pw").value.trim(),
+        code: codeVal,
       },
     });
     saveToken(r.token);
@@ -2315,8 +2441,8 @@ function openChangeCode(startForgot = false) {
   if (!dlg || !body) return;
 
   const isPl = role === "player";
-  changeNewType = myCodeType || "alnum";
-  let curInputMode = myCodeType || "alnum";
+  changeNewType = myCodeType || (isCoach ? "pattern" : "alnum");
+  let curInputMode = myCodeType || (isCoach ? "pattern" : "alnum");
   let userToggledCur = false;
   let isForgot = !!startForgot;
   let chgOtpTimer = 0;
@@ -2483,7 +2609,7 @@ function openChangeCode(startForgot = false) {
             ${renderCurInput(curInputMode)}
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:4px; margin-bottom:6px;">
               <button type="button" class="btn-link" id="btn-toggle-cur-mode" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.83rem; font-weight:600; cursor:pointer; padding:2px 0; text-decoration:underline;">
-                ${curInputMode === "pattern" ? "🔣 Or enter current text password / PIN instead" : "✨ Or draw current pattern lock instead"}
+                ${curInputMode === "pattern" ? "🔣 Or enter current text password / PIN (or 1234) instead" : "✨ Or draw current pattern lock instead"}
               </button>
               <button type="button" class="btn-link" id="btn-toggle-forgot" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.83rem; font-weight:600; cursor:pointer; padding:2px 0; text-decoration:underline;">
                 🔑 Forgot current password / pattern? Verify with Email OTP
@@ -2651,9 +2777,9 @@ function openChangeCode(startForgot = false) {
       // Dynamically verify credential type from server to guarantee pattern lock renders
       api("/api/me/code-type")
         .then((r) => {
-          if (r && r.codeType && r.codeType !== myCodeType) {
+          if (r && r.codeType) {
             myCodeType = r.codeType;
-            if (!userToggledCur) {
+            if (!userToggledCur && curInputMode !== r.codeType) {
               curInputMode = r.codeType;
               const curWrap = $("chg-cur-wrap");
               if (curWrap && !isForgot) {
