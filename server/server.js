@@ -1822,22 +1822,19 @@ app.post(
       return res.status(409).json({
         error: "An admin with that name already exists. Use a different name.",
       });
-    const kind =
-        b.kind === "player"
-          ? "player"
-          : b.kind === "instructor"
-            ? "instructor"
-            : "",
-      playerId = kind === "player" ? str(b.playerId, 40) : "";
-    if (!kind)
-      return res.status(400).json({ error: "Choose Player or Instructor" });
+    const kind = b.kind === "player" ? "player" : "instructor";
+    const rawPid = b.playerId ? str(b.playerId, 40).trim() : "";
+    const playerId = kind === "player" && rawPid ? rawPid : null;
+
     if (
       kind === "player" &&
-      !(playerId && (await db.collection("players").doc(playerId).get()).exists)
+      playerId &&
+      !(await db.collection("players").doc(playerId).get()).exists
     )
       return res
         .status(400)
-        .json({ error: "Choose which player this admin is" });
+        .json({ error: "Chosen player not found in squad roster" });
+
     const salt = crypto.randomBytes(16).toString("hex");
     await db.collection("admins").add({
       name,
@@ -1864,20 +1861,17 @@ app.put(
       upd = {};
     if (b.disabled !== undefined) upd.disabled = !!b.disabled;
     if (b.kind !== undefined) {
-      if (!["player", "instructor"].includes(b.kind))
-        return res.status(400).json({ error: "Choose Player or Instructor" });
-      upd.kind = b.kind;
-      upd.playerId = b.kind === "player" ? str(b.playerId, 40) : "";
+      upd.kind = ["player", "instructor"].includes(b.kind) ? b.kind : "instructor";
+      const rawPid = b.playerId ? str(b.playerId, 40).trim() : "";
+      upd.playerId = upd.kind === "player" && rawPid ? rawPid : null;
       if (
-        b.kind === "player" &&
-        !(
-          upd.playerId &&
-          (await db.collection("players").doc(upd.playerId).get()).exists
-        )
+        upd.kind === "player" &&
+        upd.playerId &&
+        !(await db.collection("players").doc(upd.playerId).get()).exists
       )
         return res
           .status(400)
-          .json({ error: "Choose which player this admin is" });
+          .json({ error: "Chosen player not found in squad roster" });
     }
     await ref.update(upd);
     done(res);

@@ -117,6 +117,21 @@ function rowToDoc(col, row) {
       }),
     };
   }
+  if (col === "admins") {
+    return {
+      id,
+      data: () => ({
+        name: row.name,
+        disabled: !!row.disabled,
+        salt: row.salt,
+        hash: row.hash,
+        photo: row.photo || "",
+        kind: row.kind || "",
+        playerId: row.player_id || "",
+        created: row.created_at || 0,
+      }),
+    };
+  }
   if (col === "players") {
     return {
       id,
@@ -292,6 +307,20 @@ function docToRow(col, id, data) {
     };
     // only written for PIN / pattern, so plain alphanumeric accounts keep working before the SQL update is run
     if (data.type && data.type !== "alnum") row.code_type = data.type;
+    return row;
+  }
+  if (col === "admins") {
+    const row = { id };
+    if (data.name !== undefined) row.name = data.name;
+    if (data.disabled !== undefined) row.disabled = !!data.disabled;
+    if (data.salt !== undefined) row.salt = data.salt;
+    if (data.hash !== undefined) row.hash = data.hash;
+    if (data.photo !== undefined) row.photo = data.photo || null;
+    if (data.kind !== undefined) row.kind = data.kind || "instructor";
+    if (data.playerId !== undefined)
+      row.player_id = (data.playerId && String(data.playerId).trim()) || null;
+    if (data.created !== undefined)
+      row.created_at = typeof data.created === "number" ? data.created : Date.now();
     return row;
   }
   if (col === "players") {

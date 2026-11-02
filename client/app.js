@@ -920,17 +920,15 @@ const TABS = [
   ["admins", "🛡️", "Admins", "o", ""],
   ["helpbox", "💬", "Help messages", "a", ""],
 ];
-const PRIMARY = ["me", "leaderboard", "take", "plan", "stats", "schedule"];
+const PRIMARY = ["me", "take", "plan", "stats", "schedule"];
 const tabsFor = () =>
   TABS.filter(
     (t) => !t[3] || (t[3] === "a" && admin) || (t[3] === "o" && owner),
   );
 let prevTab = "me";
 const go = (t) => {
-  if (t !== "leaderboard" && tab !== "leaderboard" && tab !== t) {
-    prevTab = tab || "me";
-  } else if (t === "leaderboard" && tab !== "leaderboard") {
-    prevTab = tab || "me";
+  if (PRIMARY.includes(tab) && tab !== t) {
+    prevTab = tab;
   }
   tab = t;
   prof = null;
@@ -1870,6 +1868,17 @@ if ($("hlb")) {
       if (!prof && tab) prevTab = tab;
       else prevTab = "me";
       go("leaderboard");
+    }
+  };
+}
+if ($("xb")) {
+  $("xb").onclick = () => {
+    if ($("menu")) $("menu").hidden = true;
+    if (prof) {
+      prof = null;
+      render();
+    } else {
+      go(PRIMARY.includes(prevTab) ? prevTab : "me");
     }
   };
 }
@@ -2946,14 +2955,15 @@ function render() {
   $("who").textContent = loaded ? (WHO === rn ? rn : WHO + " · " + rn) : "";
   $("hp").innerHTML = loaded ? avatar(WHO, MYPH, 34) : "";
 
-  // When opening any page in navigation, lower navigation bar disappears
-  const isHome = tab === "me" && !prof;
+  // Bottom navigation bar stays visible when navigating between bottom bar items (PRIMARY).
+  // Only disappears when opening any menu option / subpage (!PRIMARY.includes(tab) || prof).
+  const isPrimary = PRIMARY.includes(tab) && !prof;
   const navEl = $("nav");
   if (navEl) {
-    navEl.hidden = !isHome;
+    navEl.hidden = !isPrimary;
   }
-  document.body.classList.toggle("nav-hidden", !isHome);
-  $("xb").hidden = !(loaded && !err && !isHome);
+  document.body.classList.toggle("nav-hidden", !isPrimary);
+  $("xb").hidden = !(loaded && !err && !isPrimary);
 
   const hlbBtn = $("hlb");
   if (hlbBtn) {
@@ -5092,7 +5102,7 @@ function vAdmins() {
   $("view").innerHTML =
     `<div class="card"><h2>Team staff</h2>${st.map((s) => `<div class="row link" role="button" tabindex="0" data-sf="${s[0]}"><span class="sw-row">${avatar(s[1], STAFF[s[0]], 40)}<span><b>${s[1]}</b><br><span class="mute">Full access</span></span></span><span class="chev">›</span></div>`).join("")}</div>
   <div class="card"><h2>Admins</h2><p class="mute">Admins can take attendance and edit everything except this list. They log in under <b>Captain / Admin</b> → Admin with their name and code. Use the switch to turn an admin's access on or off without deleting them. Tap an admin to open their profile.</p>
-  <div class="ctl"><label class="fl" style="flex:1;margin:0">Is this admin a<select id="akind"><option value="">Choose…</option><option value="player">Player</option><option value="instructor">Instructor</option></select></label><label class="fl" id="aplw" style="flex:1;margin:0" hidden>Which player<select id="apl"><option value="">Choose a player…</option>${P.map((x) => `<option value="${esc(x.id)}" data-n="${esc(x.name)}">${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}</select></label></div>
+  <div class="ctl"><label class="fl" style="flex:1;margin:0">Admin role / type<select id="akind"><option value="instructor">Instructor / General Admin</option><option value="player">Team Player</option></select></label><label class="fl" id="aplw" style="flex:1;margin:0" hidden>Which player<select id="apl"><option value="">Choose a player…</option>${P.map((x) => `<option value="${esc(x.id)}" data-n="${esc(x.name)}">${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}</select></label></div>
   <div class="ctl"><input id="an2" placeholder="Name (used to log in)" maxlength="40"><input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30" autocomplete="new-password"><button class="pri" id="aadd">Add admin</button></div>
   ${ADM.map((a) => `<div class="row link" role="button" tabindex="0" data-af="${esc(a.id)}"><span class="sw-row"><button class="sw ${a.disabled ? "" : "on"}" role="switch" aria-checked="${!a.disabled}" aria-label="Access for ${esc(a.name)}" data-tg="${esc(a.id)}"></button>${avatar(a.name, a.photo, 40)}<span>${esc(a.name)}<br><span class="pill ${a.disabled ? "r" : "g"}">${a.disabled ? "Access off" : "Access on"}</span> <span class="pill">${a.kind === "player" ? "Player" : a.kind === "instructor" ? "Instructor" : "Type not set"}</span></span></span><button class="dng" data-adm="${esc(a.id)}">Remove</button></div>`).join("") || empty("🛡️", "No extra admins yet.")}</div>`;
   $("akind").onchange = () => {
@@ -5103,24 +5113,21 @@ function vAdmins() {
     if (o && o.dataset.n) $("an2").value = o.dataset.n;
   };
   $("aadd").onclick = () => {
-    const kind = $("akind").value,
-      pid = $("apl").value,
+    let kind = $("akind") ? $("akind").value : "instructor";
+    const pid = $("apl") ? $("apl").value : "",
       name = $("an2").value.trim(),
       code = $("ac").value;
-    if (!kind)
-      return alert(
-        "First choose whether this admin is a Player or an Instructor.",
-      );
-    if (kind === "player" && !pid)
-      return alert("Choose which player this admin is.");
     if (!name || code.length < 4)
       return alert("Enter a name and a code of at least 4 characters.");
+    if (kind === "player" && !pid)
+      return alert("Please choose which player from the dropdown to link this admin to.");
     run(async () => {
       await api("/api/admins", {
         method: "POST",
         body: { name, code, kind, playerId: kind === "player" ? pid : "" },
       });
-      await load();
+      await load(true);
+      alert('Admin "' + name + '" added successfully!');
     });
   };
   document.querySelectorAll("[data-tg]").forEach(
@@ -5208,12 +5215,26 @@ function vProfile() {
     <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} sessions</p><div class="dots">${dots}</div></div>` : ""}</div></div>
     <div class="card"><h2>Details</h2>${kv("Roll number", esc(p.roll))}${kv("Position", esc(p.position))}${kv("Joined", p.joined ? fmt(p.joined) : "")}
       ${kv("E-mail", p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : "")}${kv("Jersey", jersey)}
-      ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}</div>` : ""}
+      ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}${owner && !gone && !ADM.some((a) => a.kind === "player" && a.playerId === id) ? '<button class="sec" id="pmkadmin">🛡️ Make admin</button>' : ""}</div>` : ""}
       ${own ? `<div class="chips" style="margin-top:12px"><button type="button" class="sec" id="powncode">🔑 Change Password</button></div>` : ""}</div></div>`;
     $("view").innerHTML = h;
     if ($("pedit")) $("pedit").onclick = () => openEdit(p, own);
     if ($("pcode")) $("pcode").onclick = () => openChangeCode();
     if ($("powncode")) $("powncode").onclick = () => openChangeCode();
+    if ($("pmkadmin"))
+      $("pmkadmin").onclick = () => {
+        const code = prompt("Enter a login code (4 to 30 characters) for " + p.name + " to log in as Admin:");
+        if (!code) return;
+        if (code.trim().length < 4) return alert("Code must be at least 4 characters.");
+        run(async () => {
+          await api("/api/admins", {
+            method: "POST",
+            body: { name: p.name, code: code.trim(), kind: "player", playerId: p.id },
+          });
+          await load(true);
+          alert(p.name + " is now an Admin!");
+        });
+      };
     bindCover("p", id);
     if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath, p.photo);
     if ($("prst"))

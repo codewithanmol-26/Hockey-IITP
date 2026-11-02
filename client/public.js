@@ -1018,7 +1018,18 @@ document.addEventListener("keydown", (e) => {
 });
 gid("xb").onclick = () => {
   gid("menu").hidden = true;
-  go("me");
+  if (typeof prof !== "undefined" && prof) {
+    prof = null;
+    if (typeof render === "function") render();
+  } else {
+    go(
+      typeof PRIMARY !== "undefined" &&
+        typeof prevTab !== "undefined" &&
+        PRIMARY.includes(prevTab)
+        ? prevTab
+        : "me",
+    );
+  }
 };
 
 // ---------------------------------------------------------------- open in app / continue in web
