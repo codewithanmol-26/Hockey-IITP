@@ -102,11 +102,11 @@ const auth = async (req, res, next) => {
   }
 };
 const owner = (req, res, next) =>
-  ["captain", "vice"].includes(req.user.role)
+  ["captain", "vice", "admin"].includes(req.user.role)
     ? next()
     : res
         .status(403)
-        .json({ error: "Only the captain or vice-captain can do this" });
+        .json({ error: "Only team admins and staff can do this" });
 const h = (fn) => (req, res, next) => fn(req, res).catch(next);
 
 // Security types a player can choose for their personal code. All are stored the same way (salted hash of the text).
@@ -847,7 +847,7 @@ app.get(
         myKind,
         ...all,
       };
-      if (!["captain", "vice"].includes(p.role)) delete full.admins; // only captain / vice manage the admin list
+      if (!["captain", "vice", "admin"].includes(p.role)) delete full.admins; // only team admins/staff manage the admin list
       return res.json(full);
     }
     const me = p.id,

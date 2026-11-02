@@ -158,6 +158,98 @@ async function getPlayerAttendanceSummary(rollNumber) {
   }
 }
 
+async function getSquadRosterSummary() {
+  try {
+    const players = await db.getPlayers(false);
+    return {
+      totalSquadCount: players.length,
+      players: players.map((p) => ({
+        name: p.name,
+        roll: p.roll || p.id,
+        position: p.position || "Field Player",
+        jerseyNo: p.jersey_no || "–",
+        contact: p.contact || "",
+      })),
+    };
+  } catch (e) {
+    return { error: "Squad roster unavailable" };
+  }
+}
+
+async function getSquadAttendanceRanking() {
+  try {
+    const [sessions, legacy, players] = await Promise.all([
+      db.getSessions(),
+      db.getLegacy(),
+      db.getPlayers(false),
+    ]);
+    const sortedDates = Object.keys(sessions);
+    const legacyDays = Object.keys(legacy).reduce(
+      (acc, k) => acc + (legacy[k].days || 0),
+      0,
+    );
+    const totalWorkingDays = sortedDates.length + legacyDays;
+
+    const statsList = players.map((p) => {
+      let pr = 0;
+      for (const d of sortedDates) {
+        if (sessions[d] && sessions[d][p.id]) pr++;
+      }
+      for (const m in legacy) {
+        if (legacy[m] && legacy[m].att && legacy[m].att[p.id]) {
+          pr += legacy[m].att[p.id];
+        }
+      }
+      const pct =
+        totalWorkingDays > 0
+          ? ((pr / totalWorkingDays) * 100).toFixed(1)
+          : "0.0";
+      return {
+        name: p.name,
+        roll: p.roll || p.id,
+        position: p.position || "Field Player",
+        attended: pr,
+        total: totalWorkingDays,
+        percentage: pct + "%",
+      };
+    });
+
+    statsList.sort((a, b) => parseFloat(b.percentage) - parseFloat(a.percentage));
+    return {
+      totalWorkingDays,
+      totalActivePlayers: players.length,
+      topAttendees: statsList.slice(0, 10),
+      lowestAttendees: statsList.slice(-5).reverse(),
+      allAttendanceStats: statsList,
+    };
+  } catch (e) {
+    return { error: "Squad attendance summary unavailable" };
+  }
+}
+
+async function findTargetPlayerAttendance(query) {
+  if (!query) return null;
+  try {
+    const players = await db.getPlayers(true);
+    const qLower = query.toLowerCase();
+
+    const found = players.find((p) => {
+      const r = (p.roll || p.id || "").toLowerCase();
+      const n = (p.name || "").toLowerCase();
+      if (r && qLower.includes(r)) return true;
+      if (n && n.length >= 3 && qLower.includes(n)) return true;
+      return false;
+    });
+
+    if (found) {
+      return await getPlayerAttendanceSummary(found.id || found.roll);
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function getRelevantRulesAndWarmup(query) {
   try {
     const q = query.toLowerCase();
@@ -222,6 +314,12 @@ async function chat({ message, user, userProfile, history = [] }) {
   const query = message.trim();
   const qLower = query.toLowerCase();
 
+  const isAdmin =
+    user &&
+    (user.role === "admin" ||
+      user.role === "captain" ||
+      user.role === "vice");
+
   const isAskingAttendance =
     /attendance|present|absent|percentage|attended|my record|stats/i.test(
       qLower,
@@ -242,12 +340,30 @@ async function chat({ message, user, userProfile, history = [] }) {
     /diet|nutrition|food|protein|carb|meal|eat|breakfast|lunch|dinner|calorie|weight|hydration|water|supplement|electrolyte|mess|hostel|recovery|stamina|fatigue/i.test(
       qLower,
     );
+  const isAskingRoster =
+    /roster|squad|player|who is playing|team list|members|list of players|lineup/i.test(
+      qLower,
+    );
 
   // Targeted grounding collection (Free-tier friendly & fast)
   const context = {};
 
-  if (isAskingTeamStats || isAskingAttendance) {
+  if (isAdmin) {
+    context.adminPrivileges = {
+      hasFullAdminAccess: true,
+      role: user.role,
+      title: userProfile ? userProfile.title : "Administrator",
+      notice:
+        "The user is a verified Administrator with complete access to all squad records, roster, and player attendance.",
+    };
+  }
+
+  if (isAskingTeamStats || isAskingAttendance || (isAdmin && isAskingRoster)) {
     context.teamSessions = await getTeamSessionsSummary();
+  }
+
+  if (isAdmin && (isAskingRoster || isAskingAttendance || isAskingTeamStats)) {
+    context.squadRoster = await getSquadRosterSummary();
   }
 
   if (
@@ -255,7 +371,8 @@ async function chat({ message, user, userProfile, history = [] }) {
     (!isAskingAttendance &&
       !isAskingRules &&
       !isAskingTeamStats &&
-      !isAskingDietOrFitness)
+      !isAskingDietOrFitness &&
+      !isAskingRoster)
   ) {
     context.schedules = await getRelevantSchedules();
   }
@@ -265,7 +382,8 @@ async function chat({ message, user, userProfile, history = [] }) {
     (!isAskingAttendance &&
       !isAskingSchedule &&
       !isAskingTeamStats &&
-      !isAskingDietOrFitness)
+      !isAskingDietOrFitness &&
+      !isAskingRoster)
   ) {
     context.rulesAndDrills = await getRelevantRulesAndWarmup(query);
   }
@@ -285,13 +403,26 @@ async function chat({ message, user, userProfile, history = [] }) {
   }
 
   if (isAskingAttendance) {
-    const targetRoll =
-      user && user.role === "player" ? user.id : user && user.playerId;
-    if (targetRoll) {
-      context.playerAttendance = await getPlayerAttendanceSummary(targetRoll);
+    if (isAdmin) {
+      const queriedPlayer = await findTargetPlayerAttendance(query);
+      if (queriedPlayer) {
+        context.queriedPlayerAttendance = queriedPlayer;
+      }
+      context.squadAttendanceSummary = await getSquadAttendanceRanking();
+      if (user.playerId) {
+        context.personalAttendance = await getPlayerAttendanceSummary(
+          user.playerId,
+        );
+      }
     } else {
-      context.authNotice =
-        "USER IS NOT LOGGED IN AS A PLAYER. Explain: 'Please log in with your student roll number to view your personal attendance.' Never show or guess attendance.";
+      const targetRoll =
+        user && user.role === "player" ? user.id : user && user.playerId;
+      if (targetRoll) {
+        context.playerAttendance = await getPlayerAttendanceSummary(targetRoll);
+      } else {
+        context.authNotice =
+          "USER IS NOT LOGGED IN AS A PLAYER. Explain: 'Please log in with your student roll number to view your personal attendance.' Never show or guess attendance.";
+      }
     }
   }
 
@@ -315,14 +446,26 @@ Answer the user's question clearly, concisely, warmly, and helpfully in GitHub M
 CURRENT USER IDENTITY & PROFILE:
 - Authenticated Status: ${userProfile && userProfile.role !== "guest" ? "Logged In Team Member" : "Guest / Public Visitor (Not in team)"}
 - Role & Title: ${roleDesc}
+- Admin Privileges: ${isAdmin ? "FULL ADMINISTRATOR ACCESS (Admin / Staff / Captain)" : "Standard User"}
 ${userProfile && userProfile.position ? `- Playing Position: ${userProfile.position}` : ""}
 ${userProfile && userProfile.roll ? `- Student Roll Number: ${userProfile.roll}` : ""}
 
-PROFILE PERSONALIZATION:
+${
+  isAdmin
+    ? `ADMINISTRATOR & STAFF ACCESS (CRITICAL):
+- The current user has FULL ADMIN ACCESS (${roleDesc}).
+- They have EVERY ACCESS and complete authorization to view:
+  1. Full squad attendance rankings, percentages, and session turnout stats (refer to squadAttendanceSummary).
+  2. Individual attendance records for any student or player (refer to queriedPlayerAttendance or squadAttendanceSummary).
+  3. Squad roster details (names, roll numbers, positions, jersey numbers, contacts) (refer to squadRoster).
+  4. Team practice plans, playing days history, and administrative controls.
+- NEVER block an Admin with "log in with a student roll number" or "records are private". An Admin has full clearance!
+- If an admin asks for a specific player's attendance or the team roster, give them direct, complete, and accurate numbers from the verified data below.`
+    : `PROFILE PERSONALIZATION:
 1. Always be conscious of who is asking:
-   - If Instructor: Address them respectfully as Instructor (e.g. "Instructor ${userProfile && userProfile.name ? userProfile.name : "Aryan"}"). You can assist with team session overviews, training load, drill ideas, and squad fitness.
-   - If Player: Address them by name. Personalize training, drills, tactical tips, and diet to their playing position (${userProfile && userProfile.position ? userProfile.position : "field player"}).
-   - If Guest / Not in team: Be welcoming and helpful with hockey rules, general training tips, and public schedules. If they ask about private team records or personal attendance, politely explain that attendance records are only visible to logged-in team players and instructors.
+   - If Player: Address them by name. Personalize training, drills, tactical tips, and diet to their playing position (${userProfile && userProfile.position ? userProfile.position : "field player"}). Players can only view their own attendance.
+   - If Guest / Not in team: Be welcoming and helpful with hockey rules, general training tips, and public schedules. If they ask about private team records or personal attendance, politely explain that attendance records are only visible to logged-in team players and instructors.`
+}
 
 TOPIC GUIDANCE:
 1. SPORTS NUTRITION, DIET & FITNESS:
@@ -338,7 +481,8 @@ TOPIC GUIDANCE:
    - For IIT Patna Hockey specific data, strictly follow the verified Supabase data below:
      * For total team sessions and playing days, refer strictly to teamSessions below. Clarify the total sessions count and total playing days, noting that playing days is 1 less than total sessions because on 29 Jan 2026 the team held 2 sessions.
      * For upcoming practice days, refer ONLY to upcomingPlannedDays or weeklyPracticeTimings below. Never guess unannounced dates.
-     * For individual player attendance, use ONLY verified playerAttendance. If not logged in, tell them to log in. Players can only see their own attendance.
+     * If the user is an Admin, they can access ANY player's attendance and squad rankings via queriedPlayerAttendance or squadAttendanceSummary.
+     * If the user is NOT an Admin, for individual player attendance, use ONLY verified playerAttendance. If not logged in, tell them to log in. Players can only see their own attendance.
 
 VERIFIED GROUNDING DATA FROM SUPABASE:
 ${JSON.stringify(context, null, 2)}

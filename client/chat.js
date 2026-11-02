@@ -290,6 +290,7 @@
       const botDiv = document.createElement("div");
       botDiv.className = "chat-msg bot welcome-msg";
 
+      const isAdmin = prof && (prof.role === "admin" || prof.role === "captain" || prof.role === "vice");
       const nameDisplay = prof.name && prof.name !== "Guest" ? prof.name : "there";
       const rolePill = prof.title ? `<span class="bubble-role-pill">${escapeHtml(prof.title)}</span>` : "";
 
@@ -301,7 +302,11 @@
             </div>
             <div class="welcome-heading">
               <div class="welcome-title">Hi ${escapeHtml(nameDisplay)}! 👋 ${rolePill}</div>
-              <div class="welcome-sub">Welcome to the official <b>IIT Patna Hockey Assistant</b>. How can I help you today?</div>
+              <div class="welcome-sub">${
+                isAdmin
+                  ? "Welcome Admin! You have <b>Full Administrative Access</b> to squad attendance, player records, team roster, and practice plans. How can I help you today?"
+                  : "Welcome to the official <b>IIT Patna Hockey Assistant</b>. How can I help you today?"
+              }</div>
             </div>
           </div>
         </div>
@@ -310,18 +315,28 @@
       msgs.appendChild(botDiv);
     }
 
-    // 2. Suggestion chips
+    // 2. Suggestion chips tailored to role
     const chipsContainer = document.getElementById("chat-chips");
     if (chipsContainer) {
       chipsContainer.innerHTML = "";
-      const chipList = [
-        { label: "🥗 Plan Diet", q: "How should I plan my diet for hockey practice and matches?" },
-        { label: "📅 Next Practice", q: "When is the next practice scheduled?" },
-        { label: "⚡ Penalty Corner", q: "Explain the rules of penalty corner in field hockey" },
-        { label: "📊 Attendance", q: "What is my attendance percentage?" },
-        { label: "🔥 Warm-up Routine", q: "What are the recommended team warm-up drills?" },
-        { label: "🧤 Goalkeeping Tips", q: "What are key field hockey goalkeeping positioning tips?" }
-      ];
+      const isAdmin = prof && (prof.role === "admin" || prof.role === "captain" || prof.role === "vice");
+      const chipList = isAdmin
+        ? [
+            { label: "📊 Squad Attendance", q: "Show me an overview of squad attendance and top attendees." },
+            { label: "👥 Team Roster", q: "List all active squad players with their positions." },
+            { label: "📅 Practice Schedule", q: "What are the upcoming practice plans and playing days?" },
+            { label: "🛡️ Admin Access", q: "What administrative tools and controls do I have access to?" },
+            { label: "🔥 Warm-up Routine", q: "What are the recommended team warm-up drills?" },
+            { label: "🥗 Sports Nutrition", q: "How should I plan athletic nutrition for hockey practice and matches?" }
+          ]
+        : [
+            { label: "🥗 Plan Diet", q: "How should I plan my diet for hockey practice and matches?" },
+            { label: "📅 Next Practice", q: "When is the next practice scheduled?" },
+            { label: "⚡ Penalty Corner", q: "Explain the rules of penalty corner in field hockey" },
+            { label: "📊 Attendance", q: "What is my attendance percentage?" },
+            { label: "🔥 Warm-up Routine", q: "What are the recommended team warm-up drills?" },
+            { label: "🧤 Goalkeeping Tips", q: "What are key field hockey goalkeeping positioning tips?" }
+          ];
 
       chipList.forEach(item => {
         const btn = document.createElement("button");
@@ -357,7 +372,7 @@
       badge.innerHTML = isInst
         ? `🛡️ Instructor: ${escapeHtml(prof.name || "Admin")}`
         : `🛡️ Admin: ${escapeHtml(prof.name || "Admin")}`;
-      badge.title = isInst ? "Signed in as Instructor" : "Signed in as Admin";
+      badge.title = isInst ? "Signed in as Instructor (Full Admin Access)" : "Signed in as Admin (Full Admin Access)";
       return;
     }
 

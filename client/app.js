@@ -1224,7 +1224,7 @@ function useData(d, force) {
   pl = role === "player";
   me = d.me || "";
   myCodeType = d.codeType || "alnum";
-  owner = role === "captain" || role === "vice";
+  owner = role === "captain" || role === "vice" || role === "admin";
   WHO =
     d.name ||
     (role === "captain"
