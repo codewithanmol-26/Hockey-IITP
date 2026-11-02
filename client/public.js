@@ -1061,10 +1061,10 @@ function myInfoCard() {
     tr = tp ? Math.round((st.reduce((a, x) => a + x.pr, 0) * 100) / tp) : 0;
   return `<div class="card"><h2>My details</h2><div class="stats"><div><b>${P.length}</b>Players</div><div><b>${rsess("all")}</b>Sessions</div><div><b>${tr}%</b>Team turnout</div></div>
   ${kvp("Name", esc(WHO))}${kvp("Role", role === "coach" ? "Coach" : role === "captain" ? "Captain" : role === "vice" ? "Vice-captain" : "Admin")}${kvp("Access", role === "coach" ? "Supreme access: players, plans, admins, staff" : role === "admin" ? "Attendance and team editing" : "Full: attendance, players, admins")}
-  <div class="chips"><button id="myp">👤 Open my profile</button><button data-go="take">✅ Take attendance</button></div></div>`;
+  <div class="chips"><button id="myp">👤 Open my profile</button><button id="mye">✏️ Edit details</button><button data-go="take">✅ Take attendance</button></div></div>`;
 }
 function featTiles() {
-  const t = tabsFor().filter((x) => x[0] !== "me" && x[0] !== "bugs");
+  const t = tabsFor().filter((x) => x[0] !== "me" && x[0] !== "bugs" && x[0] !== "leaderboard");
   return `<div class="card"><h2>Features</h2><div class="fts fts2">${t.map((x) => `<button type="button" class="ft" data-go="${x[0]}"><span class="ic">${x[1]}</span><b>${x[2]}</b></button>`).join("")}</div></div>`;
 }
 function teamCard() {
@@ -1077,6 +1077,10 @@ function bindHome() {
   if (gid("myp")) gid("myp").onclick = openMyProfile;
   if (gid("mye"))
     gid("mye").onclick = () => {
+      if (role === "coach") {
+        if (typeof openEditCoach === "function") openEditCoach();
+        return;
+      }
       const myId = role === "player" ? me : MYPID || "";
       const p = P.find((x) => x.id === myId);
       if (p) openEdit(p, true);

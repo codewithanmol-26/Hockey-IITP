@@ -2105,7 +2105,9 @@ function drawMenu() {
     </div>
   </div>`;
 
-  const more = tabsFor().filter((t) => !PRIMARY.includes(t[0])); // tabs already on the bottom bar / top bar are not repeated here
+  const more = tabsFor().filter(
+    (t) => !PRIMARY.includes(t[0]) && t[0] !== "leaderboard",
+  ); // Leaderboard has dedicated top trophy toggle, excluded from more pages
   if (more.length)
     h +=
       `<div class="ms">More pages</div>` +
@@ -2114,7 +2116,8 @@ function drawMenu() {
         .join("");
   if (admin)
     h +=
-      `<div class="ms">Admin tools</div>` +
+      `<div class="ms">Admin section & tools</div>` +
+      mi("✏️", "Edit Coach profile", openEditCoach) +
       mi("➕", "Add students", openAdd) +
       mi("✉️", "Edit message template", openTpl) +
       mi("🔗", "Edit WhatsApp group link", openGroup) +
@@ -2122,6 +2125,14 @@ function drawMenu() {
         pickFiles((f) => setGroupPhoto(f[0])),
       ) +
       mi("🏑", "Edit Indian hockey fixtures", openMatches) +
+      mi("📖", "Edit hockey rules sections", () => {
+        ed = true;
+        go("rules");
+      }) +
+      mi("🔥", "Edit warm-up drills", () => {
+        ed = true;
+        go("warmup");
+      }) +
       (owner ? mi("🎖️", "Edit captain & coach names", openNames) : "");
   h +=
     `<div class="ms">Share</div>` +
@@ -2234,6 +2245,62 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") $("menu").hidden = true;
 });
+
+// ---- Head Coach Profile Editor ----
+function openEditCoach() {
+  let d = $("cdlg");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "cdlg";
+    document.body.appendChild(d);
+  }
+  const coachAdmin = ADM.find((x) => !x.disabled && getAdminPost(x) === "coach");
+  const curName = coachAdmin ? coachAdmin.name : WHO || "Kiran Chaudhary";
+  const curEmail = (coachAdmin && coachAdmin.email) || STAFF.coachEmail || "kiran.chaudhary16@iitp.ac.in";
+
+  d.innerHTML = `
+    <h2>✏️ Edit Head Coach Profile</h2>
+    <p class="mute" style="margin-bottom:12px;">Official Head Coach profile details (Staff Account).</p>
+    <label class="fl">Coach Full Name
+      <input id="ed-coach-name" value="${esc(curName)}" maxlength="40" placeholder="Kiran Chaudhary">
+    </label>
+    <label class="fl">Official Email ID
+      <input id="ed-coach-email" type="email" value="${esc(curEmail)}" maxlength="120" placeholder="kiran.chaudhary16@iitp.ac.in">
+    </label>
+    <div style="margin:14px 0 6px">
+      <button type="button" class="sec full" id="ed-coach-code">🔑 Change Password / Pattern Lock</button>
+    </div>
+    <div class="ctl">
+      <button class="pri" id="ed-coach-save">Save Changes</button>
+      <button id="ed-coach-cancel">Cancel</button>
+    </div>
+  `;
+  $("ed-coach-cancel").onclick = () => d.close();
+  $("ed-coach-code").onclick = () => {
+    d.close();
+    openChangeCode();
+  };
+  $("ed-coach-save").onclick = () => {
+    const name = ($("ed-coach-name").value || "").trim();
+    const email = ($("ed-coach-email").value || "").trim();
+    if (!name) return alert("Coach name is required.");
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert("Please enter a valid email address.");
+
+    run(async () => {
+      await api("/api/me/profile", {
+        method: "PUT",
+        body: { name, email },
+      });
+      d.close();
+      WHO = name;
+      STAFF.coach = name;
+      if (email) STAFF.coachEmail = email;
+      toast("Head Coach profile updated successfully!");
+      await load(true);
+    });
+  };
+  d.showModal();
+}
 
 // ---- change login password / PIN / pattern / code ----
 let myCodeType = "alnum";
@@ -2386,10 +2453,7 @@ function openChangeCode() {
     bindDialogEvents();
   };
 
-  const bindDialogEvents = () => {
-    if ($("codex")) $("codex").onclick = () => dlg.close();
-
-    // Bind current pattern pad if needed
+  const bindCurInputEvents = () => {
     if (myCodeType === "pattern" && $("chg-cur-pad")) {
       patternPad($("chg-cur-pad"), (v) => {
         const cur = $("curcode");
@@ -2407,7 +2471,31 @@ function openChangeCode() {
           if (st) st.textContent = "";
         };
       }
+    } else if (myCodeType === "numeric" && $("curcode")) {
+      $("curcode").oninput = (e) =>
+        (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8));
     }
+  };
+
+  const bindDialogEvents = () => {
+    if ($("codex")) $("codex").onclick = () => dlg.close();
+
+    // Bind current credential input (pattern or code)
+    bindCurInputEvents();
+
+    // Dynamically verify credential type from server to guarantee pattern lock renders
+    api("/api/me/code-type")
+      .then((r) => {
+        if (r && r.codeType && r.codeType !== myCodeType) {
+          myCodeType = r.codeType;
+          const curWrap = $("chg-cur-wrap");
+          if (curWrap) {
+            curWrap.innerHTML = renderCurInput(myCodeType);
+            bindCurInputEvents();
+          }
+        }
+      })
+      .catch(() => {});
 
     // Bind segmented buttons for new type
     const pty = $("chg-pty");
@@ -3063,7 +3151,7 @@ function drawSidebar() {
             : "Player";
 
   const allTabs = tabsFor();
-  const mainKeys = ["me", "leaderboard", "take", "plan", "stats", "schedule"];
+  const mainKeys = ["me", "take", "plan", "stats", "schedule"];
   const mainTabs = allTabs.filter((t) => mainKeys.includes(t[0]));
   const trainKeys = ["rules", "warmup", "gallery", "train"];
   const trainTabs = allTabs.filter((t) => trainKeys.includes(t[0]));
@@ -3146,6 +3234,10 @@ function drawSidebar() {
         admin
           ? `<div class="sb-nav-group">
               <div class="sb-group-title">ADMIN TOOLS</div>
+              <button type="button" class="sb-nav-tool" id="sb-tool-edit-coach">
+                <span class="sb-nav-icon">✏️</span>
+                <span class="sb-nav-label">Edit Coach Profile</span>
+              </button>
               <button type="button" class="sb-nav-tool" id="sb-tool-add">
                 <span class="sb-nav-icon">➕</span>
                 <span class="sb-nav-label">Add Students</span>
@@ -3209,6 +3301,9 @@ function drawSidebar() {
 
   const cBtn = sb.querySelector("#sb-btn-code");
   if (cBtn) cBtn.onclick = () => openChangeCode();
+
+  const tCoach = sb.querySelector("#sb-tool-edit-coach");
+  if (tCoach) tCoach.onclick = () => openEditCoach();
 
   const tAdd = sb.querySelector("#sb-tool-add");
   if (tAdd) tAdd.onclick = () => openAdd();
@@ -5572,6 +5667,27 @@ function vAdmins() {
   const canAppointLeader = !hasCoach || isCoach;
 
   $("view").innerHTML = `
+    <div class="card" style="border:1px solid rgba(245,158,11,0.3); background:linear-gradient(135deg, rgba(245,158,11,0.06), transparent); margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          ${avatar(coachAdmin ? coachAdmin.name : "Kiran Chaudhary", coachAdmin ? coachAdmin.photo : MYPH, 52)}
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <h3 style="margin:0; font-size:1.15rem;">${esc(coachAdmin ? coachAdmin.name : "Kiran Chaudhary")}</h3>
+              <span class="pill gold">👑 Head Coach</span>
+            </div>
+            <div class="mute" style="font-size:0.85rem; margin-top:3px;">
+              Official Email: <b>${esc((coachAdmin && coachAdmin.email) || STAFF.coachEmail || "kiran.chaudhary16@iitp.ac.in")}</b> · Official Staff
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="pri btn-sm" id="btn-adm-edit-coach">✏️ Edit Coach Profile</button>
+          <button type="button" class="sec btn-sm" id="btn-adm-code-coach">🔑 Change Password</button>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Leadership Posts & Hierarchy</h2>
       <p class="mute" style="margin-bottom:12px;">Team administrators hold one of 4 posts. Each post defines authority:</p>
@@ -5709,6 +5825,12 @@ function vAdmins() {
   };
   if ($("btn-top-rep-coach")) {
     $("btn-top-rep-coach").onclick = () => openReplaceCoachDialog();
+  }
+  if ($("btn-adm-edit-coach")) {
+    $("btn-adm-edit-coach").onclick = () => openEditCoach();
+  }
+  if ($("btn-adm-code-coach")) {
+    $("btn-adm-code-coach").onclick = () => openChangeCode();
   }
 
   $("aadd").onclick = () => {
@@ -6068,9 +6190,17 @@ function vProfile() {
       canPh = own;
       acts = `${kv("Role", name)}${kv("Access", "Staff access: attendance, players")}`;
     }
+    const adminActionBtns = [];
+    if ((isTargetCoach && (own || isViewerCoach)) || (own && role === "coach")) {
+      adminActionBtns.push('<button class="pri" id="aedit">✏️ Edit profile</button>');
+    }
+    if (own) {
+      adminActionBtns.push('<button class="sec" id="pcode">🔑 Change code</button>');
+    }
     $("view").innerHTML =
-      `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, own ? '<button class="sec" id="pcode">🔑 Change code</button>' : "") : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+      `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
     if ($("pcode")) $("pcode").onclick = () => openChangeCode();
+    if ($("aedit")) $("aedit").onclick = () => openEditCoach();
     if (k === "s") bindCover("s", id);
     if ($("apv"))
       $("apv").onclick = () =>

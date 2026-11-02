@@ -421,11 +421,29 @@ const handleChangeCode = async (req, res) => {
     }
 
     const salt = crypto.randomBytes(16).toString("hex");
+    const hash = hashCode(nw, salt);
     await db.collection("admins").doc(u.id).update({
       salt,
-      hash: hashCode(nw, salt),
+      hash,
       type: newType,
     });
+
+    // Persist code type in custom_codes config so it survives database reloads and schema constraints
+    const customCodesDoc = await db
+      .collection("config")
+      .doc("custom_codes")
+      .get()
+      .catch(() => null);
+    const customCodes =
+      customCodesDoc && customCodesDoc.exists
+        ? customCodesDoc.data() || {}
+        : {};
+    customCodes[u.id] = { salt, hash, type: newType, at: Date.now() };
+    if (u.role === "coach") {
+      customCodes.coach = { salt, hash, type: newType, at: Date.now() };
+    }
+    await db.collection("config").doc("custom_codes").set(customCodes);
+
     bust();
     const roleTitle = u.role === "coach" ? "Coach" : u.role === "captain" ? "Captain" : u.role === "vice" ? "Vice-captain" : "Admin";
     const typeLabel = newType === "pattern" ? "Pattern lock" : newType === "numeric" ? "PIN" : "Password";
@@ -442,31 +460,35 @@ const handleChangeCode = async (req, res) => {
 app.post("/api/auth/change-code", h(handleChangeCode));
 app.post("/api/player/change-password", h(handleChangeCode));
 app.post("/api/me/change-code", h(handleChangeCode));
-app.get(
-  "/api/me/code-type",
-  h(async (req, res) => {
-    const u = await who(req);
-    if (!u) return res.status(401).json({ error: "Login required" });
-    if (u.role === "player") {
-      const acc = await db.collection("accounts").doc(u.id).get().catch(() => null);
-      return res.json({
-        role: "player",
-        codeType: (acc && acc.exists ? acc.data().type : "alnum") || "alnum",
-      });
-    }
-    if (u.id) {
-      const a = await db.collection("admins").doc(u.id).get().catch(() => null);
-      return res.json({
-        role: u.role,
-        codeType: (a && a.exists ? a.data().type || a.data().code_type : "alnum") || "alnum",
-      });
-    }
-    const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
-    const customCodes = customCodesDoc && customCodesDoc.exists ? customCodesDoc.data() || {} : {};
-    const cObj = customCodes[u.role] || {};
-    return res.json({ role: u.role, codeType: cObj.type || "alnum" });
-  }),
-);
+  app.get(
+    "/api/me/code-type",
+    h(async (req, res) => {
+      const u = await who(req);
+      if (!u) return res.status(401).json({ error: "Login required" });
+      if (u.role === "player") {
+        const acc = await db.collection("accounts").doc(u.id).get().catch(() => null);
+        return res.json({
+          role: "player",
+          codeType: (acc && acc.exists ? acc.data().type : "alnum") || "alnum",
+        });
+      }
+      const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
+      const customCodes = customCodesDoc && customCodesDoc.exists ? customCodesDoc.data() || {} : {};
+      if (u.id && customCodes[u.id] && customCodes[u.id].type) {
+        return res.json({ role: u.role, codeType: customCodes[u.id].type });
+      }
+      if (customCodes[u.role] && customCodes[u.role].type) {
+        return res.json({ role: u.role, codeType: customCodes[u.role].type });
+      }
+      if (u.id) {
+        const a = await db.collection("admins").doc(u.id).get().catch(() => null);
+        if (a && a.exists && (a.data().type || a.data().code_type)) {
+          return res.json({ role: u.role, codeType: a.data().type || a.data().code_type });
+        }
+      }
+      return res.json({ role: u.role, codeType: "alnum" });
+    }),
+  );
 
 // ---- player accounts: roll number + personal code (first signup checked with an e-mail code) ----
 const normRoll = (v) =>
@@ -685,6 +707,14 @@ app.post(
         playerId: null,
       });
     }
+
+    const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
+    const customCodes = customCodesDoc && customCodesDoc.exists ? customCodesDoc.data() || {} : {};
+    customCodes.coach = { salt, hash, type: newType, at: Date.now() };
+    if (coachDoc) {
+      customCodes[coachDoc.id] = { salt, hash, type: newType, at: Date.now() };
+    }
+    await db.collection("config").doc("custom_codes").set(customCodes);
     await ref.delete();
     bust();
     const token = staffToken({
@@ -1058,10 +1088,18 @@ app.get(
       const lk = (all.names || {}).links || {};
       const myPlayerId = myAd ? myAd.playerId || "" : lk[p.role] || "";
       const myKind = myAd ? myAd.kind || p.role : "player";
+      const customCodesDoc = await db.collection("config").doc("custom_codes").get().catch(() => null);
+      const customCodes = customCodesDoc && customCodesDoc.exists ? customCodesDoc.data() || {} : {};
+      const userCodeType =
+        (p.id && customCodes[p.id] && customCodes[p.id].type) ||
+        (customCodes[p.role] && customCodes[p.role].type) ||
+        (myAd && (myAd.type || myAd.code_type)) ||
+        "alnum";
       const full = {
         role: p.role,
         name: p.name || (myAd ? myAd.name : p.role === "coach" ? "Coach" : ""),
         adminId: p.id || "",
+        codeType: userCodeType,
         myPhoto,
         myPlayerId,
         myKind,
@@ -1573,16 +1611,48 @@ app.post(
     done(res);
   }),
 );
-// A player edits their own details (not roll number or joining date, those stay with the captain/admins)
+// Profile editing: Players edit their record; Head Coach edits their official staff profile
 app.put(
   "/api/me/profile",
   h(async (req, res) => {
     const u = await who(req);
-    if (!u || u.role !== "player")
-      return res.status(401).json({ error: "Login required" });
+    if (!u) return res.status(401).json({ error: "Login required" });
     const b = req.body || {},
       name = str(b.name, 40).trim();
     if (!name) return res.status(400).json({ error: "Name required" });
+
+    // 1. Head Coach profile edit
+    if (u.role === "coach") {
+      const upd = { name };
+      if (b.email !== undefined) {
+        const e = str(b.email, 120).trim();
+        if (e && !EMAIL_RE.test(e))
+          return res.status(400).json({ error: "Enter a valid e-mail address." });
+        upd.email = e;
+      }
+      if (u.id) {
+        await db.collection("admins").doc(u.id).update(upd).catch(() => {});
+      } else {
+        const snap = await db.collection("admins").get();
+        const coachDoc = snap.docs.find(
+          (doc) => !doc.data().disabled && (doc.data().post === "coach" || doc.data().kind === "coach"),
+        );
+        if (coachDoc) {
+          await db.collection("admins").doc(coachDoc.id).update(upd).catch(() => {});
+        }
+      }
+      const staffDoc = await db.collection("config").doc("staff").get().catch(() => null);
+      const staff = staffDoc && staffDoc.exists ? staffDoc.data() || {} : {};
+      staff.coach = name;
+      if (upd.email) staff.coachEmail = upd.email;
+      await db.collection("config").doc("staff").set(staff);
+      bust();
+      return res.json({ ok: true, name, email: upd.email || "kiran.chaudhary16@iitp.ac.in" });
+    }
+
+    // 2. Player profile edit
+    if (u.role !== "player")
+      return res.status(401).json({ error: "Login required" });
     const upd = { name, position: str(b.position, 40).trim() };
     for (const k of ["size", "jerseyName", "jerseyNo"])
       if (b[k] !== undefined) upd[k] = str(b[k], 40).trim();
@@ -2228,6 +2298,19 @@ app.put(
     if (b.name !== undefined) {
       const nm = str(b.name, 40).trim();
       if (nm) upd.name = nm;
+    }
+
+    if (b.email !== undefined) {
+      const em = str(b.email, 120).trim();
+      upd.email = em;
+    }
+
+    if (isTargetCoach && (upd.name || upd.email)) {
+      const staffDoc = await db.collection("config").doc("staff").get().catch(() => null);
+      const staff = staffDoc && staffDoc.exists ? staffDoc.data() || {} : {};
+      if (upd.name) staff.coach = upd.name;
+      if (upd.email) staff.coachEmail = upd.email;
+      await db.collection("config").doc("staff").set(staff).catch(() => {});
     }
 
     await ref.update(upd);
