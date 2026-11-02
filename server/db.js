@@ -19,6 +19,17 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
   }
 }
 
+const isMissingAnnCol = (e) =>
+  !!e &&
+  (e.code === "PGRST204" || e.code === "42703") &&
+  /tags|until_ms|by_id/.test(String(e.message || ""));
+const stripAnnCols = (row) => {
+  const r = { ...row };
+  delete r.tags;
+  delete r.until_ms;
+  delete r.by_id;
+  return r;
+};
 const genId = () => crypto.randomBytes(10).toString("hex");
 
 const TABLE_MAP = {
@@ -206,7 +217,10 @@ function rowToDoc(col, row) {
         text: row.text,
         pinned: row.pinned,
         by: row.by_name,
+        byId: row.by_id || "",
         role: row.role,
+        tags: Array.isArray(row.tags) ? row.tags : [],
+        until: Number(row.until_ms) || 0,
         at: row.created_at,
       }),
     };
@@ -396,7 +410,10 @@ function docToRow(col, id, data) {
       text: data.text || "",
       pinned: !!data.pinned,
       by_name: data.by || "",
+      by_id: data.byId || "",
       role: data.role || "",
+      tags: Array.isArray(data.tags) ? data.tags : [],
+      until_ms: Number(data.until) || 0,
       created_at: data.at || Date.now(),
     };
   }
@@ -464,10 +481,17 @@ class DocumentReference {
   }
 
   async set(data, options = {}) {
-    const row = docToRow(this.col, this.id, data);
-    const { error } = await supabase
+    let row = docToRow(this.col, this.id, data);
+    let { error } = await supabase
       .from(this.mapping.table)
       .upsert(row, { onConflict: this.mapping.pk });
+    if (error && this.col === "announcements" && isMissingAnnCol(error)) {
+      // migration 20261103000000 not run yet: save without tags / deadline so announcements still work
+      row = stripAnnCols(row);
+      ({ error } = await supabase
+        .from(this.mapping.table)
+        .upsert(row, { onConflict: this.mapping.pk }));
+    }
     if (error) {
       if (this.col === "sessions" && (error.code === "22007" || String(error.message || "").includes("syntax for type date"))) {
         const cfgError = await supabase.from("app_config").upsert(
@@ -774,6 +798,9 @@ async function readAllFromSupabase() {
       pinned: !!an.pinned,
       by: an.by_name,
       role: an.role,
+      byId: an.by_id || "",
+      tags: Array.isArray(an.tags) ? an.tags : [],
+      until: Number(an.until_ms) || 0,
       at: an.created_at,
     })),
   };

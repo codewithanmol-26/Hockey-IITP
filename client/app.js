@@ -905,7 +905,7 @@ let RL = [],
   openS = { rules: new Set([0]), warmup: new Set([0]) },
   lastJs = "";
 
-// ---- all tabs. [id, icon, full name, who sees it (a = Head Coach only, s = staff: coach/captain/vice/admin, o = coach only), short name for the bar] ----
+// ---- all tabs. [id, icon, full name, who sees it (a = any staff, s = staff: coach/captain/vice/admin, o = coach/captain/vice), short name for the bar] ----
 const TABS = [
   ["me", "🏠", "Home", "", "Home"],
   ["leaderboard", "🏆", "Leaderboard", "", "Leaderboard"],
@@ -919,7 +919,7 @@ const TABS = [
   ["train", "⌚", "Training & health", "", ""],
   ["players", "👥", "Players", "s", ""],
   ["removed", "🗑️", "Removed students", "a", ""],
-  ["admins", "🛡️", "Admins", "a", ""],
+  ["admins", "🛡️", "Admins", "o", ""],
   ["helpbox", "💬", "Help messages", "s", ""],
 ];
 const PRIMARY = ["me", "take", "plan", "stats", "schedule"];
@@ -1058,13 +1058,12 @@ function updateAdminForgot() {
   let t = "";
   if (v === "coach") {
     t = `<b>🏑 Head Coach Password Recovery:</b><br>
-    Official Coach Email: <b>kiran.chaudhary16@iitp.ac.in</b><br>
-    Early default password is <b>1234</b>.<br>
+    A 6-digit code will be sent to the Coach's registered e-mail.<br>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
       <button type="button" class="pri btn-sm" id="btn-coach-otp-send">📧 Send OTP to Coach Email</button>
     </div>
     <div id="coach-otp-form" hidden style="margin-top:10px;padding:10px;background:var(--soft);border-radius:8px;border:1px solid var(--line);">
-      <p style="margin:0 0 6px;font-size:0.85rem;">Enter the 6-digit verification code sent to <b>kiran.chaudhary16@iitp.ac.in</b> and your new password:</p>
+      <p style="margin:0 0 6px;font-size:0.85rem;">Enter the 6-digit verification code sent to the Coach's e-mail and your new password:</p>
       <div style="display:flex;gap:6px;margin-bottom:8px;">
         <input id="coach-otp-val" placeholder="6-digit OTP" maxlength="6" inputmode="numeric" style="flex:1;">
         <button type="button" class="sec btn-sm" id="btn-coach-paste-otp">📋 Paste</button>
@@ -1076,9 +1075,9 @@ function updateAdminForgot() {
       <div id="coach-otp-err" class="err" style="margin-top:6px;"></div>
     </div>`;
   } else if (v === "captain" || v === "vice") {
-    t = `<b>🏑 ${v === "captain" ? "Captain" : "Vice-Captain"} Password Recovery:</b><br>Your login code is set and managed by <b>Head Coach Kiran Chaudhary</b>.<br>Please contact the Coach to view or reset your access code.`;
+    t = `<b>🏑 ${v === "captain" ? "Captain" : "Vice-Captain"} Password Recovery:</b><br>Your login code is set and managed by the <b>Head Coach</b>.<br>Please contact the Coach to view or reset your access code.`;
   } else {
-    t = `<b>🏑 Admin Password Recovery:</b><br>Admin accounts are managed by <b>Head Coach Kiran Chaudhary</b>.<br>Please ask the Coach to reset your code in Admin Management.`;
+    t = `<b>🏑 Admin Password Recovery:</b><br>Admin accounts are managed by the <b>Head Coach</b>.<br>Please ask the Coach to reset your code in Admin Management.`;
   }
   box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div>${t}</div><button type="button" class="mx" style="flex-shrink:0" title="Close" aria-label="Close" id="aforgot-close">✕</button></div>`;
   const clr = $("aforgot-close");
@@ -1175,7 +1174,7 @@ $("em").onchange = () => {
   const v = $("em").value;
   $("anw").hidden = v !== "admin";
   if (v === "coach") {
-    $("an").value = "Kiran Chaudhary";
+    $("an").value = "";
   } else if (v === "admin") {
     $("an").placeholder = "Name registered in admin list";
     $("an").value = "";
@@ -1419,9 +1418,9 @@ function useData(d, force) {
   lastJs = key;
   role = d.role;
   isCoach = role === "coach";
-  admin = role === "coach";
-  owner = role === "coach";
   isStaff = ["coach", "captain", "vice", "admin"].includes(role);
+  admin = isStaff; // everyone on staff gets the edit tools
+  owner = ["coach", "captain", "vice"].includes(role); // Coach (full access), Captain, Vice-captain
   pl = role === "player";
   me = d.me || "";
   myCodeType = d.codeType || "alnum";
@@ -1576,8 +1575,7 @@ $("lf").onsubmit = async (e) => {
   $("er").textContent = "";
   const selectedRole = $("em").value;
   let nameVal = $("an").value.trim();
-  if (selectedRole === "coach" && !nameVal) nameVal = "Kiran Chaudhary";
-  try {
+    try {
     const r = await api("/api/login", {
       method: "POST",
       body: {
@@ -2255,17 +2253,17 @@ function openEditCoach() {
     document.body.appendChild(d);
   }
   const coachAdmin = ADM.find((x) => !x.disabled && getAdminPost(x) === "coach");
-  const curName = coachAdmin ? coachAdmin.name : WHO || "Kiran Chaudhary";
-  const curEmail = (coachAdmin && coachAdmin.email) || STAFF.coachEmail || "kiran.chaudhary16@iitp.ac.in";
+  const curName = coachAdmin ? coachAdmin.name : WHO || "";
+  const curEmail = STAFF.coachEmail || "";
 
   d.innerHTML = `
     <h2>✏️ Edit Head Coach Profile</h2>
     <p class="mute" style="margin-bottom:12px;">Official Head Coach profile details (Staff Account).</p>
     <label class="fl">Coach Full Name
-      <input id="ed-coach-name" value="${esc(curName)}" maxlength="40" placeholder="Kiran Chaudhary">
+      <input id="ed-coach-name" value="${esc(curName)}" maxlength="40" placeholder="Coach full name">
     </label>
     <label class="fl">Official Email ID
-      <input id="ed-coach-email" type="email" value="${esc(curEmail)}" maxlength="120" placeholder="kiran.chaudhary16@iitp.ac.in">
+      <input id="ed-coach-email" type="email" value="${esc(curEmail)}" maxlength="120" placeholder="coach@iitp.ac.in">
     </label>
     <div style="margin:14px 0 6px; display:flex; gap:8px; flex-wrap:wrap;">
       <button type="button" class="sec" style="flex:1;" id="ed-coach-code">🔑 Change Password</button>
@@ -2300,7 +2298,7 @@ function openEditCoach() {
       });
       d.close();
       WHO = name;
-      STAFF.coach = name;
+      STAFF.coachName = name;
       if (email) STAFF.coachEmail = email;
       toast("Head Coach profile updated successfully!");
       await load(true);
@@ -5701,7 +5699,7 @@ function openReplaceCoachDialog() {
     <div class="confirm-content" style="max-width:440px; text-align:left;">
       <h3 style="margin-top:0; display:flex; align-items:center; gap:8px;">🔄 Replace Head Coach</h3>
       <p class="mute" style="font-size:0.86rem; line-height:1.45;">
-        As the current Coach, you can replace yourself by appointing another person as Coach. Choose either to appoint a brand new person or promote an existing administrator.
+        When you retire, appoint the new Coach here. <b>Your account is removed and your access ends at once</b>, and the new Coach gets full access. Choose a brand new person or promote an existing administrator.
       </p>
       
       <div style="display:flex; gap:8px; margin:12px 0;">
@@ -5712,6 +5710,7 @@ function openReplaceCoachDialog() {
       <div id="rc-panel-new">
         <label class="fl">New Coach Full Name<input id="rc-name" placeholder="Full name of new coach" maxlength="40"></label>
         <label class="fl">Login Code<input id="rc-code" type="password" placeholder="Code (4+ characters)" maxlength="30" autocomplete="new-password"></label>
+        <label class="fl">Coach e-mail (for code reset)<input id="rc-email" type="email" placeholder="coach@iitp.ac.in" maxlength="120"></label>
         <p class="hint" style="font-size:0.8rem; margin:6px 0 0;"><b>Staff Requirement:</b> The Head Coach is official staff and cannot be a squad player.</p>
       </div>
 
@@ -5722,7 +5721,8 @@ function openReplaceCoachDialog() {
             ${otherAdmins.map((a) => `<option value="${esc(a.id)}">${esc(a.name)} (${getAdminPost(a)})</option>`).join("")}
           </select>
         </label>
-        <p class="hint" style="font-size:0.8rem;">Promoting an existing administrator will grant them Coach privileges. You will step down to an Admin.</p>
+        <label class="fl">Coach e-mail (for code reset)<input id="rc-email2" type="email" placeholder="coach@iitp.ac.in" maxlength="120"></label>
+        <p class="hint" style="font-size:0.8rem;">Promoting an existing administrator gives them Coach access. Your own account is removed.</p>
       </div>
 
       <p id="rc-err" class="err" role="alert" style="margin:8px 0;"></p>
@@ -5779,18 +5779,18 @@ function openReplaceCoachDialog() {
         errEl.textContent = "Please enter a full name and code of 4+ characters.";
         return;
       }
-      if (!confirm(`Are you sure you want to appoint "${name}" as Head Coach? You will step down to Admin.`)) return;
+      if (!confirm(`Appoint "${name}" as Head Coach? Your own account will be removed and you will be logged out.`)) return;
 
       run(async () => {
         try {
           await api("/api/admins/replace-coach", {
             method: "POST",
-            body: { name, code, playerId: null },
+            body: { name, code, email: d.querySelector("#rc-email").value.trim() },
           });
           d.close();
           d.remove();
-          alert(`Coach successfully replaced by "${name}"! Your account is now Admin.`);
-          await load(true);
+          alert(`"${name}" is now Head Coach. Your account has been removed.`);
+          logout(true);
         } catch (e) {
           errEl.textContent = e.message || "Failed to replace coach.";
         }
@@ -5803,18 +5803,18 @@ function openReplaceCoachDialog() {
       }
       const targetAdm = otherAdmins.find((x) => x.id === targetId);
       const targetName = targetAdm ? targetAdm.name : "this admin";
-      if (!confirm(`Are you sure you want to transfer the Coach post to "${targetName}"? You will step down to Admin.`)) return;
+      if (!confirm(`Transfer the Coach post to "${targetName}"? Your own account will be removed and you will be logged out.`)) return;
 
       run(async () => {
         try {
           await api("/api/admins/replace-coach", {
             method: "POST",
-            body: { newAdminId: targetId },
+            body: { newAdminId: targetId, email: d.querySelector("#rc-email2").value.trim() },
           });
           d.close();
           d.remove();
-          alert(`Coach post successfully transferred to "${targetName}"! Your account is now Admin.`);
-          await load(true);
+          alert(`"${targetName}" is now Head Coach. Your account has been removed.`);
+          logout(true);
         } catch (e) {
           errEl.textContent = e.message || "Failed to transfer coach post.";
         }
@@ -5845,14 +5845,14 @@ function vAdmins() {
     <div class="card" style="border:1px solid rgba(245,158,11,0.3); background:linear-gradient(135deg, rgba(245,158,11,0.06), transparent); margin-bottom:14px;">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <div style="display:flex; align-items:center; gap:12px;">
-          ${avatar(coachAdmin ? coachAdmin.name : "Kiran Chaudhary", coachAdmin ? coachAdmin.photo : MYPH, 52)}
+          ${avatar(coachAdmin ? coachAdmin.name : "Coach", coachAdmin ? coachAdmin.photo : MYPH, 52)}
           <div>
             <div style="display:flex; align-items:center; gap:8px;">
-              <h3 style="margin:0; font-size:1.15rem;">${esc(coachAdmin ? coachAdmin.name : "Kiran Chaudhary")}</h3>
+              <h3 style="margin:0; font-size:1.15rem;">${esc(coachAdmin ? coachAdmin.name : "Coach")}</h3>
               <span class="pill gold">👑 Head Coach</span>
             </div>
             <div class="mute" style="font-size:0.85rem; margin-top:3px;">
-              Official Email: <b>${esc((coachAdmin && coachAdmin.email) || STAFF.coachEmail || "kiran.chaudhary16@iitp.ac.in")}</b> · Official Staff
+              Official Email: <b>${esc(STAFF.coachEmail || "not set")}</b> · Official Staff
             </div>
           </div>
         </div>
@@ -5906,7 +5906,7 @@ function vAdmins() {
       <div class="ctl" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
         <label class="fl" style="flex:1; min-width:140px; margin:0;">Post
           <select id="apost">
-            <option value="coach" ${canAppointCoach ? "" : "disabled"}>👑 Coach ${canAppointCoach ? (isCoach ? "(Replaces you)" : "") : "(Active Coach only)"}</option>
+            ${hasCoach ? "" : '<option value="coach">👑 Coach</option>'}
             <option value="captain" ${canAppointLeader ? "" : "disabled"}>🎖️ Captain ${canAppointLeader ? "" : "(Coach only)"}</option>
             <option value="vice" ${canAppointLeader ? "" : "disabled"}>🥈 Vice-captain ${canAppointLeader ? "" : "(Coach only)"}</option>
             <option value="admin" selected>🛡️ Admin</option>
@@ -6131,7 +6131,7 @@ function vProfile() {
     const isPlayerCap = ADM.some((x) => !x.disabled && getAdminPost(x) === "captain" && x.playerId === id);
     const isPlayerVice = ADM.some((x) => !x.disabled && getAdminPost(x) === "vice" && x.playerId === id);
     let coachLeaderBtns = "";
-    if (owner && !gone) {
+    if (isCoach && !gone) {
       if (isPlayerCap) {
         coachLeaderBtns += '<button class="sec" id="prmcap">Demote from Captain</button>';
       } else if (isPlayerVice) {
@@ -6326,7 +6326,7 @@ function vProfile() {
         ${lpl ? `<div class="chips"><button id="apv">👤 View player profile</button></div>` : ""}
         ${
           isTargetCoach
-            ? `<div class="note" style="margin-top:10px;"><b>Staff Account:</b> Head Coach Kiran Chaudhary is official staff and cannot be a squad player.</div>`
+            ? `<div class="note" style="margin-top:10px;"><b>Staff Account:</b> The Head Coach is official staff and cannot be a squad player.</div>`
             : (isViewerCoach
                 ? `<div class="edit">
                     <label class="fl">Change Post / Role

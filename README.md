@@ -240,3 +240,21 @@ No command line needed: open the app > ⋮ menu > **Set up push notifications**.
 ## v24 changes
 
 - Public page: "Our team" (captain, vice-captain, coach) is back, right under the top card, with a short description / achievements line. The captain edits it under Menu > Captain, vice-captain and coach > "About the team".
+
+## v25 fixes (access rules and security)
+
+- **Head Coach Kiran Chaudhary has full access** to every screen and every action. She is staff only: she can never be a squad player, and she is the only person who can appoint or replace the Coach, Captain or Vice-captain.
+- **Removed the hard-coded coach code `1234`.** Before, anyone could log in as Coach with 1234 at any time. Now the coach code comes only from the `COACH_CODE` environment variable (first start) or the e-mail reset. If the database still holds the old 1234 code it is replaced by `COACH_CODE` on the next login attempt, or locked until she resets it by e-mail.
+- **Captain, Vice-captain and admins have their staff access back.** The app had been switched so only the Coach counted as staff, which hid every edit button from the Captain and Vice-captain. Captain and Vice-captain also see the Admins tab again and can open bug reports, push setup and the e-mail test. Plain admins keep the player-management and attendance tools but not those.
+- **Coach name and e-mail are no longer overwritten** every time the server starts (change them in the app or with `COACH_NAME` / `COACH_EMAIL`).
+- **Announcement tags and "show until" deadlines are saved again.** The database had no columns for them, so they were silently dropped. Run `supabase/migrations/20261103000000_announcement_tags_deadline.sql` in the Supabase SQL Editor. Until you run it announcements still save, just without tags or a deadline.
+- Service worker cache is now `hk-v63`: reload the app once.
+
+## v26: Coach handover (retirement)
+
+- There is exactly **one Head Coach** (Kiran Chaudhary today). She has full access and cannot be demoted, disabled or given a second coach beside her.
+- When she retires: Admins tab > **Replace Coach**. Pick a new person (name, code, e-mail) or promote an existing admin. **Her account, her codes and her photo are deleted at once** and she is logged out; the new Coach gets full access. Only the sitting Coach can do this.
+- The Coach's name and e-mail now follow whoever is Coach (code-reset e-mails go to the current coach, not to a fixed address). The Coach cannot be added as a player under any name or e-mail.
+- Fixed: the Coach's name was being saved in the same field as her photo, so one overwrote the other. Names now live in `config/staffNames`, the e-mail in `config/staff.coachEmail`, the photo in `config/staff.coach`.
+- Removed the login-screen hint that showed the old default code 1234.
+- After the handover, delete `COACH_CODE` (and any `COACH_NAME` / `COACH_EMAIL`) from the server settings so the old coach can never be re-created from them.

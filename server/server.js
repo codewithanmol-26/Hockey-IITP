@@ -6,12 +6,16 @@ const dbLayer = require("./db");
 const {
   CAPTAIN_CODE,
   VICE_CODE,
+  COACH_CODE,
   TOKEN_SECRET,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
   ALLOWED_ORIGIN = "*",
   PORT = 3000,
 } = process.env;
+// The one Head Coach: staff only (never a squad player) with full access to everything.
+const COACH_NAME = process.env.COACH_NAME || "Kiran Chaudhary";
+const COACH_EMAIL = process.env.COACH_EMAIL || "kiran.chaudhary16@iitp.ac.in";
 let initError = null;
 try {
   const missing = [
@@ -103,12 +107,15 @@ const auth = async (req, res, next) => {
     next(e);
   }
 };
+// owner = the leaders: Head Coach (full access), Captain and Vice-captain. Plain admins never pass.
+// Appointing / replacing the Coach, Captain or Vice-captain has its own stricter rules inside those routes (Coach only).
+const LEADER_ROLES = ["coach", "captain", "vice"];
 const owner = (req, res, next) =>
-  req.user && req.user.role === "coach"
+  req.user && LEADER_ROLES.includes(req.user.role)
     ? next()
-    : res
-        .status(403)
-        .json({ error: "Only Head Coach has administrative access." });
+    : res.status(403).json({
+        error: "Only the Coach, Captain or Vice-captain can do this.",
+      });
 const h = (fn) => (req, res, next) => fn(req, res).catch(next);
 
 // Security types a player can choose for their personal code. All are stored the same way (salted hash of the text).
@@ -134,6 +141,95 @@ const hashCode = (code, salt) =>
 
 // ---- login (max 5 tries per minute per IP) ----
 const tries = new Map();
+// ---- Head Coach account ----
+// The coach code is never hard-coded. It comes from COACH_CODE (first start) or from the e-mail reset.
+const isDefaultCoachHash = (d) => {
+  try {
+    return (
+      !!d.salt &&
+      !!d.hash &&
+      eq(crypto.scryptSync("1234", d.salt, 32).toString("hex"), d.hash)
+    );
+  } catch {
+    return false;
+  }
+};
+async function getCoachDoc() {
+  const snap = await db.collection("admins").get();
+  let coachDoc = snap.docs.find(
+    (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
+  );
+  const envOk = COACH_CODE && String(COACH_CODE).length >= 4;
+  if (!coachDoc) {
+    if (!envOk) return null;
+    const salt = crypto.randomBytes(16).toString("hex");
+    const ref = await db.collection("admins").add({
+      name: COACH_NAME,
+      disabled: false,
+      kind: "coach",
+      post: "coach",
+      playerId: null,
+      created: Date.now(),
+      salt,
+      hash: crypto.scryptSync(String(COACH_CODE), salt, 32).toString("hex"),
+    });
+    return await ref.get();
+  }
+  // An old build stored the public default code 1234. Replace it with COACH_CODE, or lock it until the coach resets by e-mail.
+  if (isDefaultCoachHash(coachDoc.data())) {
+    if (!envOk) return null;
+    const salt = crypto.randomBytes(16).toString("hex");
+    await db.collection("admins").doc(coachDoc.id).update({
+      salt,
+      hash: crypto.scryptSync(String(COACH_CODE), salt, 32).toString("hex"),
+    });
+    coachDoc = await db.collection("admins").doc(coachDoc.id).get();
+  }
+  return coachDoc;
+}
+
+const findCoachDoc = async () =>
+  (await db.collection("admins").get()).docs.find(
+    (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
+  ) || null;
+// Who the Coach is right now (name from her account, e-mail from the staff settings). Changes when the coach is replaced.
+async function coachIdentity() {
+  const [staffDoc, coachDoc] = await Promise.all([
+    db.collection("config").doc("staff").get().catch(() => null),
+    findCoachDoc(),
+  ]);
+  const staff = staffDoc && staffDoc.exists ? staffDoc.data() || {} : {};
+  const name = (coachDoc && coachDoc.data().name) || COACH_NAME;
+  const email = typeof staff.coachEmail === "string" ? staff.coachEmail : COACH_EMAIL;
+  return { name, email };
+}
+const sameAsCoach = (cid, name, email) =>
+  (name && String(name).trim().toLowerCase() === String(cid.name).trim().toLowerCase()) ||
+  (email && cid.email && String(email).trim().toLowerCase() === String(cid.email).trim().toLowerCase());
+// Public name and official e-mail of the Coach. Photos live in config/staff under the key "coach"; names never go there.
+async function setCoachIdentity(name, email, clearPhoto) {
+  const sd = await db.collection("config").doc("staff").get().catch(() => null);
+  const staff = sd && sd.exists ? sd.data() || {} : {};
+  if (email !== undefined) staff.coachEmail = email || "";
+  if (clearPhoto || (typeof staff.coach === "string" && !staff.coach.startsWith("data:"))) delete staff.coach;
+  await db.collection("config").doc("staff").set(staff);
+  if (name) {
+    const nd = await db.collection("config").doc("staffNames").get().catch(() => null);
+    const names = nd && nd.exists ? nd.data() || {} : {};
+    names.coach = name;
+    await db.collection("config").doc("staffNames").set(names);
+  }
+}
+// The outgoing Coach loses access at once: her account and every saved code of hers are deleted.
+async function retireCoach(oldId) {
+  await db.collection("admins").doc(oldId).delete();
+  const cc = await db.collection("config").doc("custom_codes").get().catch(() => null);
+  const codes = cc && cc.exists ? cc.data() || {} : {};
+  delete codes.coach;
+  delete codes[oldId];
+  await db.collection("config").doc("custom_codes").set(codes);
+}
+
 app.post(
   "/api/login",
   h(async (req, res) => {
@@ -158,51 +254,27 @@ app.post(
         : {};
 
     if (role === "coach") {
-      const allDocs = (await db.collection("admins").get()).docs;
-      let coachDocs = allDocs.filter(
-        (d) =>
-          !d.data().disabled &&
-          (d.data().post === "coach" || d.data().kind === "coach"),
-      );
-      if (!coachDocs.length) {
-        const salt = crypto.randomBytes(16).toString("hex");
-        const hash = crypto.scryptSync("1234", salt, 32).toString("hex");
-        const newRef = await db.collection("admins").add({
-          name: "Kiran Chaudhary",
-          email: "kiran.chaudhary16@iitp.ac.in",
-          disabled: false,
-          kind: "coach",
-          post: "coach",
-          playerId: null,
-          created: Date.now(),
-          salt,
-          hash,
-        });
-        const createdDoc = await newRef.get();
-        coachDocs = [createdDoc];
-      }
-      const coachDoc = coachDocs[0];
-      const match =
-        eq(crypto.scryptSync(c, coachDoc.data().salt, 32).toString("hex"), coachDoc.data().hash) ||
-        (c === "1234");
-      if (match) {
-        payload = {
-          role: "coach",
-          id: coachDoc.id,
-          name: coachDoc.data().name || "Kiran Chaudhary",
-          email: "kiran.chaudhary16@iitp.ac.in",
-          post: "coach",
-        };
-      } else if (customCodes.coach && customCodes.coach.hash) {
-        if (eq(hashCode(c, customCodes.coach.salt), customCodes.coach.hash)) {
+      const coachDoc = await getCoachDoc();
+      if (coachDoc) {
+        const d = coachDoc.data();
+        const ok =
+          eq(crypto.scryptSync(c, d.salt, 32).toString("hex"), d.hash) ||
+          (customCodes.coach &&
+            customCodes.coach.hash &&
+            eq(hashCode(c, customCodes.coach.salt), customCodes.coach.hash));
+        if (ok)
           payload = {
             role: "coach",
             id: coachDoc.id,
-            name: "Kiran Chaudhary",
-            email: "kiran.chaudhary16@iitp.ac.in",
+            name: d.name || COACH_NAME,
+            email: (await coachIdentity()).email,
             post: "coach",
           };
-        }
+      } else {
+        return res.status(401).json({
+          error:
+            "The Coach code is not set up yet. Set COACH_CODE in the server settings, or use Forgot code to get an e-mail code.",
+        });
       }
     } else if (role === "captain") {
       // Check admins table where post === "captain" first
@@ -428,8 +500,7 @@ const handleChangeCode = async (req, res) => {
         customCodes.coach &&
         customCodes.coach.salt &&
         customCodes.coach.hash &&
-        eq(hashCode(cur, customCodes.coach.salt), customCodes.coach.hash)) ||
-      (u.role === "coach" && cur === "1234");
+        eq(hashCode(cur, customCodes.coach.salt), customCodes.coach.hash));
     if (!ok) {
       return res.status(401).json({ error: "Current code is incorrect." });
     }
@@ -648,13 +719,18 @@ app.post(
     });
   }),
 );
-// Coach OTP: allows Head Coach Kiran Chaudhary to reset their code via official email
+// Coach OTP: lets the Head Coach reset the code through the official e-mail saved for the coach
 app.post(
   "/api/coach/forgot-otp",
   h(async (req, res) => {
     if (limited("otpip" + req.ip, 12, 3600e3))
       return res.status(429).json({ error: "Too many tries. Please wait a while." });
-    const email = "kiran.chaudhary16@iitp.ac.in";
+    const ident = await coachIdentity();
+    const email = ident.email;
+    if (!EMAIL_RE.test(email || ""))
+      return res.status(400).json({
+        error: "No e-mail is saved for the Coach. Set COACH_CODE in the server settings to get back in, then add the e-mail in the Coach profile.",
+      });
     const ref = db.collection("otps").doc("coach_kiran"),
       cur = await ref.get(),
       now = Date.now(),
@@ -680,8 +756,8 @@ app.post(
     await sendEmail(
       email,
       `Head Coach Password Reset Code: ${code} - IITP Hockey`,
-      `Hello Head Coach Kiran Chaudhary,\n\nYour 6-digit password reset code is: ${code}\n\nAuto-fill link: ${autoFillUrl}\n\nThis code is valid for 10 minutes.`,
-      `<div style="font-family:sans-serif;padding:24px;background:#f8fafc;border-radius:12px;max-width:500px;margin:auto;"><h2 style="color:#0b2a4a;margin-top:0;">🏑 Head Coach Password Reset</h2><p>Hello Coach Kiran Chaudhary,</p><p>Use the 6-digit verification code below to reset your portal password:</p><div style="font-size:36px;font-weight:bold;letter-spacing:6px;color:#0b2a4a;padding:12px 0;">${code}</div><p><a href="${autoFillUrl}" style="display:inline-block;background:#0f4aa8;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">🚀 Open App & Reset Password</a></p><p style="color:#64748b;font-size:12px;">Valid for 10 minutes. If you did not request this, please ignore this email.</p></div>`,
+      `Hello Head Coach ${ident.name},\n\nYour 6-digit password reset code is: ${code}\n\nAuto-fill link: ${autoFillUrl}\n\nThis code is valid for 10 minutes.`,
+      `<div style="font-family:sans-serif;padding:24px;background:#f8fafc;border-radius:12px;max-width:500px;margin:auto;"><h2 style="color:#0b2a4a;margin-top:0;">🏑 Head Coach Password Reset</h2><p>Hello Coach ${ident.name},</p><p>Use the 6-digit verification code below to reset your portal password:</p><div style="font-size:36px;font-weight:bold;letter-spacing:6px;color:#0b2a4a;padding:12px 0;">${code}</div><p><a href="${autoFillUrl}" style="display:inline-block;background:#0f4aa8;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">🚀 Open App & Reset Password</a></p><p style="color:#64748b;font-size:12px;">Valid for 10 minutes. If you did not request this, please ignore this email.</p></div>`,
     );
     res.json({ ok: true, sentTo: maskEmail(email), wait: 60 });
   }),
@@ -718,7 +794,6 @@ app.post(
         salt,
         hash,
         type: newType,
-        email: "kiran.chaudhary16@iitp.ac.in",
         playerId: null,
       });
     }
@@ -735,8 +810,8 @@ app.post(
     const token = staffToken({
       role: "coach",
       id: coachDoc ? coachDoc.id : "coach",
-      name: "Kiran Chaudhary",
-      email: "kiran.chaudhary16@iitp.ac.in",
+      name: coachDoc ? coachDoc.data().name : COACH_NAME,
+      email: (await coachIdentity()).email,
       post: "coach",
     });
     res.json({ token, ok: true });
@@ -757,13 +832,10 @@ const handleForgotCodeOtp = async (req, res) => {
   let recipientName = u.name || "Member";
 
   if (u.role === "coach") {
-    email = "kiran.chaudhary16@iitp.ac.in";
-    const staffDoc = await db.collection("config").doc("staff").get().catch(() => null);
-    if (staffDoc && staffDoc.exists && staffDoc.data().coachEmail) {
-      email = staffDoc.data().coachEmail;
-    }
+    const ident = await coachIdentity();
+    email = ident.email;
     otpDocKey = "coach_kiran";
-    recipientName = (staffDoc && staffDoc.exists && staffDoc.data().coach) || "Head Coach Kiran Chaudhary";
+    recipientName = ident.name;
   } else if (u.role === "player") {
     const plDoc = await db.collection("players").doc(u.id).get().catch(() => null);
     if (!plDoc || !plDoc.exists) {
@@ -798,7 +870,7 @@ const handleForgotCodeOtp = async (req, res) => {
     }
     if (!email) {
       return res.status(400).json({
-        error: "No email address found for your account. Please contact Head Coach Kiran Chaudhary to update your access code.",
+        error: "No email address found for your account. Please contact the Head Coach to update your access code.",
       });
     }
   }
@@ -922,7 +994,6 @@ const handleResetWithOtp = async (req, res) => {
         salt,
         hash,
         type: newType,
-        email: "kiran.chaudhary16@iitp.ac.in",
         playerId: null,
       });
     }
@@ -1357,11 +1428,12 @@ app.get(
         myKind,
         ...all,
       };
-      if (p.role !== "coach") delete full.admins; // Only Head Coach has admin access to manage the admin list
+      if (!LEADER_ROLES.includes(p.role)) delete full.admins; // Coach, Captain and Vice-captain manage the admin list
+      const cid = await coachIdentity();
       full.staff = {
-        coach: "Kiran Chaudhary",
-        coachEmail: "kiran.chaudhary16@iitp.ac.in",
-        ...(all.staff || {}),
+        ...(all.staff || {}), // photos (staff.coach is the coach photo)
+        coachName: cid.name,
+        coachEmail: cid.email,
       };
       return res.json(full);
     }
@@ -1834,10 +1906,7 @@ app.post(
     if (!pName)
       return res.status(400).json({ error: "Name required" });
     const pEmail = str(b.email).trim().toLowerCase();
-    if (
-      pName.toLowerCase() === "kiran chaudhary" ||
-      pEmail === "kiran.chaudhary16@iitp.ac.in"
-    ) {
+    if (sameAsCoach(await coachIdentity(), pName, pEmail)) {
       return res.status(400).json({ error: "The Head Coach is staff and cannot be added as a player." });
     }
     const roll = str(b.roll, 12).trim(),
@@ -1893,13 +1962,9 @@ app.put(
           await db.collection("admins").doc(coachDoc.id).update(upd).catch(() => {});
         }
       }
-      const staffDoc = await db.collection("config").doc("staff").get().catch(() => null);
-      const staff = staffDoc && staffDoc.exists ? staffDoc.data() || {} : {};
-      staff.coach = name;
-      if (upd.email) staff.coachEmail = upd.email;
-      await db.collection("config").doc("staff").set(staff);
+      await setCoachIdentity(name, upd.email);
       bust();
-      return res.json({ ok: true, name, email: upd.email || "kiran.chaudhary16@iitp.ac.in" });
+      return res.json({ ok: true, name, email: (await coachIdentity()).email });
     }
 
     // 2. Player profile edit
@@ -1927,10 +1992,7 @@ app.put(
     if (!pName)
       return res.status(400).json({ error: "Name required" });
     const pEmail = str(b.email).trim().toLowerCase();
-    if (
-      pName.toLowerCase() === "kiran chaudhary" ||
-      pEmail === "kiran.chaudhary16@iitp.ac.in"
-    ) {
+    if (sameAsCoach(await coachIdentity(), pName, pEmail)) {
       return res.status(400).json({ error: "The Head Coach is staff and cannot be added as a player." });
     }
     if (
@@ -1973,6 +2035,7 @@ async function addStudents(list) {
       String(now.getMonth() + 1).padStart(2, "0") +
       "-" +
       String(now.getDate()).padStart(2, "0");
+  const cid = await coachIdentity();
   for (const s of list.slice(0, 200)) {
     const rid = normRoll(s.roll),
       name = str(s.name, 40).trim();
@@ -1980,10 +2043,7 @@ async function addStudents(list) {
       skipped.push(name || s.roll || "(blank)");
       continue;
     }
-    if (
-      name.toLowerCase() === "kiran chaudhary" ||
-      (s.email && str(s.email).trim().toLowerCase() === "kiran.chaudhary16@iitp.ac.in")
-    ) {
+    if (sameAsCoach(cid, name, s.email)) {
       skipped.push(name + " (Head Coach is staff and cannot be a player)");
       continue;
     }
@@ -2407,13 +2467,11 @@ app.post(
     );
     const isRequesterCoach = req.user.role === "coach";
 
-    // Rule: Coach can only be replaced by himself/herself by another person
-    if (post === "coach") {
-      if (currentCoachDoc && !isRequesterCoach) {
-        return res.status(403).json({
-          error: "Only the active Coach can appoint or replace the Coach.",
-        });
-      }
+    // There is exactly one Coach. A new Coach can only come through Replace Coach (the old Coach is then removed).
+    if (post === "coach" && currentCoachDoc) {
+      return res.status(400).json({
+        error: "There is already a Coach. Use Replace Coach when the Coach retires.",
+      });
     }
 
     // Rule: Coach can make anyone captain/vice-captain (non-coaches cannot appoint them if coach exists)
@@ -2435,14 +2493,6 @@ app.post(
       return res
         .status(400)
         .json({ error: "Chosen player not found in squad roster" });
-
-    // If appointing new coach when a coach exists: active coach replaces himself/herself
-    if (post === "coach" && currentCoachDoc) {
-      await db.collection("admins").doc(currentCoachDoc.id).update({
-        kind: "admin",
-        post: "admin",
-      });
-    }
 
     const salt = crypto.randomBytes(16).toString("hex");
     await db.collection("admins").add({
@@ -2501,18 +2551,15 @@ app.put(
           (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
         );
 
-        if (newPost === "coach" && !isTargetCoach) {
-          if (currentCoachDoc && !isRequesterCoach) {
-            return res.status(403).json({
-              error: "Only the active Coach can appoint or transfer the Coach post.",
-            });
-          }
-          if (currentCoachDoc && currentCoachDoc.id !== curDoc.id) {
-            await db.collection("admins").doc(currentCoachDoc.id).update({
-              kind: "admin",
-              post: "admin",
-            });
-          }
+        if (newPost === "coach" && !isTargetCoach && currentCoachDoc) {
+          return res.status(400).json({
+            error: "The Coach post only moves through Replace Coach, so the old Coach is fully removed.",
+          });
+        }
+        if (isTargetCoach && newPost !== "coach") {
+          return res.status(400).json({
+            error: "The Coach cannot be changed to another post. Use Replace Coach when the Coach retires.",
+          });
         }
 
         if (newPost === "captain" || newPost === "vice") {
@@ -2557,13 +2604,10 @@ app.put(
       upd.email = em;
     }
 
-    if (isTargetCoach && (upd.name || upd.email)) {
-      const staffDoc = await db.collection("config").doc("staff").get().catch(() => null);
-      const staff = staffDoc && staffDoc.exists ? staffDoc.data() || {} : {};
-      if (upd.name) staff.coach = upd.name;
-      if (upd.email) staff.coachEmail = upd.email;
-      await db.collection("config").doc("staff").set(staff).catch(() => {});
-    }
+    if (upd.email !== undefined && upd.email && !EMAIL_RE.test(upd.email))
+      return res.status(400).json({ error: "That e-mail address does not look right." });
+    if (isTargetCoach && (upd.name || upd.email !== undefined))
+      await setCoachIdentity(upd.name, upd.email).catch(() => {});
 
     await ref.update(upd);
     done(res);
@@ -2614,31 +2658,27 @@ app.post(
     }
 
     const b = req.body || {};
-    const { newAdminId, name, code, playerId } = b;
+    const { newAdminId, name, code } = b;
+    const newEmail = str(b.email, 120).trim();
+    if (newEmail && !EMAIL_RE.test(newEmail))
+      return res.status(400).json({ error: "That e-mail address does not look right." });
 
-    // Option 1: Transfer Coach post to an existing admin
+    // Option 1: hand the Coach post to an existing admin
     if (newAdminId) {
       const targetRef = db.collection("admins").doc(newAdminId);
       const targetDoc = await targetRef.get();
-      if (!targetDoc.exists) {
+      if (!targetDoc.exists || targetDoc.data().disabled)
         return res.status(404).json({ error: "Target admin not found" });
-      }
-      if (currentCoachDoc && currentCoachDoc.id !== newAdminId) {
-        await db.collection("admins").doc(currentCoachDoc.id).update({
-          kind: "admin",
-          post: "admin",
-        });
-      }
-      await targetRef.update({
-        kind: "coach",
-        post: "coach",
-        disabled: false,
-        playerId: null,
-      });
+      if (currentCoachDoc && currentCoachDoc.id === newAdminId)
+        return res.status(400).json({ error: "That person is already the Coach." });
+      await targetRef.update({ kind: "coach", post: "coach", disabled: false, playerId: null });
+      if (currentCoachDoc) await retireCoach(currentCoachDoc.id);
+      await setCoachIdentity(targetDoc.data().name, newEmail, true);
+      bust();
       return done(res);
     }
 
-    // Option 2: Replace with a new person
+    // Option 2: a brand new person becomes Coach
     const coachName = str(name, 40).trim();
     const coachCode = String(code || "");
     if (!coachName || coachCode.length < 4 || coachCode.length > 30) {
@@ -2646,7 +2686,6 @@ app.post(
         error: "New coach requires a name and code of 4 to 30 characters",
       });
     }
-
     if (
       allAdmins.some(
         (d) =>
@@ -2658,27 +2697,21 @@ app.post(
         error: "An admin with that name already exists. Choose a different name.",
       });
     }
-
-    const rawPid = null;
-
-    if (currentCoachDoc) {
-      await db.collection("admins").doc(currentCoachDoc.id).update({
-        kind: "admin",
-        post: "admin",
-      });
-    }
-
     const salt = crypto.randomBytes(16).toString("hex");
     await db.collection("admins").add({
       name: coachName,
       disabled: false,
       kind: "coach",
       post: "coach",
-      playerId: rawPid || null,
+      playerId: null,
       created: Date.now(),
       salt,
       hash: crypto.scryptSync(coachCode, salt, 32).toString("hex"),
     });
+    // Only now remove the old Coach: her account, every code she had and her photo.
+    if (currentCoachDoc) await retireCoach(currentCoachDoc.id);
+    await setCoachIdentity(coachName, newEmail, true);
+    bust();
     done(res);
   }),
 );
@@ -3973,31 +4006,12 @@ app.use((err, req, res, next) => {
 async function ensureDefaultCoach() {
   if (!db) return;
   try {
-    const snap = await db.collection("admins").get();
-    const coachDoc = snap.docs.find(
-      (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
-    );
-    if (!coachDoc) {
-      const salt = crypto.randomBytes(16).toString("hex");
-      const hash = crypto.scryptSync("1234", salt, 32).toString("hex");
-      await db.collection("admins").add({
-        name: "Kiran Chaudhary",
-        email: "kiran.chaudhary16@iitp.ac.in",
-        disabled: false,
-        kind: "coach",
-        post: "coach",
-        playerId: null,
-        created: Date.now(),
-        salt,
-        hash,
-      });
-      console.log("Seeded default Head Coach: Kiran Chaudhary with password 1234");
-    } else {
-      await db.collection("admins").doc(coachDoc.id).update({
-        name: "Kiran Chaudhary",
-        email: "kiran.chaudhary16@iitp.ac.in",
-        playerId: null,
-      }).catch(() => {});
+    const cd = await getCoachDoc(); // creates the coach from COACH_CODE if missing, and retires the old public code 1234
+    if (cd) {
+      // show the coach name on the public page, and repair the coach photo key that an old build had overwritten with a name
+      const nd = await db.collection("config").doc("staffNames").get().catch(() => null);
+      const hasName = nd && nd.exists && nd.data() && nd.data().coach;
+      await setCoachIdentity(hasName ? "" : cd.data().name, undefined, false);
     }
   } catch (err) {
     console.error("ensureDefaultCoach error:", err.message);

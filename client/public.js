@@ -14,7 +14,7 @@ let NAMES = {},
 const DEFNAME = {
   captain: "Captain",
   vice: "Vice-captain",
-  coach: "Kiran Chaudhary",
+  coach: "Head Coach",
 };
 const nameOf2 = (k) => ((TEAM && TEAM[k]) || {}).name || DEFNAME[k];
 
@@ -674,7 +674,7 @@ function drawPublic() {
         <div class="footer-col">
           <h4>Team Leadership</h4>
           <p style="font-size:0.85rem;line-height:1.6;color:rgba(255,255,255,0.78);margin:0 0 10px">
-            <b>Head Coach:</b> Kiran Chaudhary<br>
+            <b>Head Coach:</b> ${esc(nameOf2("coach"))}<br>
             <b>Captain:</b> ${esc(nameOf2("captain"))}<br>
             <b>Vice-Captain:</b> ${esc(nameOf2("vice"))}
           </p>
@@ -814,7 +814,7 @@ async function checkPublicProgress() {
     if (!r.ok) {
       res.innerHTML = `<div class="note err" style="margin-top:10px;background:#ef444415;border:1px solid #ef444440;border-radius:12px;padding:14px">
         <b>Not Found:</b> ${esc(j.error || "Roll number not registered on the active team list.")}
-        <p class="mute" style="margin:6px 0 0">Ask Coach Kiran Chaudhary or the Captain to add you to the squad.</p>
+        <p class="mute" style="margin:6px 0 0">Ask the Coach or the Captain to add you to the squad.</p>
       </div>`;
       return;
     }
