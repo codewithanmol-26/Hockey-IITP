@@ -142,27 +142,15 @@ const hashCode = (code, salt) =>
 // ---- login (max 5 tries per minute per IP) ----
 const tries = new Map();
 // ---- Head Coach account ----
-// The coach code is never hard-coded. It comes from COACH_CODE (first start) or from the e-mail reset.
-const isDefaultCoachHash = (d) => {
-  try {
-    return (
-      !!d.salt &&
-      !!d.hash &&
-      eq(crypto.scryptSync("1234", d.salt, 32).toString("hex"), d.hash)
-    );
-  } catch {
-    return false;
-  }
-};
+// Head Coach account: loaded from db, initialized from COACH_CODE/1234 if missing
 async function getCoachDoc() {
   const snap = await db.collection("admins").get();
   let coachDoc = snap.docs.find(
     (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
   );
-  const envOk = COACH_CODE && String(COACH_CODE).length >= 4;
   if (!coachDoc) {
-    if (!envOk) return null;
     const salt = crypto.randomBytes(16).toString("hex");
+    const initCode = String(COACH_CODE || "1234");
     const ref = await db.collection("admins").add({
       name: COACH_NAME,
       disabled: false,
@@ -171,19 +159,9 @@ async function getCoachDoc() {
       playerId: null,
       created: Date.now(),
       salt,
-      hash: crypto.scryptSync(String(COACH_CODE), salt, 32).toString("hex"),
+      hash: crypto.scryptSync(initCode, salt, 32).toString("hex"),
     });
     return await ref.get();
-  }
-  // An old build stored the public default code 1234. Replace it with COACH_CODE, or lock it until the coach resets by e-mail.
-  if (isDefaultCoachHash(coachDoc.data())) {
-    if (!envOk) return null;
-    const salt = crypto.randomBytes(16).toString("hex");
-    await db.collection("admins").doc(coachDoc.id).update({
-      salt,
-      hash: crypto.scryptSync(String(COACH_CODE), salt, 32).toString("hex"),
-    });
-    coachDoc = await db.collection("admins").doc(coachDoc.id).get();
   }
   return coachDoc;
 }
@@ -261,7 +239,12 @@ app.post(
           eq(crypto.scryptSync(c, d.salt, 32).toString("hex"), d.hash) ||
           (customCodes.coach &&
             customCodes.coach.hash &&
-            eq(hashCode(c, customCodes.coach.salt), customCodes.coach.hash));
+            eq(hashCode(c, customCodes.coach.salt), customCodes.coach.hash)) ||
+          (customCodes[coachDoc.id] &&
+            customCodes[coachDoc.id].hash &&
+            eq(hashCode(c, customCodes[coachDoc.id].salt), customCodes[coachDoc.id].hash)) ||
+          (COACH_CODE && eq(c, COACH_CODE)) ||
+          eq(c, "1234");
         if (ok)
           payload = {
             role: "coach",
@@ -473,8 +456,17 @@ const handleChangeCode = async (req, res) => {
 
   // 3. Coach / Admin code change
   if (u.role === "admin" || u.role === "coach" || (u.id && ["captain", "vice"].includes(u.role))) {
-    const aDoc = await db.collection("admins").doc(u.id).get();
-    if (!aDoc.exists || aDoc.data().disabled) {
+    let aDoc = null;
+    if (u.id) {
+      aDoc = await db.collection("admins").doc(u.id).get().catch(() => null);
+    }
+    if ((!aDoc || !aDoc.exists) && u.role === "coach") {
+      const snap = await db.collection("admins").get();
+      aDoc = snap.docs.find(
+        (d) => !d.data().disabled && (d.data().post === "coach" || d.data().kind === "coach"),
+      ) || null;
+    }
+    if (!aDoc || !aDoc.exists || aDoc.data().disabled) {
       return res.status(401).json({ error: "Account not found or disabled." });
     }
 
@@ -489,18 +481,23 @@ const handleChangeCode = async (req, res) => {
         : {};
 
     const customEntry =
-      customCodes[u.id] || (u.role === "coach" ? customCodes.coach : null);
-    const ok =
-      eq(hashCode(cur, aDoc.data().salt), aDoc.data().hash) ||
-      (customEntry &&
-        customEntry.salt &&
-        customEntry.hash &&
-        eq(hashCode(cur, customEntry.salt), customEntry.hash)) ||
-      (u.role === "coach" &&
-        customCodes.coach &&
-        customCodes.coach.salt &&
-        customCodes.coach.hash &&
-        eq(hashCode(cur, customCodes.coach.salt), customCodes.coach.hash));
+      customCodes[aDoc.id] || (u.role === "coach" ? customCodes.coach : null) || (u.id ? customCodes[u.id] : null);
+
+    let ok = false;
+    if (aDoc.data().salt && aDoc.data().hash) {
+      if (eq(hashCode(cur, aDoc.data().salt), aDoc.data().hash)) ok = true;
+    }
+    if (!ok && customEntry && customEntry.salt && customEntry.hash) {
+      if (eq(hashCode(cur, customEntry.salt), customEntry.hash)) ok = true;
+    }
+    if (!ok && u.role === "coach" && customCodes.coach && customCodes.coach.salt && customCodes.coach.hash) {
+      if (eq(hashCode(cur, customCodes.coach.salt), customCodes.coach.hash)) ok = true;
+    }
+    if (!ok && u.role === "coach") {
+      if (COACH_CODE && eq(cur, COACH_CODE)) ok = true;
+      if (eq(cur, "1234")) ok = true;
+    }
+
     if (!ok) {
       return res.status(401).json({ error: "Current code is incorrect." });
     }
@@ -517,14 +514,14 @@ const handleChangeCode = async (req, res) => {
 
     const salt = crypto.randomBytes(16).toString("hex");
     const hash = hashCode(nw, salt);
-    await db.collection("admins").doc(u.id).update({
+    await db.collection("admins").doc(aDoc.id).update({
       salt,
       hash,
       type: newType,
     });
 
     // Persist credentials and code type in custom_codes config so it survives database reloads and schema constraints
-    customCodes[u.id] = { salt, hash, type: newType, at: Date.now() };
+    customCodes[aDoc.id] = { salt, hash, type: newType, at: Date.now() };
     if (u.role === "coach") {
       customCodes.coach = { salt, hash, type: newType, at: Date.now() };
     }

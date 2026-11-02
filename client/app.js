@@ -2316,6 +2316,8 @@ function openChangeCode(startForgot = false) {
 
   const isPl = role === "player";
   changeNewType = myCodeType || "alnum";
+  let curInputMode = myCodeType || "alnum";
+  let userToggledCur = false;
   let isForgot = !!startForgot;
   let chgOtpTimer = 0;
 
@@ -2478,8 +2480,11 @@ function openChangeCode(startForgot = false) {
       <form id="codeform" autocomplete="off">
         <div id="chg-cur-wrap">
           ${isForgot ? renderForgotOtpBox() : `
-            ${renderCurInput(myCodeType)}
-            <div style="display:flex; justify-content:flex-end; margin-top:4px; margin-bottom:6px;">
+            ${renderCurInput(curInputMode)}
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:4px; margin-bottom:6px;">
+              <button type="button" class="btn-link" id="btn-toggle-cur-mode" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.83rem; font-weight:600; cursor:pointer; padding:2px 0; text-decoration:underline;">
+                ${curInputMode === "pattern" ? "🔣 Or enter current text password / PIN instead" : "✨ Or draw current pattern lock instead"}
+              </button>
               <button type="button" class="btn-link" id="btn-toggle-forgot" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.83rem; font-weight:600; cursor:pointer; padding:2px 0; text-decoration:underline;">
                 🔑 Forgot current password / pattern? Verify with Email OTP
               </button>
@@ -2509,7 +2514,7 @@ function openChangeCode(startForgot = false) {
   };
 
   const bindCurInputEvents = () => {
-    if (myCodeType === "pattern" && $("chg-cur-pad")) {
+    if (curInputMode === "pattern" && $("chg-cur-pad")) {
       patternPad($("chg-cur-pad"), (v) => {
         const cur = $("curcode");
         if (cur) cur.value = v;
@@ -2526,7 +2531,7 @@ function openChangeCode(startForgot = false) {
           if (st) st.textContent = "";
         };
       }
-    } else if (myCodeType === "numeric" && $("curcode")) {
+    } else if (curInputMode === "numeric" && $("curcode")) {
       $("curcode").oninput = (e) =>
         (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8));
     }
@@ -2537,6 +2542,14 @@ function openChangeCode(startForgot = false) {
       $("codex").onclick = () => {
         clearInterval(chgOtpTimer);
         dlg.close();
+      };
+    }
+
+    if ($("btn-toggle-cur-mode")) {
+      $("btn-toggle-cur-mode").onclick = () => {
+        userToggledCur = true;
+        curInputMode = curInputMode === "pattern" ? "alnum" : "pattern";
+        renderDialog();
       };
     }
 
@@ -2640,9 +2653,12 @@ function openChangeCode(startForgot = false) {
         .then((r) => {
           if (r && r.codeType && r.codeType !== myCodeType) {
             myCodeType = r.codeType;
-            const curWrap = $("chg-cur-wrap");
-            if (curWrap && !isForgot) {
-              renderDialog();
+            if (!userToggledCur) {
+              curInputMode = r.codeType;
+              const curWrap = $("chg-cur-wrap");
+              if (curWrap && !isForgot) {
+                renderDialog();
+              }
             }
           }
         })
@@ -2692,7 +2708,7 @@ function openChangeCode(startForgot = false) {
           }
         } else {
           if (!cur) {
-            if (msg) msg.textContent = myCodeType === "pattern" ? "Please draw your current pattern." : "Please enter your current credential.";
+            if (msg) msg.textContent = curInputMode === "pattern" ? "Please draw your current pattern." : "Please enter your current password or PIN.";
             return;
           }
         }
