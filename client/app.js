@@ -981,6 +981,7 @@ function showLogin() {
   const pd = $("pub-drawer");
   if (pd) pd.hidden = true;
 
+  initUnifiedLogin();
   resetLoginForm();
   document.title = "IIT Patna Hockey · Member Login";
   syncInstall();
@@ -1052,8 +1053,16 @@ function initUnifiedLogin() {
   const backBtn = $("login-back-btn");
   const resendBtn = $("login-resend-btn");
   const destEl = $("login-otp-dest");
+  const lgxBtn = $("lgx");
 
   if (!idForm) return;
+
+  if (lgxBtn) {
+    lgxBtn.onclick = (e) => {
+      e.preventDefault();
+      closeLogin();
+    };
+  }
 
   const startCooldown = (seconds = 45) => {
     if (otpCooldownInterval) clearInterval(otpCooldownInterval);
@@ -1091,7 +1100,11 @@ function initUnifiedLogin() {
     if (otpErrEl) otpErrEl.textContent = "";
 
     const activeBtn = isResend ? resendBtn : sendBtn;
-    if (activeBtn) activeBtn.disabled = true;
+    const origText = activeBtn ? activeBtn.innerHTML : "";
+    if (activeBtn) {
+      activeBtn.disabled = true;
+      if (!isResend) activeBtn.innerHTML = "Sending code... ✉️";
+    }
 
     try {
       const res = await api("/api/auth/send-otp", {
@@ -1112,7 +1125,10 @@ function initUnifiedLogin() {
       const targetErr = isResend ? otpErrEl : errEl;
       if (targetErr) targetErr.textContent = x.message || "Could not send verification code. Please try again.";
     } finally {
-      if (activeBtn) activeBtn.disabled = false;
+      if (activeBtn) {
+        activeBtn.disabled = false;
+        if (!isResend) activeBtn.innerHTML = origText;
+      }
     }
   };
 
@@ -1135,6 +1151,17 @@ function initUnifiedLogin() {
     };
   }
 
+  if (otpInp) {
+    otpInp.oninput = () => {
+      const val = otpInp.value.replace(/\D/g, "").slice(0, 6);
+      otpInp.value = val;
+      if (val.length === 6) {
+        if (otpForm.requestSubmit) otpForm.requestSubmit();
+        else if (verifyBtn) verifyBtn.click();
+      }
+    };
+  }
+
   if (otpForm) {
     otpForm.onsubmit = async (e) => {
       e.preventDefault();
@@ -1144,7 +1171,11 @@ function initUnifiedLogin() {
         if (otpErrEl) otpErrEl.textContent = "Please enter the 6-digit code received on your email.";
         return;
       }
-      if (verifyBtn) verifyBtn.disabled = true;
+      const origText = verifyBtn ? verifyBtn.innerHTML : "";
+      if (verifyBtn) {
+        verifyBtn.disabled = true;
+        verifyBtn.innerHTML = "Verifying... 🚀";
+      }
       try {
         const r = await api("/api/auth/verify-otp", {
           method: "POST",
@@ -1161,9 +1192,21 @@ function initUnifiedLogin() {
       } catch (x) {
         if (otpErrEl) otpErrEl.textContent = x.message || "Invalid or expired verification code.";
       } finally {
-        if (verifyBtn) verifyBtn.disabled = false;
+        if (verifyBtn) {
+          verifyBtn.disabled = false;
+          verifyBtn.innerHTML = origText;
+        }
       }
     };
+  }
+}
+
+// Auto-initialize unified login form bindings immediately and when DOM is ready
+if (typeof window !== "undefined") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initUnifiedLogin);
+  } else {
+    initUnifiedLogin();
   }
 }
 
@@ -1253,23 +1296,37 @@ function logout() {
 function handleUrlAuthParams() {
   try {
     const params = new URLSearchParams(window.location.search);
-    const identParam = (params.get("identifier") || params.get("email") || params.get("user") || "").trim();
-    const roleParam = (params.get("role") || "").trim().toLowerCase();
-    const roll = (params.get("roll") || "").trim().toUpperCase();
-    const otp = (params.get("otp") || params.get("code") || "").trim().replace(/\D/g, "").slice(0, 6);
-    const mode = (params.get("mode") || "").trim().toLowerCase();
+    const identParam = (
+      params.get("identifier") ||
+      params.get("email") ||
+      params.get("roll") ||
+      params.get("user") ||
+      params.get("role") ||
+      ""
+    ).trim();
+    const otp = (
+      params.get("otp") ||
+      params.get("code") ||
+      ""
+    ).trim().replace(/\D/g, "").slice(0, 6);
 
-    // Instant One-Click Auto-Login from Email link
-    if ((identParam || roll || roleParam) && otp && otp.length === 6) {
-      const activeId = identParam || roll || (roleParam === "coach" ? "Coach" : roleParam);
-      if (window.history && window.history.replaceState) {
-        const cleanUrl = window.location.pathname + window.location.hash;
-        window.history.replaceState({}, document.title, cleanUrl);
-      }
-      showLogin();
+    if (!identParam && !otp) return;
+
+    if (window.history && window.history.replaceState) {
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+
+    showLogin();
+    const activeId = identParam || "";
+    if (activeId) {
       otpLoginTargetId = activeId;
       const idInp = $("login-id");
       if (idInp) idInp.value = activeId;
+    }
+
+    // Instant One-Click Auto-Login from Email link
+    if (activeId && otp && otp.length === 6) {
       const idForm = $("login-id-form");
       const otpForm = $("login-otp-form");
       if (idForm) idForm.hidden = true;
@@ -1282,94 +1339,6 @@ function handleUrlAuthParams() {
         const verifyBtn = $("login-verify-btn");
         if (verifyBtn) verifyBtn.click();
       }, 150);
-      return;
-    }
-
-    if (roleParam === "coach") {
-      if (window.history && window.history.replaceState) {
-        const cleanUrl = window.location.pathname + window.location.hash;
-        window.history.replaceState({}, document.title, cleanUrl);
-      }
-      showLogin();
-      loginTab("admin");
-      if ($("em")) {
-        $("em").value = "coach";
-        $("anw").hidden = true;
-      }
-      const box = $("aforgot-box");
-      if (box) {
-        box.hidden = false;
-        updateAdminForgot();
-        const form = $("coach-otp-form");
-        if (form) form.hidden = false;
-        if (otp && $("coach-otp-val")) {
-          $("coach-otp-val").value = otp;
-          toast("Coach verification code filled from email link!");
-          if ($("coach-new-pw")) $("coach-new-pw").focus();
-        }
-      }
-      return;
-    }
-
-    if (!roll && !otp) return;
-
-    if (window.history && window.history.replaceState) {
-      const cleanUrl = window.location.pathname + window.location.hash;
-      window.history.replaceState({}, document.title, cleanUrl);
-    }
-
-    showLogin();
-
-    if (roll) {
-      const pr = $("pr");
-      if (pr) pr.value = roll;
-    }
-
-    if (roll) {
-      setTimeout(async () => {
-        try {
-          const r = await api("/api/player/check", {
-            method: "POST",
-            body: { roll },
-          });
-          pInfo = r;
-          if (mode === "reset") {
-            pOtp(r.emailHint || "your email", 60, true);
-            if (otp) {
-              setTimeout(() => {
-                const box = $("po");
-                if (box && box.fill) {
-                  box.fill(0, otp);
-                  toast("Password reset code filled from email link!");
-                }
-              }, 120);
-            }
-          } else if (!r.hasAccount) {
-            pOtp(r.emailHint || "your email", 60, false);
-            if (otp) {
-              setTimeout(() => {
-                const box = $("po");
-                if (box && box.fill) {
-                  box.fill(0, otp);
-                  toast("Verification code filled from email link!");
-                }
-              }, 120);
-            }
-          } else {
-            pForm(true, r);
-          }
-        } catch (e) {
-          if ($("pe")) $("pe").textContent = e.message || "Failed to check roll number.";
-        }
-      }, 150);
-    } else if (otp) {
-      setTimeout(() => {
-        const box = $("po");
-        if (box && box.fill) {
-          box.fill(0, otp);
-          toast("Verification code filled!");
-        }
-      }, 120);
     }
   } catch (err) {
     console.error("handleUrlAuthParams error:", err);
@@ -1377,6 +1346,7 @@ function handleUrlAuthParams() {
 }
 
 function boot() {
+  initUnifiedLogin();
   pushAuto();
   handleUrlAuthParams();
   if (!token) return showPublic();

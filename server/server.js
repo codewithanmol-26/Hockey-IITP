@@ -342,6 +342,13 @@ async function setAdminEmail(adminId, email) {
 }
 
 // Universal user resolver for passwordless OTP authentication (supports roll number or email)
+function canonicalOtpKey(user) {
+  if (user && user.email && EMAIL_RE.test(String(user.email).trim())) {
+    return "otp_" + String(user.email).trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
+  }
+  return "otp_" + String((user && (user.id || user.roll)) || "anon").toLowerCase().replace(/[^a-z0-9]/g, "_");
+}
+
 async function resolveAuthUser(rawIdentifier) {
   const idStr = String(rawIdentifier || "").trim();
   if (!idStr) return null;
@@ -358,15 +365,16 @@ async function resolveAuthUser(rawIdentifier) {
     idLower.includes("kiran");
   if (isCoachKeyword || isCoachEmail || isCoachName) {
     const coachEmail = (coachIdent.email || COACH_EMAIL || "").trim();
-    return {
+    const coachRes = {
       type: "coach",
       role: "coach",
       id: coachDoc ? coachDoc.id : "coach",
       name: (coachDoc && coachDoc.data().name) || coachIdent.name || COACH_NAME,
       email: coachEmail,
       post: "coach",
-      otpKey: "coach_kiran",
     };
+    coachRes.otpKey = canonicalOtpKey(coachRes);
+    return coachRes;
   }
 
   const allAdmins = (await db.collection("admins").get()).docs;
@@ -384,7 +392,7 @@ async function resolveAuthUser(rawIdentifier) {
         const plDoc = await db.collection("players").doc(d.playerId).get().catch(() => null);
         if (plDoc && plDoc.exists) email = plDoc.data().email;
       }
-      return {
+      const capRes = {
         type: "captain",
         role: "captain",
         id: capDoc.id,
@@ -392,8 +400,9 @@ async function resolveAuthUser(rawIdentifier) {
         email: (email || "").trim(),
         post: "captain",
         playerId: d.playerId || null,
-        otpKey: "admin_" + capDoc.id,
       };
+      capRes.otpKey = canonicalOtpKey(capRes);
+      return capRes;
     }
   }
 
@@ -407,7 +416,7 @@ async function resolveAuthUser(rawIdentifier) {
         const plDoc = await db.collection("players").doc(d.playerId).get().catch(() => null);
         if (plDoc && plDoc.exists) email = plDoc.data().email;
       }
-      return {
+      const viceRes = {
         type: "vice",
         role: "vice",
         id: viceDoc.id,
@@ -415,8 +424,9 @@ async function resolveAuthUser(rawIdentifier) {
         email: (email || "").trim(),
         post: "vice",
         playerId: d.playerId || null,
-        otpKey: "admin_" + viceDoc.id,
       };
+      viceRes.otpKey = canonicalOtpKey(viceRes);
+      return viceRes;
     }
   }
 
@@ -442,7 +452,7 @@ async function resolveAuthUser(rawIdentifier) {
       const isCoach = isCoachUser(null, d);
       const post = isCoach ? "coach" : (d.post || d.kind || "admin");
       const assignedRole = ["coach", "captain", "vice"].includes(post) ? post : "admin";
-      return {
+      const adRes = {
         type: assignedRole,
         role: assignedRole,
         id: ad.id,
@@ -451,8 +461,9 @@ async function resolveAuthUser(rawIdentifier) {
         post,
         playerId: d.playerId || null,
         roll: d.roll || d.playerId || null,
-        otpKey: isCoach ? "coach_kiran" : "admin_" + ad.id,
       };
+      adRes.otpKey = canonicalOtpKey(adRes);
+      return adRes;
     }
   }
 
@@ -474,7 +485,7 @@ async function resolveAuthUser(rawIdentifier) {
       const ap = ad.post || ad.kind || "admin";
       const assignedRole = ["coach", "captain", "vice"].includes(ap) ? ap : "admin";
       const email = adminEmails[adminMatch.id] || ad.email || hitPlayer.email || "";
-      return {
+      const plAdRes = {
         type: assignedRole,
         role: assignedRole,
         id: adminMatch.id,
@@ -483,8 +494,9 @@ async function resolveAuthUser(rawIdentifier) {
         email: (email || "").trim(),
         post: ap,
         playerId: hitPlayer.id,
-        otpKey: "admin_" + adminMatch.id,
       };
+      plAdRes.otpKey = canonicalOtpKey(plAdRes);
+      return plAdRes;
     }
 
     let assignedRole = "player";
@@ -493,15 +505,17 @@ async function resolveAuthUser(rawIdentifier) {
     if (links.captain === hitPlayer.id) assignedRole = "captain";
     else if (links.vice === hitPlayer.id) assignedRole = "vice";
 
-    return {
+    const email = (hitPlayer.email || "").trim();
+    const plRes = {
       type: "player",
       role: assignedRole,
       id: hitPlayer.id,
       name: hitPlayer.name,
       roll: hitPlayer.roll,
-      email: (hitPlayer.email || "").trim(),
-      otpKey: "player_" + hitPlayer.id,
+      email,
     };
+    plRes.otpKey = canonicalOtpKey(plRes);
+    return plRes;
   }
 
   return null;
