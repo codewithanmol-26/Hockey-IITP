@@ -9,6 +9,7 @@
   <meta name="description"
     content="Official web portal of the Indian Institute of Technology Patna Field Hockey Team. Practice schedules, player attendance, team roster, match rules, and team announcements.">
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="icon" type="image/svg+xml" href="icons/iitp-hockey-crest.svg">
   <link rel="alternate icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -27,8 +28,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap"
     rel="stylesheet">
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
-  <link rel="preload" href="style.css?v=87" as="style">
-  <link rel="stylesheet" href="style.css?v=87">
+  <link rel="preload" href="style.css?v=88" as="style">
+  <link rel="stylesheet" href="style.css?v=88">
 </head>
 
 <body>
@@ -92,41 +93,63 @@
       <button type="button" id="lgx" class="lgx" data-ic="close" aria-label="Close" title="Close login popup"></button>
       <img class="lg-logo" src="icons/iitp-hockey-crest.svg" alt="IIT Patna Hockey Crest" width="84" height="84">
       <h2 class="lg-card-title">Hockey Login</h2>
+      <p class="mute" id="login-sub" style="margin:-4px 0 16px; font-size:0.88rem; line-height:1.4;">
+        Sign in instantly with a 6-digit one-time code sent to your registered email.
+      </p>
 
-      <form id="unified-login-form" autocomplete="on">
+      <!-- Step 1: Identifier Form (Roll Number, Email, or Role) -->
+      <form id="login-id-form" autocomplete="on">
         <label class="fl lg-label">
           <span class="fl-lbl">Roll Number / Email</span>
-          <input id="login-id" class="lg-input" placeholder="Enter your roll number or email" autocapitalize="none" spellcheck="false" autocomplete="username" required>
+          <input id="login-id" class="lg-input" placeholder="e.g. 2501ME71, kiran.chaudhary16@iitp.ac.in, or Coach" autocapitalize="none" spellcheck="false" autocomplete="username" required>
         </label>
 
-        <label class="fl lg-label">
-          <span class="fl-lbl">Password</span>
-          <div class="lg-pw-wrap">
-            <input id="login-pw" class="lg-input" type="password" placeholder="Enter your password" autocomplete="current-password" required>
-            <button type="button" id="login-pw-eye" class="lg-pw-eye" title="Show or hide password" aria-label="Toggle password visibility">👁️</button>
-          </div>
-        </label>
+        <p id="login-err" class="err" role="alert" style="margin:6px 0 10px;"></p>
 
-        <div class="lg-forgot-row">
-          <button type="button" class="lg-forgot-link" id="login-forgot-btn">Forgot password?</button>
-        </div>
-
-        <p id="login-err" class="err" role="alert" style="margin:4px 0 8px;"></p>
-
-        <button type="submit" class="pri big lg-submit-btn" id="login-submit-btn">Login</button>
+        <button type="submit" class="pri big lg-submit-btn" id="login-send-btn">
+          Send OTP ✉️
+        </button>
       </form>
 
-      <!-- Forgot Password / Recovery Box -->
-      <div id="login-forgot-panel" hidden style="margin-top:14px;text-align:left;"></div>
+      <!-- Step 2: OTP Verification Form -->
+      <form id="login-otp-form" hidden autocomplete="off">
+        <div style="background:var(--soft, #f0f4f9); border:1px solid rgba(15,74,168,0.2); border-radius:10px; padding:10px 12px; margin-bottom:14px; text-align:left;">
+          <div style="font-size:0.8rem; color:var(--mute, #64748b);">Code sent to:</div>
+          <div id="login-otp-dest" style="font-weight:700; color:var(--ink, #0b2a4a); font-size:0.95rem; word-break:break-all;"></div>
+        </div>
+
+        <label class="fl lg-label">
+          <span class="fl-lbl">Enter 6-digit verification code</span>
+          <input id="login-otp" class="lg-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="• • • • • •" autocomplete="one-time-code" style="font-size:1.4rem; letter-spacing:8px; text-align:center; font-family:monospace; font-weight:700;" required>
+        </label>
+
+        <p id="login-otp-err" class="err" role="alert" style="margin:6px 0 10px;"></p>
+
+        <button type="submit" class="pri big lg-submit-btn" id="login-verify-btn">
+          Verify &amp; Log In 🚀
+        </button>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:0.86rem;">
+          <button type="button" class="btn-link" id="login-back-btn" style="background:none; border:none; color:var(--mute, #64748b); cursor:pointer; text-decoration:underline; font-size:0.85rem; padding:0;">
+            ← Change user
+          </button>
+          <button type="button" class="btn-link" id="login-resend-btn" style="background:none; border:none; color:var(--pri, #0f4aa8); font-weight:600; cursor:pointer; padding:0;">
+            Resend OTP
+          </button>
+        </div>
+      </form>
 
       <!-- Hidden fallbacks for legacy references -->
       <div style="display:none;" aria-hidden="true">
+        <form id="unified-login-form"><input id="login-pw"></form>
+        <div id="login-forgot-panel"></div>
+        <button id="login-forgot-btn"></button>
         <button id="t1"></button><button id="t2"></button>
         <form id="pf"><input id="pr"><div id="pa"></div><p id="pe"></p><button id="pgo"></button><button id="pforgot-roll"></button></form>
         <form id="lf"><select id="em"><option value="coach">coach</option></select><input id="an"><input id="pw"><p id="er"></p><button id="lgo"></button><button id="aforgot"></button><div id="aforgot-box"></div></form>
       </div>
 
-      <button type="button" id="inst" class="ghost" hidden style="margin-top:12px;">⬇ Install app</button>
+      <button type="button" id="inst" class="ghost" hidden style="margin-top:14px;">⬇ Install app</button>
     </div>
   </section>
 
@@ -230,10 +253,10 @@
   </script>
   <script src="config.js"></script>
   <script src="icons.js?v=83"></script>
-  <script src="public.js?v=87"></script>
+  <script src="public.js?v=88"></script>
   <script src="extras.js"></script>
   <script src="help.js?v=83"></script>
-  <script src="app.js?v=87"></script>
+  <script src="app.js?v=88"></script>
   <script src="chat.js?v=84"></script>
 </body>
 

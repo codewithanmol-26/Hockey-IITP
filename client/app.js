@@ -957,6 +957,9 @@ const empty = (e, t) =>
   `<div class="empty"><span class="e">${e}</span>${t}</div>`;
 
 // ---- screens: public page by default, login popup on demand, then the app ----
+let otpLoginTargetId = "";
+let otpCooldownInterval = null;
+
 function showLogin() {
   const appEl = $("app");
   if (appEl) {
@@ -978,24 +981,30 @@ function showLogin() {
   const pd = $("pub-drawer");
   if (pd) pd.hidden = true;
 
-  const idInp = $("login-id");
-  const pwInp = $("login-pw");
-  const errEl = $("login-err");
-  const fPanel = $("login-forgot-panel");
-  const uForm = $("unified-login-form");
-  if (pwInp) pwInp.value = "";
-  if (errEl) errEl.textContent = "";
-  if (fPanel) {
-    fPanel.hidden = true;
-    fPanel.innerHTML = "";
-  }
-  if (uForm) uForm.hidden = false;
+  resetLoginForm();
   document.title = "IIT Patna Hockey · Member Login";
   syncInstall();
   setTimeout(() => {
-    if (idInp && !idInp.value) idInp.focus();
-    else if (pwInp) pwInp.focus();
+    const idInp = $("login-id");
+    if (idInp) idInp.focus();
   }, 100);
+}
+
+function resetLoginForm() {
+  const idForm = $("login-id-form");
+  const otpForm = $("login-otp-form");
+  const errEl = $("login-err");
+  const otpErrEl = $("login-otp-err");
+  const otpInp = $("login-otp");
+  if (idForm) idForm.hidden = false;
+  if (otpForm) otpForm.hidden = true;
+  if (errEl) errEl.textContent = "";
+  if (otpErrEl) otpErrEl.textContent = "";
+  if (otpInp) otpInp.value = "";
+  if (otpCooldownInterval) {
+    clearInterval(otpCooldownInterval);
+    otpCooldownInterval = null;
+  }
 }
 
 function closeLogin() {
@@ -1025,417 +1034,140 @@ function showApp() {
   document.title = "IITP Hockey Attendance";
 }
 
-let staffCredMode = "password";
+let staffCredMode = "otp";
 let staffUserToggled = false;
 function renderStaffCredBox() {}
 async function detectStaffCodeType() {}
 function loginTab(m) {}
 
 function initUnifiedLogin() {
-  const uForm = $("unified-login-form");
-  if (!uForm) return;
+  const idForm = $("login-id-form");
+  const otpForm = $("login-otp-form");
+  const idInp = $("login-id");
+  const otpInp = $("login-otp");
+  const errEl = $("login-err");
+  const otpErrEl = $("login-otp-err");
+  const sendBtn = $("login-send-btn");
+  const verifyBtn = $("login-verify-btn");
+  const backBtn = $("login-back-btn");
+  const resendBtn = $("login-resend-btn");
+  const destEl = $("login-otp-dest");
 
-  const eyeBtn = $("login-pw-eye");
-  if (eyeBtn) {
-    eyeBtn.onclick = () => {
-      const pw = $("login-pw");
-      if (!pw) return;
-      pw.type = pw.type === "password" ? "text" : "password";
-      eyeBtn.textContent = pw.type === "password" ? "👁️" : "🙈";
-    };
-  }
+  if (!idForm) return;
 
-  const forgotBtn = $("login-forgot-btn");
-  if (forgotBtn) {
-    forgotBtn.onclick = () => {
-      openUnifiedForgot();
-    };
-  }
-
-  uForm.onsubmit = async (e) => {
-    e.preventDefault();
-    const errEl = $("login-err");
-    const subBtn = $("login-submit-btn");
-    if (errEl) errEl.textContent = "";
-    const idVal = ($("login-id") ? $("login-id").value : "").trim();
-    const pwVal = ($("login-pw") ? $("login-pw").value : "").trim();
-    if (!idVal) {
-      if (errEl) errEl.textContent = "Please enter your roll number or email.";
-      return;
+  const startCooldown = (seconds = 45) => {
+    if (otpCooldownInterval) clearInterval(otpCooldownInterval);
+    let remaining = seconds;
+    if (resendBtn) {
+      resendBtn.disabled = true;
+      resendBtn.style.opacity = "0.6";
+      resendBtn.style.cursor = "not-allowed";
+      resendBtn.textContent = "Resend OTP (" + remaining + "s)";
     }
-    if (!pwVal) {
-      if (errEl) errEl.textContent = "Please enter your password.";
-      return;
-    }
-    if (subBtn) subBtn.disabled = true;
-    try {
-      const r = await api("/api/login", {
-        method: "POST",
-        body: {
-          identifier: idVal,
-          password: pwVal,
-        },
-      });
-      saveToken(r.token);
-      closeLogin();
-      tab = "me";
-      initUnifiedLogin();
-boot();
-    } catch (x) {
-      if (errEl) {
-        if (x.needsSetup) {
-          errEl.innerHTML = `First time logging in? <button type="button" class="btn-link" id="btn-login-first-setup" style="color:var(--brand,#0f4aa8);font-weight:700;text-decoration:underline;background:none;border:none;cursor:pointer;">Set up password via Email OTP</button>`;
-          const su = $("btn-login-first-setup");
-          if (su) su.onclick = () => openUnifiedForgot(idVal);
-        } else {
-          errEl.textContent = x.message || "Invalid roll number, email, or password.";
+    otpCooldownInterval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(otpCooldownInterval);
+        otpCooldownInterval = null;
+        if (resendBtn) {
+          resendBtn.disabled = false;
+          resendBtn.style.opacity = "";
+          resendBtn.style.cursor = "pointer";
+          resendBtn.textContent = "Resend OTP";
         }
+      } else if (resendBtn) {
+        resendBtn.textContent = "Resend OTP (" + remaining + "s)";
       }
+    }, 1000);
+  };
+
+  const handleSendOtp = async (isResend = false) => {
+    const idVal = (idInp ? idInp.value : otpLoginTargetId || "").trim();
+    if (!idVal) {
+      if (errEl) errEl.textContent = "Please enter your roll number, email, or role.";
+      return;
+    }
+    if (errEl) errEl.textContent = "";
+    if (otpErrEl) otpErrEl.textContent = "";
+
+    const activeBtn = isResend ? resendBtn : sendBtn;
+    if (activeBtn) activeBtn.disabled = true;
+
+    try {
+      const res = await api("/api/auth/send-otp", {
+        method: "POST",
+        body: { identifier: idVal },
+      });
+      otpLoginTargetId = idVal;
+      if (destEl) destEl.textContent = res.sentTo || idVal;
+      if (idForm) idForm.hidden = true;
+      if (otpForm) otpForm.hidden = false;
+      if (otpInp) {
+        otpInp.value = "";
+        otpInp.focus();
+      }
+      startCooldown(res.wait || 45);
+      toast("Verification code sent to " + (res.sentTo || idVal) + "!");
+    } catch (x) {
+      const targetErr = isResend ? otpErrEl : errEl;
+      if (targetErr) targetErr.textContent = x.message || "Could not send verification code. Please try again.";
     } finally {
-      if (subBtn) subBtn.disabled = false;
-    }
-  };
-}
-
-function openUnifiedForgot(initialId) {
-  const uForm = $("unified-login-form");
-  const fPanel = $("login-forgot-panel");
-  if (!fPanel) return;
-  if (uForm) uForm.hidden = true;
-  fPanel.hidden = false;
-
-  let currentId = initialId || ($("login-id") ? $("login-id").value.trim() : "");
-  let coachMode = "rec";
-
-  const renderForgot = () => {
-    const isCoach =
-      currentId.toLowerCase() === "coach" ||
-      currentId.toLowerCase() === "head coach" ||
-      currentId.toLowerCase() === "kiran.chaudhary16@iitp.ac.in";
-
-    if (isCoach) {
-      fPanel.innerHTML = `
-        <div style="margin-bottom:12px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <b style="font-size:1.05rem;color:var(--ink);">👑 Head Coach Password Reset</b>
-            <button type="button" class="btn-link" id="btn-forgot-back" style="background:none;border:none;color:var(--brand,#0f4aa8);font-size:0.85rem;cursor:pointer;text-decoration:underline;">← Back to login</button>
-          </div>
-          <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-            <button type="button" class="${coachMode === "rec" ? "pri" : "sec"} btn-sm" id="coach-f-tab-rec">🛡️ Option 1: Secret Recovery Password (Instant)</button>
-            <button type="button" class="${coachMode === "otp" ? "pri" : "sec"} btn-sm" id="coach-f-tab-otp">📧 Option 2: Email OTP</button>
-          </div>
-        </div>
-
-        <div id="coach-f-panel-rec" ${coachMode === "rec" ? "" : "hidden"} style="padding:12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);">
-          <p style="margin:0 0 10px;font-size:0.84rem;color:var(--mute);">Enter your Coach Recovery Password to immediately set a new password without waiting for email.</p>
-          <div style="position:relative;margin-bottom:10px;">
-            <input id="coach-rec-code" class="lg-input" type="password" placeholder="Enter Coach Recovery Password" maxlength="60" required style="padding-right:38px;">
-            <button type="button" class="lg-pw-eye" data-eye="coach-rec-code" title="Toggle visibility">👁️</button>
-          </div>
-          <div style="position:relative;margin-bottom:12px;">
-            <input id="coach-rec-newpw" class="lg-input" type="password" placeholder="Enter new password (at least 4 chars)" maxlength="60" required style="padding-right:38px;">
-            <button type="button" class="lg-pw-eye" data-eye="coach-rec-newpw" title="Toggle visibility">👁️</button>
-          </div>
-          <p id="coach-rec-err" class="err" style="margin:0 0 8px;"></p>
-          <button type="button" class="pri lg-submit-btn" id="btn-coach-rec-submit">Reset Password &amp; Log In</button>
-        </div>
-
-        <div id="coach-f-panel-otp" ${coachMode === "otp" ? "" : "hidden"} style="padding:12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);">
-          <p style="margin:0 0 8px;font-size:0.84rem;">Verification code will be sent to Coach registered email.</p>
-          <div style="margin-bottom:10px;">
-            <button type="button" class="pri btn-sm" id="btn-coach-send-otp">📧 Send Code to Coach Email</button>
-          </div>
-          <div id="coach-otp-box" hidden>
-            <div style="display:flex;gap:8px;margin-bottom:10px;">
-              <input id="coach-otp-val" class="lg-input" placeholder="6-digit code" maxlength="6" inputmode="numeric" style="flex:1;">
-              <button type="button" class="sec btn-sm" id="btn-coach-otp-paste">📋 Paste</button>
-            </div>
-            <div style="position:relative;margin-bottom:12px;">
-              <input id="coach-otp-newpw" class="lg-input" type="password" placeholder="New password (at least 4 chars)" maxlength="60" style="padding-right:38px;">
-              <button type="button" class="lg-pw-eye" data-eye="coach-otp-newpw" title="Toggle visibility">👁️</button>
-            </div>
-            <p id="coach-otp-err" class="err" style="margin:0 0 8px;"></p>
-            <button type="button" class="pri lg-submit-btn" id="btn-coach-otp-submit">Reset Password &amp; Log In</button>
-          </div>
-        </div>
-      `;
-    } else {
-      fPanel.innerHTML = `
-        <div style="margin-bottom:12px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <b style="font-size:1.05rem;color:var(--ink);">🔑 Reset Password via Email OTP</b>
-            <button type="button" class="btn-link" id="btn-forgot-back" style="background:none;border:none;color:var(--brand,#0f4aa8);font-size:0.85rem;cursor:pointer;text-decoration:underline;">← Back to login</button>
-          </div>
-          <p class="mute" style="margin:0 0 12px;font-size:0.85rem;line-height:1.4;">
-            Enter your Roll Number or registered Email. An OTP will be sent instantly.
-          </p>
-        </div>
-
-        <label class="fl lg-label">
-          <span class="fl-lbl">Roll Number / Email</span>
-          <div style="display:flex;gap:8px;">
-            <input id="forgot-id-input" class="lg-input" value="${esc(currentId)}" placeholder="e.g. 2501ME71 or your email" autocapitalize="none" style="flex:1;">
-            <button type="button" class="pri btn-sm" id="btn-send-general-otp" style="white-space:nowrap;">📧 Send OTP</button>
-          </div>
-        </label>
-
-        <div id="general-otp-box" hidden style="margin-top:14px;padding:12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span class="fl-lbl" style="margin:0;">6-Digit Verification Code</span>
-            <button type="button" class="sec btn-sm" id="btn-general-paste" style="font-size:0.78rem;padding:3px 8px;">📋 Paste</button>
-          </div>
-          <input id="forgot-otp-input" class="lg-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" style="letter-spacing:3px;font-weight:700;font-size:1.1rem;margin-bottom:10px;">
-
-          <label class="fl lg-label">
-            <span class="fl-lbl">New Password</span>
-            <div class="lg-pw-wrap">
-              <input id="forgot-new-pw" class="lg-input" type="password" placeholder="At least 4 characters" minlength="4" maxlength="60" required>
-              <button type="button" class="lg-pw-eye" data-eye="forgot-new-pw" title="Toggle visibility">👁️</button>
-            </div>
-          </label>
-
-          <label class="fl lg-label">
-            <span class="fl-lbl">Confirm New Password</span>
-            <div class="lg-pw-wrap">
-              <input id="forgot-new-pw2" class="lg-input" type="password" placeholder="Repeat new password" minlength="4" maxlength="60" required>
-              <button type="button" class="lg-pw-eye" data-eye="forgot-new-pw2" title="Toggle visibility">👁️</button>
-            </div>
-          </label>
-
-          <p id="forgot-err" class="err" style="margin:4px 0 8px;"></p>
-          <button type="button" class="pri lg-submit-btn" id="btn-forgot-save-submit">Save Password &amp; Log In</button>
-        </div>
-      `;
-    }
-
-    fPanel.querySelectorAll("[data-eye]").forEach((btn) => {
-      btn.onclick = () => {
-        const inp = $(btn.dataset.eye);
-        if (!inp) return;
-        inp.type = inp.type === "password" ? "text" : "password";
-        btn.textContent = inp.type === "password" ? "👁️" : "🙈";
-      };
-    });
-
-    const bBack = $("btn-forgot-back");
-    if (bBack) {
-      bBack.onclick = () => {
-        fPanel.hidden = true;
-        if (uForm) uForm.hidden = false;
-      };
-    }
-
-    if (isCoach) {
-      const tabR = $("coach-f-tab-rec");
-      const tabO = $("coach-f-tab-otp");
-      if (tabR) tabR.onclick = () => { coachMode = "rec"; renderForgot(); };
-      if (tabO) tabO.onclick = () => { coachMode = "otp"; renderForgot(); };
-
-      const btnRecSub = $("btn-coach-rec-submit");
-      if (btnRecSub) {
-        btnRecSub.onclick = async () => {
-          const errEl = $("coach-rec-err");
-          if (errEl) errEl.textContent = "";
-          const recoveryCode = ($("coach-rec-code") ? $("coach-rec-code").value : "").trim();
-          const newCode = ($("coach-rec-newpw") ? $("coach-rec-newpw").value : "").trim();
-          if (!recoveryCode) {
-            if (errEl) errEl.textContent = "Please enter Coach Recovery Password.";
-            return;
-          }
-          if (newCode.length < 4) {
-            if (errEl) errEl.textContent = "New password must be at least 4 characters.";
-            return;
-          }
-          btnRecSub.disabled = true;
-          try {
-            const r = await api("/api/coach/reset-with-recovery-code", {
-              method: "POST",
-              body: { recoveryCode, newCode },
-            });
-            saveToken(r.token);
-            toast("Password reset successfully! Logging in...");
-            closeLogin();
-            tab = "me";
-            boot();
-          } catch (x) {
-            if (errEl) errEl.textContent = x.message || "Invalid Recovery Password.";
-          } finally {
-            btnRecSub.disabled = false;
-          }
-        };
-      }
-
-      const btnCoachSend = $("btn-coach-send-otp");
-      if (btnCoachSend) {
-        btnCoachSend.onclick = async () => {
-          btnCoachSend.disabled = true;
-          toast("Sending OTP instantly to Coach email...");
-          try {
-            const r = await api("/api/coach/forgot-otp", { method: "POST" });
-            toast("OTP code sent to " + (r.sentTo || "Coach email") + "!");
-            if ($("coach-otp-box")) $("coach-otp-box").hidden = false;
-          } catch (x) {
-            toast(x.message || "Failed to send code.", true);
-            btnCoachSend.disabled = false;
-          }
-        };
-      }
-
-      const btnCoachPaste = $("btn-coach-otp-paste");
-      if (btnCoachPaste) {
-        btnCoachPaste.onclick = async () => {
-          try {
-            const text = await navigator.clipboard.readText();
-            const clean = text.replace(/\D/g, "").slice(0, 6);
-            if (clean && $("coach-otp-val")) $("coach-otp-val").value = clean;
-          } catch (e) {}
-        };
-      }
-
-      const btnCoachOtpSub = $("btn-coach-otp-submit");
-      if (btnCoachOtpSub) {
-        btnCoachOtpSub.onclick = async () => {
-          const errEl = $("coach-otp-err");
-          if (errEl) errEl.textContent = "";
-          const otp = ($("coach-otp-val") ? $("coach-otp-val").value : "").trim();
-          const code = ($("coach-otp-newpw") ? $("coach-otp-newpw").value : "").trim();
-          if (otp.length < 6) {
-            if (errEl) errEl.textContent = "Please enter complete 6-digit OTP.";
-            return;
-          }
-          if (code.length < 4) {
-            if (errEl) errEl.textContent = "New password must be at least 4 characters.";
-            return;
-          }
-          btnCoachOtpSub.disabled = true;
-          try {
-            const r = await api("/api/coach/reset-password", {
-              method: "POST",
-              body: { otp, code, ctype: "password" },
-            });
-            saveToken(r.token);
-            toast("Password reset successfully! Logging in...");
-            closeLogin();
-            tab = "me";
-            boot();
-          } catch (x) {
-            if (errEl) errEl.textContent = x.message || "Invalid OTP or request.";
-          } finally {
-            btnCoachOtpSub.disabled = false;
-          }
-        };
-      }
-    } else {
-      const btnSendGen = $("btn-send-general-otp");
-      if (btnSendGen) {
-        btnSendGen.onclick = async () => {
-          const idInput = $("forgot-id-input");
-          const targetId = idInput ? idInput.value.trim() : "";
-          if (!targetId) {
-            toast("Please enter your roll number or email.", true);
-            return;
-          }
-          btnSendGen.disabled = true;
-          toast("Sending verification code instantly...");
-          try {
-            if (targetId.toLowerCase() === "coach" || targetId.toLowerCase() === "head coach" || targetId.toLowerCase() === "kiran.chaudhary16@iitp.ac.in") {
-              currentId = targetId;
-              renderForgot();
-              return;
-            }
-            let res;
-            if (/^\d{4}[A-Za-z]{2}\d{2}$/i.test(targetId)) {
-              res = await api("/api/player/otp", {
-                method: "POST",
-                body: { roll: targetId, reset: true },
-              });
-            } else {
-              res = await api("/api/auth/forgot-code-otp", {
-                method: "POST",
-                body: { email: targetId, identifier: targetId },
-              }).catch(() => api("/api/player/otp", {
-                method: "POST",
-                body: { email: targetId, reset: true },
-              }));
-            }
-            toast("Verification code sent to " + (res.sentTo || "your email") + "!");
-            if ($("general-otp-box")) $("general-otp-box").hidden = false;
-            if ($("forgot-otp-input")) $("forgot-otp-input").focus();
-          } catch (x) {
-            toast(x.message || "Could not send verification code.", true);
-            btnSendGen.disabled = false;
-          }
-        };
-      }
-
-      const btnPasteGen = $("btn-general-paste");
-      if (btnPasteGen) {
-        btnPasteGen.onclick = async () => {
-          try {
-            const text = await navigator.clipboard.readText();
-            const clean = text.replace(/\D/g, "").slice(0, 6);
-            if (clean && $("forgot-otp-input")) $("forgot-otp-input").value = clean;
-          } catch (e) {}
-        };
-      }
-
-      const btnSaveGen = $("btn-forgot-save-submit");
-      if (btnSaveGen) {
-        btnSaveGen.onclick = async () => {
-          const errEl = $("forgot-err");
-          if (errEl) errEl.textContent = "";
-          const targetId = ($("forgot-id-input") ? $("forgot-id-input").value : "").trim();
-          const otp = ($("forgot-otp-input") ? $("forgot-otp-input").value : "").trim();
-          const p1 = ($("forgot-new-pw") ? $("forgot-new-pw").value : "").trim();
-          const p2 = ($("forgot-new-pw2") ? $("forgot-new-pw2").value : "").trim();
-
-          if (otp.length < 6) {
-            if (errEl) errEl.textContent = "Please enter the 6-digit verification code.";
-            return;
-          }
-          if (p1.length < 4) {
-            if (errEl) errEl.textContent = "New password must be at least 4 characters.";
-            return;
-          }
-          if (p1 !== p2) {
-            if (errEl) errEl.textContent = "Passwords do not match.";
-            return;
-          }
-
-          btnSaveGen.disabled = true;
-          try {
-            const r = await api("/api/player/signup", {
-              method: "POST",
-              body: {
-                roll: targetId,
-                email: targetId,
-                otp,
-                code: p1,
-                ctype: "password",
-                reset: true,
-              },
-            }).catch(() => api("/api/auth/reset-with-otp", {
-              method: "POST",
-              body: { otp, newCode: p1, ctype: "password" },
-            }));
-
-            saveToken(r.token);
-            toast("Password reset successfully! Logging in...");
-            closeLogin();
-            tab = "me";
-            boot();
-          } catch (x) {
-            if (errEl) errEl.textContent = x.message || "Failed to reset password. Please check the code.";
-          } finally {
-            btnSaveGen.disabled = false;
-          }
-        };
-      }
+      if (activeBtn) activeBtn.disabled = false;
     }
   };
 
-  renderForgot();
+  idForm.onsubmit = async (e) => {
+    e.preventDefault();
+    await handleSendOtp(false);
+  };
+
+  if (resendBtn) {
+    resendBtn.onclick = async () => {
+      if (resendBtn.disabled) return;
+      await handleSendOtp(true);
+    };
+  }
+
+  if (backBtn) {
+    backBtn.onclick = () => {
+      resetLoginForm();
+      if (idInp) idInp.focus();
+    };
+  }
+
+  if (otpForm) {
+    otpForm.onsubmit = async (e) => {
+      e.preventDefault();
+      if (otpErrEl) otpErrEl.textContent = "";
+      const code = (otpInp ? otpInp.value : "").trim();
+      if (!/^\d{6}$/.test(code)) {
+        if (otpErrEl) otpErrEl.textContent = "Please enter the 6-digit code received on your email.";
+        return;
+      }
+      if (verifyBtn) verifyBtn.disabled = true;
+      try {
+        const r = await api("/api/auth/verify-otp", {
+          method: "POST",
+          body: {
+            identifier: otpLoginTargetId || (idInp ? idInp.value : ""),
+            otp: code,
+          },
+        });
+        saveToken(r.token);
+        closeLogin();
+        tab = "me";
+        boot();
+        toast("Welcome back, " + (r.user?.name || "Player") + "!");
+      } catch (x) {
+        if (otpErrEl) otpErrEl.textContent = x.message || "Invalid or expired verification code.";
+      } finally {
+        if (verifyBtn) verifyBtn.disabled = false;
+      }
+    };
+  }
 }
+
+function openUnifiedForgot() {}
 
 function saveToken(t) {
   token = t;
@@ -2372,7 +2104,7 @@ function drawMenu() {
     </div>
     <div class="user-drawer-actions">
       <button type="button" class="btn-drawer-pri" id="btn-draw-prof">👤 View My Profile</button>
-      <button type="button" class="btn-drawer-sec" id="btn-draw-code">🔑 ${role === "player" ? "Change Password" : "Change Code"}</button>
+      
     </div>
   </div>`;
 
@@ -2536,10 +2268,7 @@ function openEditCoach() {
     <label class="fl">Official Email ID
       <input id="ed-coach-email" type="email" value="${esc(curEmail)}" maxlength="120" placeholder="coach@iitp.ac.in">
     </label>
-    <div style="margin:14px 0 6px; display:flex; gap:8px; flex-wrap:wrap;">
-      <button type="button" class="sec" style="flex:1;" id="ed-coach-code">🔑 Change Password</button>
-      <button type="button" class="ghost2" style="flex:1;" id="ed-coach-forgot">📧 Forgot Password? (OTP)</button>
-    </div>
+    
     <div class="ctl">
       <button class="pri" id="ed-coach-save">Save Changes</button>
       <button id="ed-coach-cancel">Cancel</button>
@@ -2581,366 +2310,10 @@ function openEditCoach() {
 // ---- change login password / code ----
 let myCodeType = "password";
 
-function openChangeCode(startForgot = false) {
-  const dlg = $("codedlg");
-  const body = $("codedlg-body");
-  if (!dlg || !body) return;
-
-  const isPl = role === "player";
-  const isCoach = role === "coach";
-  let isForgot = !!startForgot;
-  let chgOtpTimer = 0;
-  let coachChgForgotMethod = "rec";
-
-  const renderForgotOtpBox = () => {
-    if (isCoach) {
-      return `
-      <div class="card" style="margin:0 0 12px; padding:12px 14px; background:linear-gradient(135deg, rgba(15,74,168,0.06), transparent); border:1px solid rgba(15,74,168,0.25); border-radius:10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
-          <div style="display:flex; align-items:center; gap:6px;">
-            <span style="font-size:1.1rem;">🔑</span>
-            <b style="font-size:0.92rem; color:var(--ink);">Head Coach Password Recovery</b>
-          </div>
-          <button type="button" id="btn-toggle-normal" class="btn-link" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.82rem; cursor:pointer; text-decoration:underline;">
-            I know my current password
-          </button>
-        </div>
-        <p class="mute" style="margin:0 0 10px; font-size:0.82rem; line-height:1.4;">
-          Select recovery option below. Use Recovery Password for instant access without waiting for institutional email.
-        </p>
-        <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
-          <button type="button" class="${coachChgForgotMethod === "rec" ? "pri" : "sec"} btn-sm" id="btn-coach-chg-tab-rec">🛡️ Option 1: Recovery Password (Instant)</button>
-          <button type="button" class="${coachChgForgotMethod === "otp" ? "pri" : "sec"} btn-sm" id="btn-coach-chg-tab-otp">📧 Option 2: Email OTP</button>
-        </div>
-        <div id="coach-chg-panel-rec" ${coachChgForgotMethod === "rec" ? "" : "hidden"} style="margin-top:6px;">
-          <label class="fl">
-            <span class="chg-lbl">Coach Recovery Password</span>
-            <div style="position:relative;display:flex;align-items:center;">
-              <input id="chg-coach-rec-code" type="password" placeholder="Enter Coach Recovery Password" maxlength="60" autocomplete="off" style="width:100%;box-sizing:border-box;padding-right:36px;">
-              <button type="button" class="chg-eye-btn" data-t="chg-coach-rec-code" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
-            </div>
-          </label>
-          <p class="mute" style="margin:2px 0 0;font-size:0.78rem;">⚡ Instant reset without waiting for email. 100% private and secure.</p>
-        </div>
-        <div id="coach-chg-panel-otp" ${coachChgForgotMethod === "otp" ? "" : "hidden"} style="margin-top:6px;">
-          <p class="mute" style="margin:0 0 8px;font-size:0.8rem;">A 6-digit code will be sent to your Coach email.</p>
-          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
-            <button type="button" class="pri btn-sm" id="btn-chg-send-otp">📧 Send OTP to Email</button>
-            <button type="button" class="sec btn-sm" id="btn-chg-paste-otp" style="display:none;">📋 Paste Code</button>
-          </div>
-          <div id="chg-otp-input-area" style="display:none; margin-top:8px;">
-            <label class="fl">
-              <span class="chg-lbl">Enter 6-digit Email OTP</span>
-              <input id="chg-otp-code" type="text" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit code" autocomplete="one-time-code" style="font-size:1.05rem; letter-spacing:2px; font-weight:600;">
-            </label>
-            <p id="chg-otp-status" class="ok" style="margin:4px 0 0; font-size:0.8rem;"></p>
-          </div>
-        </div>
-      </div>
-    `;
-    }
-    return `
-      <div class="card" style="margin:0 0 12px; padding:12px 14px; background:linear-gradient(135deg, rgba(15,74,168,0.06), transparent); border:1px solid rgba(15,74,168,0.25); border-radius:10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
-          <div style="display:flex; align-items:center; gap:6px;">
-            <span style="font-size:1.1rem;">📧</span>
-            <b style="font-size:0.92rem; color:var(--ink);">Forgot Password · Verify via Email OTP</b>
-          </div>
-          <button type="button" id="btn-toggle-normal" class="btn-link" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.82rem; cursor:pointer; text-decoration:underline;">
-            I know my current password
-          </button>
-        </div>
-        <p class="mute" style="margin:0 0 10px; font-size:0.82rem; line-height:1.4;">
-          Get a 6-digit OTP on your registered email to set a new password without entering your current one.
-        </p>
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
-          <button type="button" class="pri btn-sm" id="btn-chg-send-otp">📧 Send OTP to Email</button>
-          <button type="button" class="sec btn-sm" id="btn-chg-paste-otp" style="display:none;">📋 Paste Code</button>
-        </div>
-        <div id="chg-otp-input-area" style="display:none; margin-top:8px;">
-          <label class="fl">
-            <span class="chg-lbl">Enter 6-digit Email OTP</span>
-            <input id="chg-otp-code" type="text" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit code" autocomplete="one-time-code" style="font-size:1.05rem; letter-spacing:2px; font-weight:600;">
-          </label>
-          <p id="chg-otp-status" class="ok" style="margin:4px 0 0; font-size:0.8rem;"></p>
-        </div>
-      </div>
-    `;
-  };
-
-  const renderDialog = () => {
-    const roleTitle =
-      role === "coach"
-        ? "Coach"
-        : role === "captain"
-          ? "Captain"
-          : role === "vice"
-            ? "Vice-captain"
-            : role === "admin"
-              ? "Admin"
-              : "Player";
-    const userLabel = isPl
-      ? `roll <b>${esc(me || "Player")}</b>`
-      : `<b>${esc(WHO || roleTitle)}</b> (${roleTitle})`;
-
-    const dlgTitle = isForgot ? "Reset Password" : "Change Password";
-    const dlgSub = isForgot
-      ? `Verify via email OTP and set a new password for ${userLabel}.`
-      : `Update password for ${userLabel}. Accepts all types of characters: letters, numbers, symbols (at least 4 characters).`;
-
-    const h = `
-      <h2 id="codedlg-title">${dlgTitle}</h2>
-      <p class="mute" id="codedlg-sub">${dlgSub}</p>
-      <form id="codeform" autocomplete="off">
-        <div id="chg-cur-wrap">
-          ${isForgot ? renderForgotOtpBox() : `
-            <label class="fl">
-              <span class="chg-lbl">${isCoach ? "Current Coach Password" : "Current Password"}</span>
-              <div style="position:relative;display:flex;align-items:center;">
-                <input id="curcode" type="password" placeholder="${isCoach ? "Enter current Coach password" : "Enter current password"}" autocomplete="current-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
-                <button type="button" class="chg-eye-btn" data-t="curcode" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
-              </div>
-            </label>
-            <div style="display:flex; justify-content:flex-end; align-items:center; margin-top:4px; margin-bottom:6px;">
-              <button type="button" class="btn-link" id="btn-toggle-forgot" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.83rem; font-weight:600; cursor:pointer; padding:2px 0; text-decoration:underline;">
-                🔑 Forgot current password? Verify with Email OTP
-              </button>
-            </div>
-          `}
-        </div>
-
-        <div id="chg-new-wrap" style="margin-top:12px;">
-          <label class="fl">
-            <span class="chg-lbl">New Password</span>
-            <div style="position:relative;display:flex;align-items:center;">
-              <input id="newcode" type="password" placeholder="At least 4 characters" minlength="4" maxlength="60" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
-              <button type="button" class="chg-eye-btn" data-t="newcode" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
-            </div>
-          </label>
-          <label class="fl">
-            <span class="chg-lbl">Confirm New Password</span>
-            <div style="position:relative;display:flex;align-items:center;">
-              <input id="newcode2" type="password" placeholder="Repeat new password" minlength="4" maxlength="60" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
-              <button type="button" class="chg-eye-btn" data-t="newcode2" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
-            </div>
-          </label>
-          <div class="chg-hint">💡 Password must be at least 4 characters. Accepts any letters, numbers, spaces, or symbols.</div>
-        </div>
-
-        <p id="codemsg" class="err" role="alert"></p>
-        <div class="ctl">
-          <button type="submit" class="pri" id="codebtn">${isForgot ? "Reset Password" : "Save New Password"}</button>
-          <button type="button" id="codex">Cancel</button>
-        </div>
-      </form>
-    `;
-    body.innerHTML = h;
-    bindDialogEvents();
-  };
-
-  const bindDialogEvents = () => {
-    body.querySelectorAll(".chg-eye-btn").forEach((btn) => {
-      btn.onclick = () => {
-        const inp = $(btn.dataset.t);
-        if (!inp) return;
-        inp.type = inp.type === "password" ? "text" : "password";
-        btn.textContent = inp.type === "password" ? "👁️" : "🙈";
-      };
-    });
-
-    const btnNormal = $("btn-toggle-normal");
-    if (btnNormal) {
-      btnNormal.onclick = () => {
-        clearInterval(chgOtpTimer);
-        isForgot = false;
-        renderDialog();
-      };
-    }
-
-    const btnForgot = $("btn-toggle-forgot");
-    if (btnForgot) {
-      btnForgot.onclick = () => {
-        isForgot = true;
-        renderDialog();
-      };
-    }
-
-    if (isForgot && isCoach) {
-      const tabR = $("btn-coach-chg-tab-rec");
-      const tabO = $("btn-coach-chg-tab-otp");
-      if (tabR) {
-        tabR.onclick = () => {
-          coachChgForgotMethod = "rec";
-          renderDialog();
-        };
-      }
-      if (tabO) {
-        tabO.onclick = () => {
-          coachChgForgotMethod = "otp";
-          renderDialog();
-        };
-      }
-    }
-
-    const sendOtpBtn = $("btn-chg-send-otp");
-    if (sendOtpBtn) {
-      sendOtpBtn.onclick = async () => {
-        sendOtpBtn.disabled = true;
-        const statusEl = $("chg-otp-status");
-        if (statusEl) statusEl.textContent = "";
-        toast("Sending verification code instantly...");
-        try {
-          const endpoint = isCoach ? "/api/coach/forgot-otp" : "/api/auth/forgot-code-otp";
-          const res = await api(endpoint, { method: "POST" });
-          const area = $("chg-otp-input-area");
-          if (area) area.style.display = "block";
-          const pasteBtn = $("btn-chg-paste-otp");
-          if (pasteBtn) pasteBtn.style.display = "inline-block";
-          if (statusEl) {
-            statusEl.className = "ok";
-            statusEl.textContent = "✓ Code sent to " + (res.sentTo || "email") + ". Valid for 10 min.";
-          }
-          toast("Verification code sent to " + (res.sentTo || "email") + "!");
-          const otpInp = $("chg-otp-code");
-          if (otpInp) otpInp.focus();
-        } catch (err) {
-          sendOtpBtn.disabled = false;
-          if (statusEl) {
-            statusEl.className = "err";
-            statusEl.textContent = err.message || "Failed to send verification code.";
-          }
-          toast(err.message || "Failed to send verification code.", true);
-        }
-      };
-    }
-
-    const pasteOtpBtn = $("btn-chg-paste-otp");
-    if (pasteOtpBtn) {
-      pasteOtpBtn.onclick = async () => {
-        try {
-          const text = await navigator.clipboard.readText();
-          const clean = text.replace(/\D/g, "").slice(0, 6);
-          if (clean && $("chg-otp-code")) {
-            $("chg-otp-code").value = clean;
-            toast("OTP code pasted!");
-          }
-        } catch (e) {}
-      };
-    }
-
-    const form = $("codeform");
-    if (form) {
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        const msg = $("codemsg");
-        if (msg) {
-          msg.textContent = "";
-          msg.className = "err";
-        }
-        const cur = ($("curcode") ? $("curcode").value : "").trim();
-        const nw = ($("newcode") ? $("newcode").value : "").trim();
-        const nw2 = ($("newcode2") ? $("newcode2").value : "").trim();
-        const otpVal = ($("chg-otp-code") ? $("chg-otp-code").value : "").trim();
-
-        if (isForgot) {
-          if (isCoach && coachChgForgotMethod === "rec") {
-            const recVal = ($("chg-coach-rec-code") ? $("chg-coach-rec-code").value : "").trim();
-            if (!recVal) {
-              if (msg) msg.textContent = "Please enter the Coach Recovery Password.";
-              return;
-            }
-          } else {
-            if (!/^\d{6}$/.test(otpVal)) {
-              if (msg) msg.textContent = "Please enter the 6-digit verification code.";
-              return;
-            }
-          }
-        } else {
-          if (!cur) {
-            if (msg) msg.textContent = "Please enter your current password.";
-            return;
-          }
-        }
-
-        if (nw.length < 4 || nw.length > 60) {
-          if (msg) msg.textContent = "New password must be at least 4 characters.";
-          return;
-        }
-        if (nw !== nw2) {
-          if (msg) msg.textContent = "Passwords do not match.";
-          return;
-        }
-        if (!isForgot && cur === nw) {
-          if (msg) msg.textContent = "New password must be different from current password.";
-          return;
-        }
-
-        const btn = $("codebtn");
-        if (btn) {
-          btn.disabled = true;
-          btn.textContent = isForgot ? "Verifying & Saving..." : "Saving...";
-        }
-
-        try {
-          let res;
-          if (isForgot) {
-            if (isCoach && coachChgForgotMethod === "rec") {
-              const recVal = ($("chg-coach-rec-code") ? $("chg-coach-rec-code").value : "").trim();
-              res = await api("/api/coach/reset-with-recovery-code", {
-                method: "POST",
-                body: { recoveryCode: recVal, newCode: nw },
-              });
-              if (res.token) saveToken(res.token);
-            } else {
-              res = await api("/api/auth/reset-with-otp", {
-                method: "POST",
-                body: { otp: otpVal, newCode: nw, ctype: "password" },
-              });
-            }
-          } else {
-            res = await api("/api/auth/change-code", {
-              method: "POST",
-              body: { currentCode: cur, newCode: nw, ctype: "password" },
-            });
-          }
-
-          myCodeType = "password";
-          if (msg) {
-            msg.className = "ok";
-            msg.textContent = res.message || "Password updated successfully!";
-          }
-          setTimeout(() => {
-            clearInterval(chgOtpTimer);
-            dlg.close();
-            if (btn) btn.disabled = false;
-            toast(res.message || "Password updated successfully!");
-          }, 1000);
-        } catch (err) {
-          if (msg) {
-            msg.className = "err";
-            msg.textContent = err.message || (isForgot ? "Failed to reset password." : "Failed to update password. Check current password.");
-          }
-          if (btn) {
-            btn.disabled = false;
-            btn.textContent = isForgot ? "Reset Password" : "Save New Password";
-          }
-        }
-      };
-    }
-
-    const cancelBtn = $("codex");
-    if (cancelBtn) {
-      cancelBtn.onclick = () => {
-        clearInterval(chgOtpTimer);
-        dlg.close();
-      };
-    }
-  };
-
-  renderDialog();
-  dlg.showModal();
+function openChangeCode() {
+  toast("Passwords have been retired! All logins are passwordless via instant Email OTP.");
 }
-// ---- add students (captain / admin) ----
+
 function openAdd() {
   $("sm").textContent = "";
   $("sdlg").showModal();
@@ -3482,9 +2855,7 @@ function drawSidebar() {
         <button type="button" class="sb-btn-prof-action pri ${prof ? "active" : ""}" id="sb-btn-view-prof">
           <span>👤 View Profile</span>
         </button>
-        <button type="button" class="sb-btn-prof-action sec" id="sb-btn-code" title="${role === "player" ? "Change your password" : "Change login code"}">
-          <span>🔑 ${role === "player" ? "Password" : "Code"}</span>
-        </button>
+        
       </div>
     </div>
 
@@ -6032,7 +5403,7 @@ function vAdmins() {
 
             <div class="ctl" style="display:flex; flex-wrap:wrap; gap:10px;">
               <input id="an2" placeholder="Full name (used to log in)" maxlength="40" style="flex:1; min-width:140px;">
-              <input id="ac" type="password" placeholder="Login code (4+ characters)" maxlength="30" autocomplete="new-password" style="flex:1; min-width:140px;">
+              
               <button class="pri" id="aadd" style="white-space:nowrap;">+ Add Admin</button>
             </div>
           </div>`
@@ -6129,10 +5500,9 @@ function vAdmins() {
             : "instructor";
       const pid = post === "coach" ? "" : $("apl") ? $("apl").value : "",
         name = ($("an2").value || "").trim(),
-        code = $("ac").value,
         email = $("aem") ? ($("aem").value || "").trim() : "";
-      if (!name || code.length < 4)
-        return alert("Enter a name and a code of at least 4 characters.");
+      if (!name)
+        return alert("Please enter the administrator's full name.");
       if (kind === "player" && !pid)
         return alert(
           "Please choose which player from the dropdown to link this admin to.",
@@ -6398,23 +5768,20 @@ function vProfile() {
     h = `${own ? "" : back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
     <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill blue">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "captain" && a.playerId === id) ? '<span class="pill blue">🎖️ Captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "vice" && a.playerId === id) ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "admin" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill purple">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
-    ${canPh ? photoBtns(own, photoPath, p.photo, `<button class="pri" id="pedit">✏️ Edit profile</button>${own ? '<button class="sec" id="pcode">🔑 Change password</button>' : ""}`) : ""}
+    ${canPh ? photoBtns(own, photoPath, p.photo, `<button class="pri" id="pedit">✏️ Edit profile</button>`) : ""}
     ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
     <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} sessions</p><div class="dots">${dots}</div></div>` : ""}</div></div>
     <div class="card"><h2>Details</h2>${kv("Roll number", esc(p.roll))}${kv("Position", esc(p.position))}${kv("Joined", p.joined ? fmt(p.joined) : "")}
       ${kv("E-mail", p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : "")}${kv("Jersey", jersey)}
-      ${admin ? `<div class="chips" style="margin-top:12px">${!gone && ACC.includes(id) ? '<button id="prst">Reset code</button>' : ""}${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}${coachLeaderBtns}${isCoach && !gone && !isPlayerCap && !isPlayerVice && !ADM.some((a) => a.kind === "player" && a.playerId === id) ? '<button class="sec" id="pmkadmin">🛡️ Make admin</button>' : ""}</div>` : ""}
-      ${own ? `<div class="chips" style="margin-top:12px"><button type="button" class="sec" id="powncode">🔑 Change Password</button></div>` : ""}</div></div>`;
+      ${admin ? `<div class="chips" style="margin-top:12px">${gone ? '<button class="pri" id="prs">Restore</button><button class="dng" id="ppm">Delete forever</button>' : '<button class="dng" id="prm">Remove from team</button>'}${coachLeaderBtns}${isCoach && !gone && !isPlayerCap && !isPlayerVice && !ADM.some((a) => a.kind === "player" && a.playerId === id) ? '<button class="sec" id="pmkadmin">🛡️ Make admin</button>' : ""}</div>` : ""}
+      </div></div>`;
     $("view").innerHTML = h;
     if ($("pedit")) $("pedit").onclick = () => openEdit(p, own);
     if ($("pcode")) $("pcode").onclick = () => openChangeCode();
     if ($("powncode")) $("powncode").onclick = () => openChangeCode();
     if ($("pmkcap"))
       $("pmkcap").onclick = () => {
-        const code = prompt("Enter a login code (4 to 30 characters) for " + p.name + " to log in as Captain (or leave blank to use 1234):", "1234");
-        if (code === null) return;
-        const pass = code.trim() || "1234";
-        if (pass.length < 4) return alert("Code must be at least 4 characters.");
+        if (!confirm("Appoint " + p.name + " as Team Captain?")) return;
         run(async () => {
           const existing = ADM.find((a) => a.playerId === id);
           if (existing) {
@@ -6425,7 +5792,7 @@ function vProfile() {
           } else {
             await api("/api/admins", {
               method: "POST",
-              body: { name: p.name, code: pass, post: "captain", kind: "captain", playerId: id },
+              body: { name: p.name, post: "captain", kind: "captain", playerId: id },
             });
           }
           await load(true);
@@ -6434,10 +5801,7 @@ function vProfile() {
       };
     if ($("pmkvice"))
       $("pmkvice").onclick = () => {
-        const code = prompt("Enter a login code (4 to 30 characters) for " + p.name + " to log in as Vice-captain (or leave blank to use 1234):", "1234");
-        if (code === null) return;
-        const pass = code.trim() || "1234";
-        if (pass.length < 4) return alert("Code must be at least 4 characters.");
+        if (!confirm("Appoint " + p.name + " as Team Vice-captain?")) return;
         run(async () => {
           const existing = ADM.find((a) => a.playerId === id);
           if (existing) {
@@ -6448,7 +5812,7 @@ function vProfile() {
           } else {
             await api("/api/admins", {
               method: "POST",
-              body: { name: p.name, code: pass, post: "vice", kind: "vice", playerId: id },
+              body: { name: p.name, post: "vice", kind: "vice", playerId: id },
             });
           }
           await load(true);
@@ -6481,13 +5845,11 @@ function vProfile() {
       };
     if ($("pmkadmin"))
       $("pmkadmin").onclick = () => {
-        const code = prompt("Enter a login code (4 to 30 characters) for " + p.name + " to log in as Admin:");
-        if (!code) return;
-        if (code.trim().length < 4) return alert("Code must be at least 4 characters.");
+        if (!confirm("Make " + p.name + " an Admin?")) return;
         run(async () => {
           await api("/api/admins", {
             method: "POST",
-            body: { name: p.name, code: code.trim(), kind: "player", playerId: p.id },
+            body: { name: p.name, kind: "player", playerId: p.id },
           });
           await load(true);
           alert(p.name + " is now an Admin!");
@@ -6585,7 +5947,7 @@ function vProfile() {
           own
             ? `<div class="chips" style="margin-top:14px;">
                 <button type="button" class="pri" id="aedit">✏️ Edit Coach Profile</button>
-                <button type="button" class="sec" id="pcode">🔑 Change Password</button>
+                
                 <button type="button" class="sec" id="arep_coach">🔄 Replace Coach with another person</button>
               </div>`
             : ""
@@ -6595,7 +5957,7 @@ function vProfile() {
       const adminActionBtns = [];
       if (own) {
         adminActionBtns.push('<button class="pri" id="aedit_top">✏️ Edit Profile</button>');
-        adminActionBtns.push('<button class="sec" id="pcode_top">🔑 Change Password</button>');
+        adminActionBtns.push('');
       }
 
       $("view").innerHTML =
@@ -6685,7 +6047,7 @@ function vProfile() {
       adminActionBtns.push('<button class="pri" id="aedit">✏️ Edit profile</button>');
     }
     if (own) {
-      adminActionBtns.push('<button class="sec" id="pcode">🔑 Change code</button>');
+      adminActionBtns.push('');
     }
     $("view").innerHTML =
       `${own ? "" : back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;

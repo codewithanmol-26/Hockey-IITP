@@ -2,8 +2,9 @@
   "name": "IITP Hockey Attendance",
   "short_name": "Hockey",
   "description": "Attendance, schedule and rules for the IITP hockey team",
-  "start_url": "./",
-  "scope": "./",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "handle_links": "preferred",
   "launch_handler": { "client_mode": "focus-existing" },
   "display": "standalone",
@@ -11,6 +12,12 @@
   "background_color": "#0b2a4a",
   "theme_color": "#0b2a4a",
   "icons": [
+    {
+      "src": "icons/iitp-hockey-crest.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "icons/icon-192.png",
       "sizes": "192x192",

@@ -4,9 +4,6 @@ const crypto = require("crypto");
 const dbLayer = require("./db");
 
 const {
-  CAPTAIN_CODE,
-  VICE_CODE,
-  COACH_CODE,
   TOKEN_SECRET,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
@@ -35,7 +32,7 @@ const isCoachUser = (u, aDocData) => {
 let initError = null;
 try {
   // Only database and token secrets are strictly required.
-  // CAPTAIN_CODE, VICE_CODE, and COACH_CODE are optional fallbacks because leadership accounts are managed in the database.
+  // Leadership accounts and student squad are managed in the database.
   const missing = [
     "TOKEN_SECRET",
     "SUPABASE_URL",
@@ -169,8 +166,6 @@ async function getCoachDoc() {
       (d.data().post === "coach" || d.data().kind === "coach"),
   );
   if (!coachDoc) {
-    const salt = crypto.randomBytes(16).toString("hex");
-    const initCode = String(COACH_CODE || "1234");
     const ref = await db.collection("admins").add({
       name: COACH_NAME,
       disabled: false,
@@ -178,8 +173,6 @@ async function getCoachDoc() {
       post: "coach",
       playerId: null,
       created: Date.now(),
-      salt,
-      hash: crypto.scryptSync(initCode, salt, 32).toString("hex"),
     });
     return await ref.get();
   }
@@ -341,583 +334,351 @@ async function setAdminEmail(adminId, email) {
   await db.collection("config").doc("admin_emails").set(emails);
 }
 
-app.post(
-  "/api/login",
-  h(async (req, res) => {
-    const now = Date.now();
-    let t = tries.get(req.ip);
-    if (!t || t.reset < now) t = { n: 0, reset: now + 60000 };
-    tries.set(req.ip, t);
-    if (++t.n > 10) return res.status(429).json({ error: "Too many login attempts. Please wait a minute." });
+// Universal user resolver for passwordless OTP authentication
+async function resolveAuthUser(rawIdentifier) {
+  const idStr = String(rawIdentifier || "").trim();
+  if (!idStr) return null;
+  const idLower = idStr.toLowerCase();
 
-    const b = req.body || {};
-    const identifier = String(b.identifier || b.roll || b.email || b.username || "").trim();
-    const c = String(b.password || b.code || "");
-    const requestedRole = b.role ? String(b.role).trim().toLowerCase() : "";
-    const requestedName = b.name ? String(b.name).trim() : "";
-
-    // Load custom codes from Supabase app_config first, then fallback to env
-    const customCodesDoc = await db
-      .collection("config")
-      .doc("custom_codes")
-      .get()
-      .catch(() => null);
-    const customCodes =
-      customCodesDoc && customCodesDoc.exists
-        ? customCodesDoc.data() || {}
-        : {};
-
-    const testMatch = (plain, salt, hash) => {
-      if (!hash || !plain) return false;
-      return (
-        eq(hashCode(plain, salt), hash) ||
-        eq(crypto.scryptSync(plain, salt, 32).toString("hex"), hash)
-      );
+  // 1. Coach check
+  const coachDoc = await getCoachDoc();
+  const coachIdent = await coachIdentity();
+  const isCoachKeyword = idLower === "coach" || idLower === "head coach";
+  const isCoachEmail = coachIdent.email && idLower === coachIdent.email.toLowerCase();
+  const isCoachName =
+    (coachDoc && coachDoc.data().name && idLower === coachDoc.data().name.toLowerCase()) ||
+    (COACH_NAME && idLower === COACH_NAME.toLowerCase()) ||
+    idLower.includes("kiran");
+  if (isCoachKeyword || isCoachEmail || isCoachName) {
+    return {
+      type: "coach",
+      role: "coach",
+      id: coachDoc ? coachDoc.id : "coach",
+      name: (coachDoc && coachDoc.data().name) || coachIdent.name || COACH_NAME,
+      email: coachIdent.email || COACH_EMAIL,
+      post: "coach",
+      otpKey: "coach_kiran",
     };
+  }
 
-    let payload = null;
+  const allAdmins = (await db.collection("admins").get()).docs;
+  const activeAdmins = allAdmins.filter((d) => !d.data().disabled);
+  const adminEmailsDoc = await db.collection("config").doc("admin_emails").get().catch(() => null);
+  const adminEmails = adminEmailsDoc && adminEmailsDoc.exists ? adminEmailsDoc.data() || {} : {};
 
-    // Helper: coach matcher
-    const checkCoach = async () => {
-      const coachDoc = await getCoachDoc();
-      if (!coachDoc) return null;
-      const d = coachDoc.data();
-      const ok =
-        testMatch(c, d.salt, d.hash) ||
-        testMatch(c, customCodes.coach?.salt, customCodes.coach?.hash) ||
-        testMatch(c, customCodes[coachDoc.id]?.salt, customCodes[coachDoc.id]?.hash) ||
-        (COACH_CODE && eq(c, COACH_CODE)) ||
-        eq(c, "1234");
-      if (ok) {
-        return {
-          role: "coach",
-          id: coachDoc.id,
-          name: d.name || COACH_NAME,
-          email: (await coachIdentity()).email,
-          post: "coach",
-        };
+  // 2. Captain keyword check
+  if (idLower === "captain") {
+    const capDoc = activeAdmins.find((d) => d.data().post === "captain" || d.data().kind === "captain");
+    if (capDoc) {
+      const d = capDoc.data();
+      let email = adminEmails[capDoc.id] || d.email;
+      if (!email && d.playerId) {
+        const plDoc = await db.collection("players").doc(d.playerId).get().catch(() => null);
+        if (plDoc && plDoc.exists) email = plDoc.data().email;
       }
-      return null;
-    };
+      return {
+        type: "captain",
+        role: "captain",
+        id: capDoc.id,
+        name: d.name,
+        email: email || "",
+        post: "captain",
+        playerId: d.playerId || null,
+        otpKey: "admin_" + capDoc.id,
+      };
+    }
+  }
 
-    // Helper: captain matcher
-    const checkCaptain = async (wantName) => {
-      const want = String(wantName || "").trim().toLowerCase();
-      const allDocs = (await db.collection("admins").get()).docs;
-      const capDocs = allDocs.filter(
-        (d) =>
-          !d.data().disabled &&
-          (d.data().post === "captain" || d.data().kind === "captain"),
-      );
-      let candidates = capDocs;
-      if (want) {
-        candidates = capDocs.filter(
-          (d) =>
-            String(d.data().name || "").trim().toLowerCase() === want ||
-            String(d.data().email || "").trim().toLowerCase() === want,
-        );
+  // 3. Vice-captain keyword check
+  if (idLower === "vice" || idLower === "vice-captain" || idLower === "vice captain") {
+    const viceDoc = activeAdmins.find((d) => d.data().post === "vice" || d.data().kind === "vice");
+    if (viceDoc) {
+      const d = viceDoc.data();
+      let email = adminEmails[viceDoc.id] || d.email;
+      if (!email && d.playerId) {
+        const plDoc = await db.collection("players").doc(d.playerId).get().catch(() => null);
+        if (plDoc && plDoc.exists) email = plDoc.data().email;
       }
-      const hit = candidates.find((d) => {
-        const da = d.data();
-        return (
-          testMatch(c, da.salt, da.hash) ||
-          testMatch(c, customCodes[d.id]?.salt, customCodes[d.id]?.hash) ||
-          testMatch(c, customCodes.captain?.salt, customCodes.captain?.hash) ||
-          (CAPTAIN_CODE && eq(c, CAPTAIN_CODE)) ||
-          eq(c, "1234")
-        );
-      });
-      if (hit) {
-        return {
-          role: "captain",
-          id: hit.id,
-          name: hit.data().name,
-          post: "captain",
-        };
-      }
-      if (
-        testMatch(c, customCodes.captain?.salt, customCodes.captain?.hash) ||
-        (CAPTAIN_CODE && eq(c, CAPTAIN_CODE)) ||
-        eq(c, "1234")
-      ) {
-        return { role: "captain" };
-      }
-      return null;
-    };
+      return {
+        type: "vice",
+        role: "vice",
+        id: viceDoc.id,
+        name: d.name,
+        email: email || "",
+        post: "vice",
+        playerId: d.playerId || null,
+        otpKey: "admin_" + viceDoc.id,
+      };
+    }
+  }
 
-    // Helper: vice matcher
-    const checkVice = async (wantName) => {
-      const want = String(wantName || "").trim().toLowerCase();
-      const allDocs = (await db.collection("admins").get()).docs;
-      const viceDocs = allDocs.filter(
-        (d) =>
-          !d.data().disabled &&
-          (d.data().post === "vice" || d.data().kind === "vice"),
-      );
-      let candidates = viceDocs;
-      if (want) {
-        candidates = viceDocs.filter(
-          (d) =>
-            String(d.data().name || "").trim().toLowerCase() === want ||
-            String(d.data().email || "").trim().toLowerCase() === want,
-        );
-      }
-      const hit = candidates.find((d) => {
-        const da = d.data();
-        return (
-          testMatch(c, da.salt, da.hash) ||
-          testMatch(c, customCodes[d.id]?.salt, customCodes[d.id]?.hash) ||
-          testMatch(c, customCodes.vice?.salt, customCodes.vice?.hash) ||
-          (VICE_CODE && eq(c, VICE_CODE)) ||
-          eq(c, "1234")
-        );
-      });
-      if (hit) {
-        return {
-          role: "vice",
-          id: hit.id,
-          name: hit.data().name,
-          post: "vice",
-        };
-      }
-      if (
-        testMatch(c, customCodes.vice?.salt, customCodes.vice?.hash) ||
-        (VICE_CODE && eq(c, VICE_CODE)) ||
-        eq(c, "1234")
-      ) {
-        return { role: "vice" };
-      }
-      return null;
-    };
+  // 4. Admin / Leadership matching by exact email or name
+  for (const ad of activeAdmins) {
+    const d = ad.data();
+    let email = adminEmails[ad.id] || d.email || "";
+    if (!email && d.playerId) {
+      const plDoc = await db.collection("players").doc(d.playerId).get().catch(() => null);
+      if (plDoc && plDoc.exists && plDoc.data().email) email = plDoc.data().email;
+    }
+    const nameMatch = d.name && String(d.name).trim().toLowerCase() === idLower;
+    const emailMatch = email && email.toLowerCase() === idLower;
+    if (nameMatch || emailMatch) {
+      const isCoach = isCoachUser(null, d);
+      const post = isCoach ? "coach" : (d.post || d.kind || "admin");
+      const assignedRole = ["coach", "captain", "vice"].includes(post) ? post : "admin";
+      return {
+        type: assignedRole,
+        role: assignedRole,
+        id: ad.id,
+        name: d.name,
+        email: email || "",
+        post,
+        playerId: d.playerId || null,
+        otpKey: isCoach ? "coach_kiran" : "admin_" + ad.id,
+      };
+    }
+  }
 
-    // Helper: admin matcher
-    const checkAdmin = async (wantName) => {
-      const want = String(wantName || "").trim().toLowerCase();
-      const allDocs = (await db.collection("admins").get()).docs;
-      const ad = want
-        ? allDocs.filter(
-            (d) =>
-              (String(d.data().name || "").trim().toLowerCase() === want ||
-               String(d.data().email || "").trim().toLowerCase() === want) &&
-              !d.data().disabled,
-          )
-        : allDocs.filter((d) => !d.data().disabled);
-      const hit = ad.find((d) => {
-        const da = d.data();
-        const isCoach = isCoachUser(null, da);
-        const isCap = da.post === "captain" || da.kind === "captain";
-        const isVice = da.post === "vice" || da.kind === "vice";
-        return (
-          testMatch(c, da.salt, da.hash) ||
-          testMatch(c, customCodes[d.id]?.salt, customCodes[d.id]?.hash) ||
-          (isCoach &&
-            (testMatch(c, customCodes.coach?.salt, customCodes.coach?.hash) ||
-              (COACH_CODE && eq(c, COACH_CODE)) ||
-              eq(c, "1234"))) ||
-          (isCap &&
-            (testMatch(c, customCodes.captain?.salt, customCodes.captain?.hash) ||
-              (CAPTAIN_CODE && eq(c, CAPTAIN_CODE)) ||
-              eq(c, "1234"))) ||
-          (isVice &&
-            (testMatch(c, customCodes.vice?.salt, customCodes.vice?.hash) ||
-              (VICE_CODE && eq(c, VICE_CODE)) ||
-              eq(c, "1234"))) ||
-          eq(c, "1234")
-        );
-      });
-      if (hit) {
-        const post = hit.data().post || hit.data().kind || "admin";
-        const assignedRole = ["coach", "captain", "vice"].includes(post)
-          ? post
-          : "admin";
-        return {
-          role: assignedRole,
-          id: hit.id,
-          name: hit.data().name,
-          post,
-        };
-      }
-      return null;
-    };
+  // 5. Squad Player matching by roll number, email, or exact name
+  const allPlayers = (await db.collection("players").get()).docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => !p.removed);
+  const norm = normRoll(idStr);
+  let hitPlayer = norm ? allPlayers.find((p) => normRoll(p.roll) === norm || p.id.toUpperCase() === norm) : null;
+  if (!hitPlayer && idLower.includes("@")) {
+    hitPlayer = allPlayers.find((p) => p.email && p.email.toLowerCase() === idLower);
+  }
+  if (!hitPlayer) {
+    hitPlayer = allPlayers.find((p) => p.name && p.name.trim().toLowerCase() === idLower);
+  }
 
-    // Helper: player matcher (by roll or email)
-    const checkPlayer = async (idOrRoll) => {
-      let pl = await findPlayer(idOrRoll);
-      if (!pl && idOrRoll.includes("@")) {
-        const all = (await db.collection("players").get()).docs;
-        const hit = all.find(
-          (d) =>
-            !d.data().removed &&
-            String(d.data().email || "").toLowerCase() === idOrRoll.toLowerCase(),
-        );
-        if (hit) pl = { id: hit.id, ...hit.data() };
-      }
-      if (!pl) return null;
-      const acc = await db.collection("accounts").doc(pl.id).get();
-      if (!acc || !acc.exists) {
-        return { notRegistered: true, player: pl };
-      }
-      const da = acc.data();
-      const ok = testMatch(c, da.salt, da.hash) || (da.hash && eq(c, "1234"));
-      if (ok) {
-        const teamDoc = await db.collection("config").doc("team").get().catch(() => null);
-        const links = (teamDoc && teamDoc.exists && teamDoc.data()?.links) || {};
-        let assignedRole = "player";
-        if (links.captain === pl.id) assignedRole = "captain";
-        else if (links.vice === pl.id) assignedRole = "vice";
-        return {
-          role: assignedRole,
-          id: pl.id,
-          name: pl.name,
-          roll: pl.roll,
-          email: pl.email,
-        };
-      }
-      return { wrongPassword: true };
-    };
-
-    if (requestedRole === "coach") {
-      payload = await checkCoach();
-    } else if (requestedRole === "captain") {
-      payload = await checkCaptain(requestedName || identifier);
-    } else if (requestedRole === "vice") {
-      payload = await checkVice(requestedName || identifier);
-    } else if (requestedRole === "admin") {
-      payload = await checkAdmin(requestedName || identifier);
-    } else if (requestedRole === "player") {
-      const pr = await checkPlayer(identifier || requestedName);
-      if (pr?.notRegistered) {
-        return res.status(401).json({
-          error: "First time logging in? Click 'Forgot password' to set your password via email OTP.",
-          needsSetup: true,
-          roll: pr.player.roll,
-        });
-      }
-      if (pr && !pr.wrongPassword) payload = pr;
-    } else if (identifier) {
-      // Unified login: identifier is Roll Number, Email, Name, or Role
-      const idLower = identifier.toLowerCase();
-      const coachId = await coachIdentity();
-      const isCoachIdentifier =
-        idLower === "coach" ||
-        idLower === "head coach" ||
-        (coachId.email && idLower === coachId.email.toLowerCase()) ||
-        (COACH_NAME && idLower === COACH_NAME.toLowerCase());
-
-      if (isCoachIdentifier) {
-        payload = await checkCoach();
-      }
-
-      if (!payload) {
-        // Try Player by roll number or email
-        const pr = await checkPlayer(identifier);
-        if (pr?.notRegistered) {
-          return res.status(401).json({
-            error: "First time logging in? Click 'Forgot password' to set your password via email OTP.",
-            needsSetup: true,
-            roll: pr.player.roll,
-          });
-        }
-        if (pr && !pr.wrongPassword) payload = pr;
-      }
-
-      if (!payload) {
-        // Try Admin/Captain/Vice by email or name or role
-        if (idLower === "captain") payload = await checkCaptain();
-        else if (idLower === "vice") payload = await checkVice();
-        else payload = await checkAdmin(identifier);
+  if (hitPlayer) {
+    let assignedRole = "player";
+    const teamDoc = await db.collection("config").doc("team").get().catch(() => null);
+    const links = (teamDoc && teamDoc.exists && teamDoc.data()?.links) || {};
+    if (links.captain === hitPlayer.id) assignedRole = "captain";
+    else if (links.vice === hitPlayer.id) assignedRole = "vice";
+    else {
+      const adminMatch = activeAdmins.find((a) => a.data().playerId === hitPlayer.id);
+      if (adminMatch) {
+        const ap = adminMatch.data().post || adminMatch.data().kind || "admin";
+        if (["coach", "captain", "vice", "admin"].includes(ap)) assignedRole = ap;
       }
     }
+    return {
+      type: "player",
+      role: assignedRole,
+      id: hitPlayer.id,
+      name: hitPlayer.name,
+      roll: hitPlayer.roll,
+      email: hitPlayer.email || "",
+      otpKey: "player_" + hitPlayer.id,
+    };
+  }
 
-    if (!payload) return res.status(401).json({ error: "Invalid roll number, email, or password." });
-    tries.delete(req.ip);
-    res.json({ token: sign({ ...payload, exp: now + 7 * 864e5 }) });
+  return null;
+}
+
+// Passwordless Login: Step 1 - Send instant 6-digit Email OTP
+app.post(
+  "/api/auth/send-otp",
+  h(async (req, res) => {
+    const b = req.body || {};
+    const identifier = String(b.identifier || b.roll || b.email || b.username || "").trim();
+    if (!identifier) {
+      return res.status(400).json({ error: "Please enter your roll number, email, or role." });
+    }
+
+    if (limited("otpip" + req.ip, 15, 3600e3)) {
+      return res.status(429).json({ error: "Too many login attempts from this network. Please wait a while." });
+    }
+
+    const user = await resolveAuthUser(identifier);
+    if (!user) {
+      return res.status(404).json({
+        error: "No player or team member found with that roll number or email. If you are new to the squad, ask the Captain or Coach to add you.",
+      });
+    }
+
+    const email = String(user.email || "").trim();
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({
+        error: "No valid email address registered for " + user.name + ". Please ask Coach or Captain to update your email.",
+      });
+    }
+
+    const ref = db.collection("otps").doc(user.otpKey);
+    const cur = await ref.get().catch(() => null);
+    const now = Date.now();
+    const c = cur && cur.exists ? cur.data() || {} : {};
+
+    // 45s cooldown between OTP requests for the same account
+    if (c.at && now - c.at < 45000) {
+      const waitSec = Math.ceil((45000 - (now - c.at)) / 1000);
+      return res.status(429).json({
+        error: "Please wait " + waitSec + " seconds before requesting another code.",
+        wait: waitSec,
+      });
+    }
+
+    const hourStart = c.hs && now - c.hs < 3600e3 ? c.hs : now;
+    const sends = c.hs && now - c.hs < 3600e3 ? (c.sends || 0) : 0;
+    if (sends >= 10) {
+      return res.status(429).json({
+        error: "Too many login codes requested for this account. Please try again in an hour.",
+      });
+    }
+
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+    await ref.set({
+      h: otpHash(user.otpKey, email, code),
+      email,
+      role: user.role,
+      userId: user.id,
+      name: user.name,
+      post: user.post || null,
+      roll: user.roll || null,
+      exp: now + 600e3,
+      n: 0,
+      at: now,
+      hs: hourStart,
+      sends: sends + 1,
+    });
+
+    const host =
+      req.headers["x-forwarded-host"] ||
+      req.headers.host ||
+      "hockey-iitp.anmol.website";
+    const proto =
+      req.headers["x-forwarded-proto"] || (req.secure ? "https" : "https");
+    const appUrl = proto + "://" + host;
+    const autoFillUrl = appUrl + "/?identifier=" + encodeURIComponent(identifier) + "&otp=" + encodeURIComponent(code);
+
+    const escH = (s) =>
+      String(s ?? "").replace(
+        /[&<>"']/g,
+        (ch) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[ch],
+      );
+
+    const emailSubject = code + " is your IIT Patna Hockey Login Code";
+    const emailText = "Hello " + user.name + ",\n\nYour 6-digit login verification code for IIT Patna Hockey is: " + code + "\n\nAuto-login link: " + autoFillUrl + "\n\nThis code is valid for 10 minutes.\n\nIIT Patna Field Hockey";
+    const emailHtml = '<!DOCTYPE html><html><body style="margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;background-color:#f1f5f9;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.06);border:1px solid #e2e8f0;"><tr><td style="background:linear-gradient(135deg, #071a2e 0%, #0b2a4a 55%, #0f4aa8 100%);padding:28px 24px;text-align:center;"><div style="font-size:12px;letter-spacing:2px;font-weight:800;color:#facc15;text-transform:uppercase;margin-bottom:4px;">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div><h1 style="margin:0;font-size:24px;color:#ffffff;font-weight:900;letter-spacing:-0.5px;">🏑 IITP Hockey Team</h1><div style="font-size:13px;color:#cbd5e1;margin-top:6px;">One-Time Login Verification</div></td></tr><tr><td style="padding:28px 24px 20px;"><h2 style="margin:0 0 10px;font-size:18px;color:#0b2a4a;font-weight:700;">Hello ' + escH(user.name) + ',</h2><p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#475569;">Use the 6-digit login code below to securely sign in to the official IIT Patna Hockey portal:</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px dashed #0f4aa8;border-radius:16px;margin:20px 0;"><tr><td style="padding:22px 16px;text-align:center;"><span style="display:block;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px;">Your 6-Digit Login Code</span><div style="font-family:\'Courier New\',Courier,monospace;font-size:42px;letter-spacing:12px;font-weight:900;color:#0b2a4a;padding:4px 0;user-select:all;-webkit-user-select:all;display:inline-block;">' + code + '</div></td></tr></table><div style="text-align:center;margin:24px 0 18px;"><a href="' + autoFillUrl + '" target="_blank" style="display:inline-block;background:#0f4aa8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 26px;border-radius:12px;box-shadow:0 4px 14px rgba(15,74,168,0.35);">🚀 Click Here to Log In Instantly</a></div><p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#64748b;text-align:center;">Or type the 6 digits into the login screen. Valid for <b>10 minutes</b>.</p></td></tr><tr><td style="padding:16px 24px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;"><p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.4;">Indian Institute of Technology Patna · Field Hockey Portal<br>If you did not request this code, you can safely ignore this message.</p></td></tr></table></body></html>';
+
+    // Dispatch email with fast race
+    const emailPromise = sendEmail(email, emailSubject, emailText, emailHtml).catch((err) => {
+      console.error("sendEmail OTP error:", err.message);
+    });
+    await Promise.race([emailPromise, new Promise((resolve) => setTimeout(resolve, 800))]);
+
+    res.json({
+      ok: true,
+      sentTo: maskEmail(email),
+      role: user.role,
+      name: user.name,
+      wait: 45,
+    });
   }),
 );
 
-// Anyone logged in (Player, Captain, Vice-captain, Admin) can change their own password/code anytime
-const handleChangeCode = async (req, res) => {
-  const u = await who(req);
-  if (!u) return res.status(401).json({ error: "Login required" });
-  if (
-    limited(
-      "cc" +
-        (u.role === "player"
-          ? "p:" + u.id
-          : u.role === "admin"
-            ? "a:" + u.id
-            : u.role),
-      6,
-      60000,
-    )
-  ) {
-    return res
-      .status(429)
-      .json({ error: "Too many attempts. Wait a minute and try again." });
-  }
+// Passwordless Login: Step 2 - Verify OTP and Issue 30-day Session Token
+app.post(
+  "/api/auth/verify-otp",
+  h(async (req, res) => {
+    const b = req.body || {};
+    const identifier = String(b.identifier || b.roll || b.email || b.username || "").trim();
+    const otp = String(b.otp || b.code || "").trim();
 
-  const { currentCode, newCode, ctype } = req.body || {};
-  const cur = String(currentCode || "").trim();
-  const nw = String(newCode || "").trim();
-
-  // 1. Player password/credential change (supports Alphanumeric, Numeric PIN, or Pattern lock)
-  if (u.role === "player") {
-    const accRef = db.collection("accounts").doc(u.id);
-    const acc = await accRef.get();
-    if (!acc.exists) {
-      return res
-        .status(404)
-        .json({
-          error:
-            "No account found for this player. Ask the captain to reset your account.",
-        });
-    }
-    const accData = acc.data();
-    const ok = eq(hashCode(cur, accData.salt), accData.hash);
-    if (!ok) {
-      const curType = accData.type || "alnum";
-      const curLabel =
-        curType === "pattern"
-          ? "Current pattern"
-          : curType === "numeric"
-            ? "Current PIN"
-            : "Current password";
-      return res.status(401).json({ error: `${curLabel} is incorrect.` });
+    if (!identifier || !otp) {
+      return res.status(400).json({ error: "Identifier and 6-digit OTP code are required." });
     }
 
-    const newType = CODE_TYPES.includes(ctype)
-      ? ctype
-      : accData.type || "alnum";
-    const bad = codeProblem(newType, nw);
-    if (bad) return res.status(400).json({ error: bad });
-
-    if (cur === nw) {
-      return res
-        .status(400)
-        .json({
-          error: "New credentials must be different from current ones.",
-        });
+    const user = await resolveAuthUser(identifier);
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
     }
 
-    const salt = crypto.randomBytes(16).toString("hex");
-    await accRef.set({
-      salt,
-      hash: hashCode(nw, salt),
-      created: accData.created || Date.now(),
-      type: newType,
+    const ref = db.collection("otps").doc(user.otpKey);
+    const otpDoc = await ref.get().catch(() => null);
+
+    if (!otpDoc || !otpDoc.exists) {
+      return res.status(400).json({ error: "No login code was requested. Please enter your roll/email and click Send OTP." });
+    }
+
+    const d = otpDoc.data() || {};
+    if (d.exp < Date.now()) {
+      return res.status(400).json({ error: "That verification code has expired. Please request a new code." });
+    }
+
+    if ((d.n || 0) >= 5) {
+      return res.status(423).json({ error: "Too many incorrect attempts. Please request a new code." });
+    }
+
+    if (!/^d{6}$/.test(otp) || !eq(otpHash(user.otpKey, user.email, otp), d.h)) {
+      await ref.update({ n: (d.n || 0) + 1 }).catch(() => {});
+      const triesLeft = Math.max(0, 4 - (d.n || 0));
+      return res.status(401).json({
+        error: "Incorrect verification code. " + triesLeft + " " + (triesLeft === 1 ? "attempt" : "attempts") + " remaining.",
+      });
+    }
+
+    // Success! Delete OTP record
+    await ref.delete().catch(() => {});
+
+    // Generate 30-day session token
+    const token = sign({
+      id: user.id,
+      role: user.role,
+      name: user.name,
+      email: user.email,
+      roll: user.roll || undefined,
+      post: user.post || undefined,
+      exp: Date.now() + 30 * 864e5,
     });
-    bust();
-    const typeLabel =
-      newType === "pattern"
-        ? "Pattern lock"
-        : newType === "numeric"
-          ? "PIN"
-          : "Password";
-    return res.json({
+
+    res.json({
       ok: true,
-      message: `Your ${typeLabel} has been updated successfully!`,
-      codeType: newType,
+      token,
+      user: {
+        id: user.id,
+        role: user.role,
+        name: user.name,
+        email: user.email,
+        roll: user.roll || null,
+        post: user.post || null,
+      },
     });
-  }
+  }),
+);
 
-  // 2. Captain or Vice-captain code change
-  if (u.role === "captain" || u.role === "vice") {
-    const role = u.role;
-    const customCodesDoc = await db
-      .collection("config")
-      .doc("custom_codes")
-      .get()
-      .catch(() => null);
-    const customCodes =
-      customCodesDoc && customCodesDoc.exists
-        ? customCodesDoc.data() || {}
-        : {};
-
-    const expectedEnv = role === "captain" ? CAPTAIN_CODE : VICE_CODE;
-    const currentCustom = customCodes[role] || (u.id ? customCodes[u.id] : null);
-    let ok = false;
-    if (currentCustom && currentCustom.hash) {
-      ok = eq(hashCode(cur, currentCustom.salt), currentCustom.hash);
-    } else if (expectedEnv) {
-      ok = eq(cur, expectedEnv);
+// Backward-compatible POST /api/login endpoint
+app.post(
+  "/api/login",
+  h(async (req, res) => {
+    const b = req.body || {};
+    if (b.otp || b.code) {
+      req.url = "/api/auth/verify-otp";
+      return app._router.handle(req, res);
     }
-    if (!ok && (eq(cur, "1234") || (expectedEnv && eq(cur, expectedEnv)))) {
-      ok = true;
+    if (b.password) {
+      return res.status(400).json({
+        error: "Passwords have been retired! Please log in using the 6-digit OTP sent to your email.",
+      });
     }
-    if (!ok) {
-      return res.status(401).json({ error: "Current code is incorrect." });
-    }
+    req.url = "/api/auth/send-otp";
+    return app._router.handle(req, res);
+  }),
+);
 
-    const newType = CODE_TYPES.includes(ctype) ? ctype : "alnum";
-    const bad = codeProblem(newType, nw);
-    if (bad) return res.status(400).json({ error: bad });
+// Password retired stubs
+app.post("/api/auth/change-code", (req, res) => res.json({ ok: true, message: "Passwords have been retired. All accounts use passwordless email OTP." }));
+app.post("/api/player/change-password", (req, res) => res.json({ ok: true, message: "Passwords have been retired. All accounts use passwordless email OTP." }));
+app.post("/api/me/change-code", (req, res) => res.json({ ok: true, message: "Passwords have been retired. All accounts use passwordless email OTP." }));
 
-    if (cur === nw && cur !== "1234") {
-      return res
-        .status(400)
-        .json({
-          error: "New credentials must be different from current ones.",
-        });
-    }
-
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = hashCode(nw, salt);
-    customCodes[role] = { salt, hash, type: newType, at: Date.now() };
-    if (u.id) {
-      customCodes[u.id] = { salt, hash, type: newType, at: Date.now() };
-      await db.collection("admins").doc(u.id).update({ salt, hash }).catch(() => {});
-    }
-
-    await db.collection("config").doc("custom_codes").set(customCodes);
-    bust();
-    const typeLabel =
-      newType === "pattern"
-        ? "Pattern lock"
-        : newType === "numeric"
-          ? "PIN"
-          : "Password";
-    return res.json({
-      ok: true,
-      message: `Your ${role === "captain" ? "Captain" : "Vice-captain"} ${typeLabel.toLowerCase()} has been updated successfully!`,
-      codeType: newType,
-    });
-  }
-
-  // 3. Coach / Admin code change
-  if (
-    u.role === "admin" ||
-    u.role === "coach" ||
-    (u.id && ["captain", "vice"].includes(u.role))
-  ) {
-    let aDoc = null;
-    if (u.id) {
-      aDoc = await db
-        .collection("admins")
-        .doc(u.id)
-        .get()
-        .catch(() => null);
-    }
-    if ((!aDoc || !aDoc.exists) && (u.role === "coach" || isCoachUser(u))) {
-      const snap = await db.collection("admins").get();
-      aDoc =
-        snap.docs.find(
-          (d) =>
-            !d.data().disabled &&
-            (d.data().post === "coach" || d.data().kind === "coach"),
-        ) || null;
-    }
-    if (!aDoc || !aDoc.exists || aDoc.data().disabled) {
-      return res.status(401).json({ error: "Account not found or disabled." });
-    }
-
-    const customCodesDoc = await db
-      .collection("config")
-      .doc("custom_codes")
-      .get()
-      .catch(() => null);
-    const customCodes =
-      customCodesDoc && customCodesDoc.exists
-        ? customCodesDoc.data() || {}
-        : {};
-
-    const isCoach = isCoachUser(u, aDoc.data());
-
-    const customEntry =
-      customCodes[aDoc.id] ||
-      (isCoach ? customCodes.coach : null) ||
-      (u.id ? customCodes[u.id] : null);
-
-    let ok = false;
-    if (aDoc.data().salt && aDoc.data().hash) {
-      if (eq(hashCode(cur, aDoc.data().salt), aDoc.data().hash)) ok = true;
-    }
-    if (!ok && customEntry && customEntry.salt && customEntry.hash) {
-      if (eq(hashCode(cur, customEntry.salt), customEntry.hash)) ok = true;
-    }
-    if (
-      !ok &&
-      isCoach &&
-      customCodes.coach &&
-      customCodes.coach.salt &&
-      customCodes.coach.hash
-    ) {
-      if (eq(hashCode(cur, customCodes.coach.salt), customCodes.coach.hash))
-        ok = true;
-    }
-    if (!ok && isCoach) {
-      if (COACH_CODE && eq(cur, COACH_CODE)) ok = true;
-      if (eq(cur, "1234")) ok = true;
-    }
-    if (!ok && eq(cur, "1234")) {
-      ok = true;
-    }
-
-    if (!ok) {
-      return res.status(401).json({ error: "Current code is incorrect." });
-    }
-
-    const newType = CODE_TYPES.includes(ctype) ? ctype : "alnum";
-    const bad = codeProblem(newType, nw);
-    if (bad) return res.status(400).json({ error: bad });
-
-    if (cur === nw && cur !== "1234") {
-      return res
-        .status(400)
-        .json({
-          error: "New credentials must be different from current ones.",
-        });
-    }
-
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = hashCode(nw, salt);
-    await db.collection("admins").doc(aDoc.id).update({
-      salt,
-      hash,
-    });
-
-    // Persist credentials and code type in custom_codes config so it survives database reloads and schema constraints
-    customCodes[aDoc.id] = { salt, hash, type: newType, at: Date.now() };
-    if (isCoach) {
-      customCodes.coach = { salt, hash, type: newType, at: Date.now() };
-    }
-    if (u.role === "captain" || aDoc.data().post === "captain") {
-      customCodes.captain = { salt, hash, type: newType, at: Date.now() };
-    }
-    if (u.role === "vice" || aDoc.data().post === "vice") {
-      customCodes.vice = { salt, hash, type: newType, at: Date.now() };
-    }
-    await db.collection("config").doc("custom_codes").set(customCodes);
-
-    bust();
-    const roleTitle =
-      isCoach
-        ? "Coach"
-        : u.role === "captain" || aDoc.data().post === "captain"
-          ? "Captain"
-          : u.role === "vice" || aDoc.data().post === "vice"
-            ? "Vice-captain"
-            : "Admin";
-    const typeLabel =
-      newType === "pattern"
-        ? "Pattern lock"
-        : newType === "numeric"
-          ? "PIN"
-          : "Password";
-    return res.json({
-      ok: true,
-      message: `Your ${roleTitle} ${typeLabel.toLowerCase()} has been updated successfully!`,
-      codeType: newType,
-    });
-  }
-
-  return res
-    .status(400)
-    .json({ error: "Cannot change password for this role." });
-};
-
-app.post("/api/auth/change-code", h(handleChangeCode));
-app.post("/api/player/change-password", h(handleChangeCode));
-app.post("/api/me/change-code", h(handleChangeCode));
 app.get(
   "/api/auth/code-type",
   h(async (req, res) => {
@@ -1170,523 +931,16 @@ app.post(
     });
   }),
 );
-// Coach OTP: lets the Head Coach reset the code through the official e-mail saved for the coach
-app.post(
-  "/api/coach/forgot-otp",
-  h(async (req, res) => {
-    if (limited("otpip" + req.ip, 12, 3600e3))
-      return res
-        .status(429)
-        .json({ error: "Too many tries. Please wait a while." });
-    const ident = await coachIdentity();
-    const email = ident.email;
-    if (!EMAIL_RE.test(email || ""))
-      return res.status(400).json({
-        error:
-          "No e-mail is saved for the Coach. Set COACH_CODE in the server settings to get back in, then add the e-mail in the Coach profile.",
-      });
-    const ref = db.collection("otps").doc("coach_kiran"),
-      cur = await ref.get(),
-      now = Date.now(),
-      c = cur.exists ? cur.data() : {};
-    if (c.at && now - c.at < 60000)
-      return res.status(429).json({
-        error:
-          "Wait " +
-          Math.ceil((60000 - (now - c.at)) / 1000) +
-          " seconds before asking for another code.",
-        wait: Math.ceil((60000 - (now - c.at)) / 1000),
-      });
-    const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
-    await ref.set({
-      h: otpHash("coach_kiran", email, code),
-      email,
-      exp: now + 600e3,
-      n: 0,
-      at: now,
-    });
-    const host =
-      req.headers["x-forwarded-host"] ||
-      req.headers.host ||
-      "hockey-iitp.anmol.website";
-    const proto =
-      req.headers["x-forwarded-proto"] || (req.secure ? "https" : "https");
-    const appUrl = `${proto}://${host}`;
-    const autoFillUrl = `${appUrl}/?role=coach&otp=${encodeURIComponent(code)}&mode=reset`;
-
-    if (!process.env.RESEND_API_KEY) {
-      return res.status(503).json({ error: "E-mail service is not configured on the server." });
-    }
-
-    sendEmail(
-      email,
-      `Head Coach Password Reset Code: ${code} - IITP Hockey`,
-      `Hello Head Coach ${ident.name},\n\nYour 6-digit password reset code is: ${code}\n\nAuto-fill link: ${autoFillUrl}\n\nThis code is valid for 10 minutes.`,
-      `<div style="font-family:sans-serif;padding:24px;background:#f8fafc;border-radius:12px;max-width:500px;margin:auto;"><h2 style="color:#0b2a4a;margin-top:0;">🏑 Head Coach Password Reset</h2><p>Hello Coach ${ident.name},</p><p>Use the 6-digit verification code below to reset your portal password:</p><div style="font-size:36px;font-weight:bold;letter-spacing:6px;color:#0b2a4a;padding:12px 0;">${code}</div><p><a href="${autoFillUrl}" style="display:inline-block;background:#0f4aa8;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">🚀 Open App & Reset Password</a></p><p style="color:#64748b;font-size:12px;">Valid for 10 minutes. If you did not request this, please ignore this email.</p></div>`,
-    ).catch((err) => {
-      console.error("sendEmail coach OTP error:", err.message);
-    });
-    res.json({ ok: true, sentTo: maskEmail(email), wait: 60 });
-  }),
-);
-
-app.post(
-  "/api/coach/reset-password",
-  h(async (req, res) => {
-    const { otp, code, ctype } = req.body || {};
-    const ref = db.collection("otps").doc("coach_kiran"),
-      o = await ref.get();
-    if (!o.exists || o.data().exp < Date.now())
-      return res
-        .status(400)
-        .json({
-          error: "That reset code has expired. Please send code again.",
-        });
-    const d = o.data();
-    if (d.n >= 5)
-      return res
-        .status(423)
-        .json({ error: "Too many wrong tries. Send a new code." });
-    if (
-      !/^\d{6}$/.test(String(otp || "")) ||
-      !eq(otpHash("coach_kiran", d.email, String(otp)), d.h)
-    ) {
-      await ref.update({ n: (d.n || 0) + 1 });
-      return res
-        .status(401)
-        .json({
-          error: "Wrong e-mail code. " + (4 - (d.n || 0)) + " tries left.",
-        });
-    }
-    const c = String(code || "");
-    const newType = CODE_TYPES.includes(ctype) ? ctype : "alnum";
-    const bad = codeProblem(newType, c);
-    if (bad) return res.status(400).json({ error: bad });
-
-    const snap = await db.collection("admins").get();
-    const coachDoc = snap.docs.find(
-      (doc) =>
-        !doc.data().disabled &&
-        (doc.data().post === "coach" || doc.data().kind === "coach"),
-    );
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = crypto.scryptSync(c, salt, 32).toString("hex");
-    if (coachDoc) {
-      await db.collection("admins").doc(coachDoc.id).update({
-        salt,
-        hash,
-        type: newType,
-        playerId: null,
-      });
-    }
-
-    const customCodesDoc = await db
-      .collection("config")
-      .doc("custom_codes")
-      .get()
-      .catch(() => null);
-    const customCodes =
-      customCodesDoc && customCodesDoc.exists
-        ? customCodesDoc.data() || {}
-        : {};
-    customCodes.coach = { salt, hash, type: newType, at: Date.now() };
-    if (coachDoc) {
-      customCodes[coachDoc.id] = { salt, hash, type: newType, at: Date.now() };
-    }
-    await db.collection("config").doc("custom_codes").set(customCodes);
-    await ref.delete();
-    bust();
-    const token = sign({
-      role: "coach",
-      id: coachDoc ? coachDoc.id : "coach",
-      name: coachDoc ? coachDoc.data().name : COACH_NAME,
-      email: (await coachIdentity()).email,
-      post: "coach",
-      exp: Date.now() + 7 * 864e5,
-    });
-    res.json({ token, ok: true });
-  }),
-);
-
-// Coach Password Reset using secret Recovery Password (process.env.COACH_CODE)
-// Instant reset without waiting for academic email OTP delivery. Recovery password is never exposed.
-app.post(
-  "/api/coach/reset-with-recovery-code",
-  h(async (req, res) => {
-    if (limited("recip" + req.ip, 10, 3600e3)) {
-      return res
-        .status(429)
-        .json({ error: "Too many attempts. Please wait a while." });
-    }
-    const { recoveryCode, newCode } = req.body || {};
-    const rCode = String(recoveryCode || "").trim();
-    const nCode = String(newCode || "").trim();
-
-    const expectedRecovery = String(process.env.COACH_CODE || "1234").trim();
-    if (!rCode || !eq(rCode, expectedRecovery)) {
-      return res
-        .status(401)
-        .json({ error: "Invalid Coach Recovery Password. Please try again." });
-    }
-
-    if (nCode.length < 4 || nCode.length > 30) {
-      return res
-        .status(400)
-        .json({ error: "New password must be between 4 and 30 characters." });
-    }
-
-    const snap = await db.collection("admins").get();
-    const coachDoc = snap.docs.find(
-      (doc) =>
-        !doc.data().disabled &&
-        (doc.data().post === "coach" || doc.data().kind === "coach"),
-    );
-
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = crypto.scryptSync(nCode, salt, 32).toString("hex");
-
-    if (coachDoc) {
-      await db.collection("admins").doc(coachDoc.id).update({
-        salt,
-        hash,
-        type: "alnum",
-        playerId: null,
-      });
-    }
-
-    const customCodesDoc = await db
-      .collection("config")
-      .doc("custom_codes")
-      .get()
-      .catch(() => null);
-    const customCodes =
-      customCodesDoc && customCodesDoc.exists
-        ? customCodesDoc.data() || {}
-        : {};
-    customCodes.coach = { salt, hash, type: "alnum", at: Date.now() };
-    if (coachDoc) {
-      customCodes[coachDoc.id] = { salt, hash, type: "alnum", at: Date.now() };
-    }
-    await db.collection("config").doc("custom_codes").set(customCodes);
-
-    bust();
-    const ident = await coachIdentity();
-    const token = sign({
-      role: "coach",
-      id: coachDoc ? coachDoc.id : "coach",
-      name: coachDoc ? coachDoc.data().name : COACH_NAME,
-      email: ident.email,
-      post: "coach",
-      exp: Date.now() + 7 * 864e5,
-    });
-    res.json({
-      ok: true,
-      token,
-      message: "Coach password updated successfully using Recovery Password!",
-    });
-  }),
-);
-
-// ---- In-App Forgot Password / Code Recovery via Email OTP ----
-const handleForgotCodeOtp = async (req, res) => {
-  const u = await who(req);
-  if (!u) return res.status(401).json({ error: "Login required." });
-
-  if (limited("otpip" + req.ip, 12, 3600e3)) {
-    return res
-      .status(429)
-      .json({ error: "Too many attempts. Please wait a while." });
-  }
-
-  let email = "";
-  let otpDocKey = "";
-  let recipientName = u.name || "Member";
-
-  if (isCoachUser(u)) {
-    const ident = await coachIdentity();
-    email = ident.email;
-    otpDocKey = "coach_kiran";
-    recipientName = ident.name;
-  } else if (u.role === "player") {
-    const plDoc = await db
-      .collection("players")
-      .doc(u.id)
-      .get()
-      .catch(() => null);
-    if (!plDoc || !plDoc.exists) {
-      return res.status(404).json({ error: "Player profile not found." });
-    }
-    const plData = plDoc.data();
-    email = (plData.email || "").trim();
-    if (!EMAIL_RE.test(email)) {
-      return res.status(400).json({
-        error:
-          "No valid email address registered for your player profile. Please ask Coach or Captain to update your email.",
-      });
-    }
-    otpDocKey = u.id;
-    recipientName = plData.name || "Player";
-  } else {
-    // Admin, Captain, Vice-Captain
-    if (u.id) {
-      const [aDoc, emailsDoc] = await Promise.all([
-        db.collection("admins").doc(u.id).get().catch(() => null),
-        db.collection("config").doc("admin_emails").get().catch(() => null),
-      ]);
-      const adminEmails =
-        (emailsDoc && emailsDoc.exists ? emailsDoc.data() : {}) || {};
-      if (aDoc && aDoc.exists) {
-        const aData = aDoc.data();
-        const configuredEmail = adminEmails[u.id] || aData.email;
-        if (configuredEmail && EMAIL_RE.test(configuredEmail)) {
-          email = configuredEmail.trim();
-        } else if (aData.playerId) {
-          const plDoc = await db
-            .collection("players")
-            .doc(aData.playerId)
-            .get()
-            .catch(() => null);
-          if (
-            plDoc &&
-            plDoc.exists &&
-            EMAIL_RE.test(plDoc.data().email || "")
-          ) {
-            email = plDoc.data().email.trim();
-          }
-        }
-        recipientName = aData.name || u.name || "Admin";
-      }
-      otpDocKey = "admin_" + u.id;
-    }
-    if (!email) {
-      return res.status(400).json({
-        error:
-          "No email address found for your account. Please contact the Head Coach to update your access code.",
-      });
-    }
-  }
-
-  const ref = db.collection("otps").doc(otpDocKey);
-  const cur = await ref.get().catch(() => null);
-  const now = Date.now();
-  const c = cur && cur.exists ? cur.data() : {};
-  if (c.at && now - c.at < 60000) {
-    const waitSec = Math.ceil((60000 - (now - c.at)) / 1000);
-    return res.status(429).json({
-      error: `Please wait ${waitSec} seconds before requesting another code.`,
-      wait: waitSec,
-    });
-  }
-
-  const hourStart = c.hs && now - c.hs < 3600e3 ? c.hs : now;
-  const sends = c.hs && now - c.hs < 3600e3 ? c.sends || 0 : 0;
-  if (sends >= 6) {
-    return res.status(429).json({
-      error: "Too many codes requested. Please try again in an hour.",
-    });
-  }
-
-  const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
-  await ref.set({
-    h: otpHash(otpDocKey, email, code),
-    email,
-    exp: now + 600e3,
-    n: 0,
-    at: now,
-    hs: hourStart,
-    sends: sends + 1,
-  });
-
-  if (!process.env.RESEND_API_KEY) {
-    return res.status(503).json({ error: "E-mail service is not configured on the server." });
-  }
-
-  sendEmail(
-    email,
-    `Password Reset Verification Code: ${code} - IITP Hockey`,
-    `Hello ${recipientName},\n\nYour 6-digit password reset verification code is: ${code}\n\nEnter this code in the portal to set your new password.\n\nValid for 10 minutes.`,
-    `<div style="font-family:sans-serif;padding:24px;background:#f8fafc;border-radius:12px;max-width:500px;margin:auto;"><h2 style="color:#0b2a4a;margin-top:0;">🏑 IITP Hockey Password Reset</h2><p>Hello ${recipientName},</p><p>Use the 6-digit verification code below to set your new credentials:</p><div style="font-size:36px;font-weight:bold;letter-spacing:6px;color:#0b2a4a;padding:12px 0;">${code}</div><p style="color:#64748b;font-size:12px;">Valid for 10 minutes. If you did not request this, please ignore this email.</p></div>`,
-  ).catch((err) => {
-    console.error("sendEmail auth OTP error:", err.message);
-  });
-
-  return res.json({
-    ok: true,
-    sentTo: maskEmail(email),
-    wait: 60,
-  });
-};
-
-const handleResetWithOtp = async (req, res) => {
-  const u = await who(req);
-  if (!u) return res.status(401).json({ error: "Login required." });
-
-  const { otp, newCode, ctype } = req.body || {};
-  const cleanOtp = String(otp || "").trim();
-  if (!/^\d{6}$/.test(cleanOtp)) {
-    return res
-      .status(400)
-      .json({ error: "Please enter the complete 6-digit verification code." });
-  }
-
-  let otpDocKey = "";
-  if (isCoachUser(u)) {
-    otpDocKey = "coach_kiran";
-  } else if (u.role === "player") {
-    otpDocKey = u.id;
-  } else {
-    otpDocKey = "admin_" + (u.id || "");
-  }
-
-  const ref = db.collection("otps").doc(otpDocKey);
-  const o = await ref.get().catch(() => null);
-  if (!o || !o.exists || o.data().exp < Date.now()) {
-    return res
-      .status(400)
-      .json({
-        error: "That verification code has expired. Please send code again.",
-      });
-  }
-
-  const d = o.data();
-  if (d.n >= 5) {
-    return res
-      .status(423)
-      .json({ error: "Too many wrong attempts. Please send a new code." });
-  }
-
-  if (!eq(otpHash(otpDocKey, d.email, cleanOtp), d.h)) {
-    await ref.update({ n: (d.n || 0) + 1 }).catch(() => {});
-    return res
-      .status(401)
-      .json({
-        error: "Wrong verification code. " + (4 - (d.n || 0)) + " tries left.",
-      });
-  }
-
-  const nw = String(newCode || "");
-  const newType = CODE_TYPES.includes(ctype) ? ctype : "alnum";
-  const bad = codeProblem(newType, nw);
-  if (bad) return res.status(400).json({ error: bad });
-
-  const typeLabel =
-    newType === "pattern"
-      ? "Pattern lock"
-      : newType === "numeric"
-        ? "PIN"
-        : "Password";
-
-  // 1. Player Reset
-  if (u.role === "player") {
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = hashCode(nw, salt);
-    await db.collection("accounts").doc(u.id).set({
-      salt,
-      hash,
-      created: Date.now(),
-      type: newType,
-    });
-    await ref.delete().catch(() => {});
-    bust();
-    return res.json({
-      ok: true,
-      message: `Your ${typeLabel.toLowerCase()} has been reset successfully!`,
-      codeType: newType,
-    });
-  }
-
-  // 2. Coach Reset
-  if (isCoachUser(u)) {
-    const snap = await db.collection("admins").get();
-    const coachDoc = snap.docs.find(
-      (doc) =>
-        !doc.data().disabled &&
-        (doc.data().post === "coach" || doc.data().kind === "coach"),
-    );
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = hashCode(nw, salt);
-    if (coachDoc) {
-      await db.collection("admins").doc(coachDoc.id).update({
-        salt,
-        hash,
-        type: newType,
-        playerId: null,
-      });
-    }
-
-    const customCodesDoc = await db
-      .collection("config")
-      .doc("custom_codes")
-      .get()
-      .catch(() => null);
-    const customCodes =
-      customCodesDoc && customCodesDoc.exists
-        ? customCodesDoc.data() || {}
-        : {};
-    customCodes.coach = { salt, hash, type: newType, at: Date.now() };
-    if (coachDoc) {
-      customCodes[coachDoc.id] = { salt, hash, type: newType, at: Date.now() };
-    }
-    await db.collection("config").doc("custom_codes").set(customCodes);
-    await ref.delete().catch(() => {});
-    bust();
-    return res.json({
-      ok: true,
-      message: `Your Coach ${typeLabel.toLowerCase()} has been reset successfully!`,
-      codeType: newType,
-    });
-  }
-
-  // 3. Captain / Vice-captain / Admin Reset
-  if (u.id) {
-    const aDoc = await db.collection("admins").doc(u.id).get();
-    if (!aDoc.exists || aDoc.data().disabled) {
-      return res.status(401).json({ error: "Account not found or disabled." });
-    }
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = hashCode(nw, salt);
-    await db.collection("admins").doc(u.id).update({
-      salt,
-      hash,
-      type: newType,
-    });
-
-    const customCodesDoc = await db
-      .collection("config")
-      .doc("custom_codes")
-      .get()
-      .catch(() => null);
-    const customCodes =
-      customCodesDoc && customCodesDoc.exists
-        ? customCodesDoc.data() || {}
-        : {};
-    customCodes[u.id] = { salt, hash, type: newType, at: Date.now() };
-    if (u.role === "captain" || u.role === "vice") {
-      customCodes[u.role] = { salt, hash, type: newType, at: Date.now() };
-    }
-    await db.collection("config").doc("custom_codes").set(customCodes);
-    await ref.delete().catch(() => {});
-    bust();
-    const roleTitle =
-      u.role === "captain"
-        ? "Captain"
-        : u.role === "vice"
-          ? "Vice-captain"
-          : "Admin";
-    return res.json({
-      ok: true,
-      message: `Your ${roleTitle} ${typeLabel.toLowerCase()} has been reset successfully!`,
-      codeType: newType,
-    });
-  }
-
-  return res
-    .status(400)
-    .json({ error: "Cannot reset password for this role." });
-};
-
-app.post("/api/auth/forgot-code-otp", h(handleForgotCodeOtp));
-app.post("/api/auth/reset-with-otp", h(handleResetWithOtp));
+// Coach recovery & password endpoints retired
+app.post("/api/coach/forgot-otp", (req, res) => {
+  req.body = { identifier: "coach" };
+  req.url = "/api/auth/send-otp";
+  return app._router.handle(req, res);
+});
+app.post("/api/coach/reset-password", (req, res) => res.status(400).json({ error: "Passwords have been retired. Please log in with instant Email OTP." }));
+app.post("/api/coach/reset-with-recovery-code", (req, res) => res.status(400).json({ error: "Passwords have been retired. Please log in with instant Email OTP." }));
+app.post("/api/auth/forgot-code-otp", (req, res) => res.status(400).json({ error: "Passwords have been retired. Please log in with instant Email OTP." }));
+app.post("/api/auth/reset-with-otp", (req, res) => res.status(400).json({ error: "Passwords have been retired. Please log in with instant Email OTP." }));
 
 // Step 1: send the code. If the captain already saved an e-mail for you, the code goes there. Otherwise you type your own e-mail.
 app.post(
@@ -3103,12 +2357,11 @@ app.post(
   owner,
   h(async (req, res) => {
     const b = req.body || {},
-      name = str(b.name, 40).trim(),
-      code = String(b.code || "");
-    if (!name || code.length < 4 || code.length > 30)
+      name = str(b.name, 40).trim();
+    if (!name)
       return res
         .status(400)
-        .json({ error: "A name and a code of 4 to 30 characters are needed" });
+        .json({ error: "A name is required" });
 
     const allAdmins = (await db.collection("admins").get()).docs;
     if (
@@ -3192,7 +2445,6 @@ app.post(
       }
     }
 
-    const salt = crypto.randomBytes(16).toString("hex");
     const docRef = await db.collection("admins").add({
       name,
       disabled: false,
@@ -3200,8 +2452,6 @@ app.post(
       post,
       playerId,
       created: Date.now(),
-      salt,
-      hash: crypto.scryptSync(code, salt, 32).toString("hex"),
     });
 
     if (email) {
@@ -3464,10 +2714,9 @@ app.post(
 
     // Option 2: a brand new person becomes Coach
     const coachName = str(name, 40).trim();
-    const coachCode = String(code || "");
-    if (!coachName || coachCode.length < 4 || coachCode.length > 30) {
+    if (!coachName) {
       return res.status(400).json({
-        error: "New coach requires a name and code of 4 to 30 characters",
+        error: "New coach requires a full name",
       });
     }
     if (
@@ -3483,7 +2732,6 @@ app.post(
           "An admin with that name already exists. Choose a different name.",
       });
     }
-    const salt = crypto.randomBytes(16).toString("hex");
     await db.collection("admins").add({
       name: coachName,
       disabled: false,
@@ -3491,8 +2739,6 @@ app.post(
       post: "coach",
       playerId: null,
       created: Date.now(),
-      salt,
-      hash: crypto.scryptSync(coachCode, salt, 32).toString("hex"),
     });
     // Only now remove the old Coach: her account, every code she had and her photo.
     if (currentCoachDoc) await retireCoach(currentCoachDoc.id);
@@ -4910,7 +4156,7 @@ app.use((err, req, res, next) => {
 async function ensureDefaultCoach() {
   if (!db) return;
   try {
-    const cd = await getCoachDoc(); // creates the coach from COACH_CODE if missing, and retires the old public code 1234
+    const cd = await getCoachDoc(); // ensures default coach document exists
     if (cd) {
       // show the coach name on the public page, and repair the coach photo key that an old build had overwritten with a name
       const nd = await db
