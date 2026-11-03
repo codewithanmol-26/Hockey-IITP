@@ -4022,6 +4022,16 @@ app.get(
     }
 
     const { month = "all", format = "excel" } = req.query;
+
+    if (format === "xlsx" || month === "master") {
+      const xlsxPath = require("path").resolve(__dirname, "../client/downloads/IITP_Hockey_Monthwise_Attendance.xlsx");
+      if (require("fs").existsSync(xlsxPath)) {
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", 'attachment; filename="IITP_Hockey_Monthwise_Attendance.xlsx"');
+        return res.sendFile(xlsxPath);
+      }
+    }
+
     const all = await readAll(false);
     const activePlayers = (all.players || []).filter((pl) => !pl.removed);
     const resolvedMonth = resolveExportMonth(month, all.sessions, all.legacy);
