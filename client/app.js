@@ -1093,7 +1093,9 @@ function initUnifiedLogin() {
     };
   }
 
-  const startCooldown = (seconds = 45) => {
+  let isOtpSending = false;
+
+  const startCooldown = (seconds = 25) => {
     if (otpCooldownInterval) clearInterval(otpCooldownInterval);
     let remaining = seconds;
     if (resendBtn) {
@@ -1131,6 +1133,8 @@ function initUnifiedLogin() {
   };
 
   const handleSendOtp = async (isResend = false) => {
+    if (isOtpSending) return false;
+
     const idVal = (idInp ? idInp.value : otpLoginTargetId || "").trim();
     if (!idVal) {
       if (errEl) {
@@ -1140,11 +1144,23 @@ function initUnifiedLogin() {
       if (idInp) idInp.focus();
       return false;
     }
+
+    // Prevent duplicate email dispatch if a code was already dispatched recently
+    if (otpCooldownInterval && !isResend) {
+      if (errEl) {
+        errEl.style.color = "var(--ink, #0b2a4a)";
+        errEl.textContent = "A verification code was already sent. Please check your email inbox.";
+      }
+      if (otpInp) otpInp.focus();
+      return false;
+    }
+
     if (errEl) {
       errEl.textContent = "";
       errEl.style.color = "";
     }
 
+    isOtpSending = true;
     const activeBtn = isResend ? resendBtn : sendBtn;
     const origText = activeBtn ? activeBtn.innerHTML : "";
     if (activeBtn) {
@@ -1163,7 +1179,7 @@ function initUnifiedLogin() {
       if (otpInp) {
         otpInp.focus();
       }
-      startCooldown(res.wait || 45);
+      startCooldown(res.wait || 25);
       toast("Verification code sent to " + (res.sentTo || idVal) + "!");
       return true;
     } catch (x) {
@@ -1176,6 +1192,8 @@ function initUnifiedLogin() {
         activeBtn.innerHTML = origText;
       }
       return false;
+    } finally {
+      isOtpSending = false;
     }
   };
 
@@ -1196,7 +1214,16 @@ function initUnifiedLogin() {
 
     const code = (otpInp ? otpInp.value : "").trim().replace(/\D/g, "");
     if (!code) {
-      // If user provided ID but OTP is empty, send OTP automatically and prompt them
+      // If code was already sent, do NOT send another repetitive email!
+      if (otpCooldownInterval) {
+        if (errEl) {
+          errEl.style.color = "var(--ink, #0b2a4a)";
+          errEl.textContent = "Code already sent! Check your inbox or enter the 6-digit code.";
+        }
+        if (otpInp) otpInp.focus();
+        return;
+      }
+      // Only send OTP if none has been sent yet
       const sent = await handleSendOtp(false);
       if (sent && errEl) {
         errEl.style.color = "var(--ink, #0b2a4a)";

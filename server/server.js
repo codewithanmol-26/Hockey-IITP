@@ -521,6 +521,9 @@ async function resolveAuthUser(rawIdentifier) {
   return null;
 }
 
+// In-memory locks for concurrent OTP dispatch prevention
+const inflightOtpLocks = new Map();
+
 // Passwordless Login: Step 1 - Send instant 6-digit Email OTP
 app.post(
   "/api/auth/send-otp",
@@ -549,14 +552,25 @@ app.post(
       });
     }
 
+    // In-memory atomic debounce lock to prevent duplicate concurrent email dispatch
+    const lockKey = String(user.otpKey || user.id || email).toLowerCase();
+    const lastLock = inflightOtpLocks.get(lockKey);
+    const now = Date.now();
+    if (lastLock && now - lastLock < 25000) {
+      const waitSec = Math.ceil((25000 - (now - lastLock)) / 1000);
+      return res.status(429).json({
+        error: "Verification code was just sent! Please check your email inbox (or spam folder) or wait " + waitSec + "s.",
+        wait: waitSec,
+      });
+    }
+
     const ref = db.collection("otps").doc(user.otpKey);
     const cur = await ref.get().catch(() => null);
-    const now = Date.now();
     const c = cur && cur.exists ? cur.data() || {} : {};
 
-    // 45s cooldown between OTP requests for the same account
-    if (c.at && now - c.at < 45000) {
-      const waitSec = Math.ceil((45000 - (now - c.at)) / 1000);
+    // 25s cooldown between OTP requests for the same account
+    if (c.at && now - c.at < 25000) {
+      const waitSec = Math.ceil((25000 - (now - c.at)) / 1000);
       return res.status(429).json({
         error: "Please wait " + waitSec + " seconds before requesting another code.",
         wait: waitSec,
@@ -570,6 +584,9 @@ app.post(
         error: "Too many login codes requested for this account. Please try again in an hour.",
       });
     }
+
+    // Lock account immediately before async operations
+    inflightOtpLocks.set(lockKey, now);
 
     const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
     await ref.set({
@@ -613,18 +630,23 @@ app.post(
     const emailText = "Hello " + user.name + ",\n\nYour 6-digit login verification code for IIT Patna Hockey is: " + code + "\n\nAuto-login link: " + autoFillUrl + "\n\nThis code is valid for 10 minutes.\n\nIIT Patna Field Hockey";
     const emailHtml = '<!DOCTYPE html><html><body style="margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;background-color:#f1f5f9;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.06);border:1px solid #e2e8f0;"><tr><td style="background:linear-gradient(135deg, #071a2e 0%, #0b2a4a 55%, #0f4aa8 100%);padding:28px 24px;text-align:center;"><div style="font-size:12px;letter-spacing:2px;font-weight:800;color:#facc15;text-transform:uppercase;margin-bottom:4px;">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div><h1 style="margin:0;font-size:24px;color:#ffffff;font-weight:900;letter-spacing:-0.5px;">🏑 IITP Hockey Team</h1><div style="font-size:13px;color:#cbd5e1;margin-top:6px;">One-Time Login Verification</div></td></tr><tr><td style="padding:28px 24px 20px;"><h2 style="margin:0 0 10px;font-size:18px;color:#0b2a4a;font-weight:700;">Hello ' + escH(user.name) + ',</h2><p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#475569;">Use the 6-digit login code below to securely sign in to the official IIT Patna Hockey portal:</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px dashed #0f4aa8;border-radius:16px;margin:20px 0;"><tr><td style="padding:22px 16px;text-align:center;"><span style="display:block;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px;">Your 6-Digit Login Code</span><div style="font-family:\'Courier New\',Courier,monospace;font-size:42px;letter-spacing:12px;font-weight:900;color:#0b2a4a;padding:4px 0;user-select:all;-webkit-user-select:all;display:inline-block;">' + code + '</div></td></tr></table><div style="text-align:center;margin:24px 0 18px;"><a href="' + autoFillUrl + '" target="_blank" style="display:inline-block;background:#0f4aa8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 26px;border-radius:12px;box-shadow:0 4px 14px rgba(15,74,168,0.35);">🚀 Click Here to Log In Instantly</a></div><p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#64748b;text-align:center;">Or type the 6 digits into the login screen. Valid for <b>10 minutes</b>.</p></td></tr><tr><td style="padding:16px 24px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;"><p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.4;">Indian Institute of Technology Patna · Field Hockey Portal<br>If you did not request this code, you can safely ignore this message.</p></td></tr></table></body></html>';
 
-    // Dispatch email with fast race
-    const emailPromise = sendEmail(email, emailSubject, emailText, emailHtml).catch((err) => {
+    // Directly await email dispatch so Resend sends it immediately and serverless container never freezes
+    try {
+      await sendEmail(email, emailSubject, emailText, emailHtml);
+    } catch (err) {
       console.error("sendEmail OTP error:", err.message);
-    });
-    await Promise.race([emailPromise, new Promise((resolve) => setTimeout(resolve, 800))]);
+      inflightOtpLocks.delete(lockKey);
+      return res.status(err.status || 502).json({
+        error: err.public || "Could not send verification email. Please check your network or try again.",
+      });
+    }
 
     res.json({
       ok: true,
       sentTo: maskEmail(email),
       role: user.role,
       name: user.name,
-      wait: 45,
+      wait: 25,
     });
   }),
 );
@@ -897,7 +919,7 @@ async function sendEmail(to, subject, text, html) {
       503,
       "E-mail is not set up on the server yet. The captain must add RESEND_API_KEY in Vercel and redeploy.",
     );
-  const from = process.env.RESEND_FROM || "IITP Hockey <onboarding@resend.dev>";
+  const from = (process.env.RESEND_FROM || "IIT Patna Hockey <noreply@anmol.website>").trim();
   let r;
   try {
     r = await fetch("https://api.resend.com/emails", {
@@ -906,16 +928,29 @@ async function sendEmail(to, subject, text, html) {
         Authorization: "Bearer " + key,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to: [to], subject, text, html }),
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject,
+        text,
+        html,
+        headers: {
+          "X-Entity-Ref-ID": crypto.randomUUID(),
+        },
+      }),
       signal: AbortSignal.timeout(9000),
     });
   } catch (e) {
+    console.error("sendEmail fetch error:", e.message);
     throw new PublicError(
       503,
       "Could not reach the e-mail service. Please try again.",
     );
   }
-  if (r.ok) return;
+  if (r.ok) {
+    const data = await r.json().catch(() => ({}));
+    return data;
+  }
   const j = await r.json().catch(() => ({})),
     m = String(j.message || "");
   console.error("resend", r.status, m);
@@ -1156,10 +1191,15 @@ app.post(
       return res.status(503).json({ error: "E-mail service is not configured on the server." });
     }
 
-    sendEmail(email, emailSubject, emailText, emailHtml).catch((err) => {
+    try {
+      await sendEmail(email, emailSubject, emailText, emailHtml);
+    } catch (err) {
       console.error("sendEmail player OTP error:", err.message);
-    });
-    res.json({ ok: true, sentTo: maskEmail(email), wait: 60 });
+      return res.status(err.status || 502).json({
+        error: err.public || "Could not send verification email. Please try again.",
+      });
+    }
+    res.json({ ok: true, sentTo: maskEmail(email), wait: 25 });
   }),
 );
 // Captain / vice-captain: send a test e-mail to check the Resend + domain setup before the team signs up.
