@@ -1155,7 +1155,7 @@ function initUnifiedLogin() {
         });
         saveToken(r.token);
         closeLogin();
-        tab = "me";
+        tab = (r.user?.role === "player") ? "me" : "att";
         boot();
         toast("Welcome back, " + (r.user?.name || "Player") + "!");
       } catch (x) {
@@ -1253,10 +1253,37 @@ function logout() {
 function handleUrlAuthParams() {
   try {
     const params = new URLSearchParams(window.location.search);
+    const identParam = (params.get("identifier") || params.get("email") || params.get("user") || "").trim();
     const roleParam = (params.get("role") || "").trim().toLowerCase();
     const roll = (params.get("roll") || "").trim().toUpperCase();
-    const otp = (params.get("otp") || "").trim().replace(/\D/g, "").slice(0, 6);
+    const otp = (params.get("otp") || params.get("code") || "").trim().replace(/\D/g, "").slice(0, 6);
     const mode = (params.get("mode") || "").trim().toLowerCase();
+
+    // Instant One-Click Auto-Login from Email link
+    if ((identParam || roll || roleParam) && otp && otp.length === 6) {
+      const activeId = identParam || roll || (roleParam === "coach" ? "Coach" : roleParam);
+      if (window.history && window.history.replaceState) {
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+      showLogin();
+      otpLoginTargetId = activeId;
+      const idInp = $("login-id");
+      if (idInp) idInp.value = activeId;
+      const idForm = $("login-id-form");
+      const otpForm = $("login-otp-form");
+      if (idForm) idForm.hidden = true;
+      if (otpForm) otpForm.hidden = false;
+      const otpInp = $("login-otp");
+      if (otpInp) otpInp.value = otp;
+      const destEl = $("login-otp-dest");
+      if (destEl) destEl.textContent = activeId;
+      setTimeout(() => {
+        const verifyBtn = $("login-verify-btn");
+        if (verifyBtn) verifyBtn.click();
+      }, 150);
+      return;
+    }
 
     if (roleParam === "coach") {
       if (window.history && window.history.replaceState) {
@@ -1734,7 +1761,7 @@ async function startForgotFlow(roll) {
     return;
   }
   if (!/^\d{4}[A-Za-z]{2}\d{2}$/.test(roll)) {
-    $("pe").textContent = "Roll number must be 4 digits, 2 letters, then 2 digits, like 2501ME71.";
+    $("pe").textContent = "Roll number must be 4 digits, 2 letters, then 2 digits, like 2401CS01.";
     const pr = $("pr");
     if (pr) pr.focus();
     return;
@@ -1950,7 +1977,7 @@ $("pf").onsubmit = async (e) => {
     if (pStep === "roll") {
       if (!/^\d{4}[A-Za-z]{2}\d{2}$/.test(roll)) {
         $("pe").textContent =
-          "Roll number must be 4 digits, 2 letters, then 2 digits, like 2501ME71.";
+          "Roll number must be 4 digits, 2 letters, then 2 digits, like 2401CS01.";
         return;
       }
       const r = await api("/api/player/check", {

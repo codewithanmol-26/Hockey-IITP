@@ -28,8 +28,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap"
     rel="stylesheet">
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
-  <link rel="preload" href="style.css?v=89" as="style">
-  <link rel="stylesheet" href="style.css?v=89">
+  <link rel="preload" href="style.css?v=90" as="style">
+  <link rel="stylesheet" href="style.css?v=90">
 </head>
 
 <body>
@@ -101,7 +101,7 @@
       <form id="login-id-form" autocomplete="on">
         <label class="fl lg-label">
           <span class="fl-lbl">Roll Number / Email</span>
-          <input id="login-id" class="lg-input" placeholder="Enter your roll number or email" autocapitalize="none" spellcheck="false" autocomplete="username" required>
+          <input id="login-id" class="lg-input" placeholder="Enter roll number (e.g. 2401CS01) or email" autocapitalize="none" spellcheck="false" autocomplete="username" required>
         </label>
 
         <p id="login-err" class="err" role="alert" style="margin:6px 0 10px;"></p>
@@ -185,14 +185,14 @@
     <h2 id="sdlg-title">Add students</h2>
     <form id="sf">
       <p><input id="sn" placeholder="Name" maxlength="40" required></p>
-      <p><input id="sr" placeholder="Roll number, e.g. 2501ME71" maxlength="8" pattern="[0-9]{4}[A-Za-z]{2}[0-9]{2}"
+      <p><input id="sr" placeholder="Roll number, e.g. 2401CS01" maxlength="8" pattern="[0-9]{4}[A-Za-z]{2}[0-9]{2}"
           title="4 digits, 2 letters, 2 digits" autocapitalize="characters" required></p>
       <p><input id="sc" type="email" placeholder="E-mail (optional)" inputmode="email" maxlength="120"></p>
       <button class="pri">Add student</button>
     </form>
     <hr>
     <p class="mute">Add many at once: one student per line as <b>Name, Roll no, E-mail</b></p>
-    <p><textarea id="sb" rows="4" placeholder="Aditya Raj, 2501ME22, aditya@iitp.ac.in"></textarea></p>
+    <p><textarea id="sb" rows="4" placeholder="Student Name, 2401CS01, student@iitp.ac.in"></textarea></p>
     <button id="sba">Add all</button>
     <p id="sm" class="mute" role="status"></p>
     <div class="ctl"><button type="button" id="sx">Close</button></div>
@@ -253,10 +253,10 @@
   </script>
   <script src="config.js"></script>
   <script src="icons.js?v=83"></script>
-  <script src="public.js?v=89"></script>
+  <script src="public.js?v=90"></script>
   <script src="extras.js"></script>
   <script src="help.js?v=83"></script>
-  <script src="app.js?v=89"></script>
+  <script src="app.js?v=90"></script>
   <script src="chat.js?v=84"></script>
 </body>
 

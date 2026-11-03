@@ -101,17 +101,24 @@ async function who(req) {
     p.role === "captain" ||
     p.role === "vice"
   ) {
-    if (p.id) {
-      const a = await db.collection("admins").doc(p.id).get();
-      if (!a.exists || a.data().disabled) return null;
+    if (p.role === "coach") {
+      if (p.id && p.id !== "coach") {
+        const a = await db.collection("admins").doc(p.id).get().catch(() => null);
+        if (a && a.exists && a.data().disabled) return null;
+      }
+    } else if (p.id) {
+      const a = await db.collection("admins").doc(p.id).get().catch(() => null);
+      if (a && a.exists) {
+        if (a.data().disabled) return null;
+      } else {
+        const pl = await db.collection("players").doc(p.id).get().catch(() => null);
+        if (!pl || !pl.exists || pl.data().removed) return null;
+      }
     }
   } // removed or switched-off admins lose access at once
   if (p.role === "player") {
-    const [a, pl] = await Promise.all([
-      db.collection("accounts").doc(p.id).get(),
-      db.collection("players").doc(p.id).get(),
-    ]);
-    if (!a.exists || !pl.exists || pl.data().removed) return null; // removed students are logged out at once
+    const pl = await db.collection("players").doc(p.id).get().catch(() => null);
+    if (!pl || !pl.exists || pl.data().removed) return null; // removed students are logged out at once
   }
   return p;
 }
@@ -334,28 +341,29 @@ async function setAdminEmail(adminId, email) {
   await db.collection("config").doc("admin_emails").set(emails);
 }
 
-// Universal user resolver for passwordless OTP authentication
+// Universal user resolver for passwordless OTP authentication (supports roll number or email)
 async function resolveAuthUser(rawIdentifier) {
   const idStr = String(rawIdentifier || "").trim();
   if (!idStr) return null;
   const idLower = idStr.toLowerCase();
 
-  // 1. Coach check
+  // 1. Coach check (keyword, coach email, or coach name)
   const coachDoc = await getCoachDoc();
   const coachIdent = await coachIdentity();
   const isCoachKeyword = idLower === "coach" || idLower === "head coach";
-  const isCoachEmail = coachIdent.email && idLower === coachIdent.email.toLowerCase();
+  const isCoachEmail = coachIdent.email && idLower === coachIdent.email.toLowerCase().trim();
   const isCoachName =
-    (coachDoc && coachDoc.data().name && idLower === coachDoc.data().name.toLowerCase()) ||
-    (COACH_NAME && idLower === COACH_NAME.toLowerCase()) ||
+    (coachDoc && coachDoc.data().name && idLower === coachDoc.data().name.toLowerCase().trim()) ||
+    (COACH_NAME && idLower === COACH_NAME.toLowerCase().trim()) ||
     idLower.includes("kiran");
   if (isCoachKeyword || isCoachEmail || isCoachName) {
+    const coachEmail = (coachIdent.email || COACH_EMAIL || "").trim();
     return {
       type: "coach",
       role: "coach",
       id: coachDoc ? coachDoc.id : "coach",
       name: (coachDoc && coachDoc.data().name) || coachIdent.name || COACH_NAME,
-      email: coachIdent.email || COACH_EMAIL,
+      email: coachEmail,
       post: "coach",
       otpKey: "coach_kiran",
     };
@@ -381,7 +389,7 @@ async function resolveAuthUser(rawIdentifier) {
         role: "captain",
         id: capDoc.id,
         name: d.name,
-        email: email || "",
+        email: (email || "").trim(),
         post: "captain",
         playerId: d.playerId || null,
         otpKey: "admin_" + capDoc.id,
@@ -404,7 +412,7 @@ async function resolveAuthUser(rawIdentifier) {
         role: "vice",
         id: viceDoc.id,
         name: d.name,
-        email: email || "",
+        email: (email || "").trim(),
         post: "vice",
         playerId: d.playerId || null,
         otpKey: "admin_" + viceDoc.id,
@@ -412,7 +420,10 @@ async function resolveAuthUser(rawIdentifier) {
     }
   }
 
-  // 4. Admin / Leadership matching by exact email or name
+  // Normalized roll number (only when input is not an email)
+  const norm = !idStr.includes("@") ? normRoll(idStr) : "";
+
+  // 4. Admin / Leadership matching by exact email, roll number, or name
   for (const ad of activeAdmins) {
     const d = ad.data();
     let email = adminEmails[ad.id] || d.email || "";
@@ -421,8 +432,13 @@ async function resolveAuthUser(rawIdentifier) {
       if (plDoc && plDoc.exists && plDoc.data().email) email = plDoc.data().email;
     }
     const nameMatch = d.name && String(d.name).trim().toLowerCase() === idLower;
-    const emailMatch = email && email.toLowerCase() === idLower;
-    if (nameMatch || emailMatch) {
+    const emailMatch = email && email.trim().toLowerCase() === idLower;
+    const rollMatch = norm && (
+      (d.playerId && normRoll(d.playerId) === norm) ||
+      (d.roll && normRoll(d.roll) === norm) ||
+      normRoll(ad.id) === norm
+    );
+    if (nameMatch || emailMatch || rollMatch) {
       const isCoach = isCoachUser(null, d);
       const post = isCoach ? "coach" : (d.post || d.kind || "admin");
       const assignedRole = ["coach", "captain", "vice"].includes(post) ? post : "admin";
@@ -431,9 +447,10 @@ async function resolveAuthUser(rawIdentifier) {
         role: assignedRole,
         id: ad.id,
         name: d.name,
-        email: email || "",
+        email: (email || "").trim(),
         post,
         playerId: d.playerId || null,
+        roll: d.roll || d.playerId || null,
         otpKey: isCoach ? "coach_kiran" : "admin_" + ad.id,
       };
     }
@@ -441,35 +458,48 @@ async function resolveAuthUser(rawIdentifier) {
 
   // 5. Squad Player matching by roll number, email, or exact name
   const allPlayers = (await db.collection("players").get()).docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => !p.removed);
-  const norm = normRoll(idStr);
   let hitPlayer = norm ? allPlayers.find((p) => normRoll(p.roll) === norm || p.id.toUpperCase() === norm) : null;
   if (!hitPlayer && idLower.includes("@")) {
-    hitPlayer = allPlayers.find((p) => p.email && p.email.toLowerCase() === idLower);
+    hitPlayer = allPlayers.find((p) => p.email && p.email.trim().toLowerCase() === idLower);
   }
   if (!hitPlayer) {
     hitPlayer = allPlayers.find((p) => p.name && p.name.trim().toLowerCase() === idLower);
   }
 
   if (hitPlayer) {
+    // Check if this squad player is also registered in the admins/leadership collection
+    const adminMatch = activeAdmins.find((a) => a.data().playerId === hitPlayer.id || (norm && normRoll(a.data().roll) === norm));
+    if (adminMatch) {
+      const ad = adminMatch.data();
+      const ap = ad.post || ad.kind || "admin";
+      const assignedRole = ["coach", "captain", "vice"].includes(ap) ? ap : "admin";
+      const email = adminEmails[adminMatch.id] || ad.email || hitPlayer.email || "";
+      return {
+        type: assignedRole,
+        role: assignedRole,
+        id: adminMatch.id,
+        name: ad.name || hitPlayer.name,
+        roll: hitPlayer.roll || ad.roll || null,
+        email: (email || "").trim(),
+        post: ap,
+        playerId: hitPlayer.id,
+        otpKey: "admin_" + adminMatch.id,
+      };
+    }
+
     let assignedRole = "player";
     const teamDoc = await db.collection("config").doc("team").get().catch(() => null);
     const links = (teamDoc && teamDoc.exists && teamDoc.data()?.links) || {};
     if (links.captain === hitPlayer.id) assignedRole = "captain";
     else if (links.vice === hitPlayer.id) assignedRole = "vice";
-    else {
-      const adminMatch = activeAdmins.find((a) => a.data().playerId === hitPlayer.id);
-      if (adminMatch) {
-        const ap = adminMatch.data().post || adminMatch.data().kind || "admin";
-        if (["coach", "captain", "vice", "admin"].includes(ap)) assignedRole = ap;
-      }
-    }
+
     return {
       type: "player",
       role: assignedRole,
       id: hitPlayer.id,
       name: hitPlayer.name,
       roll: hitPlayer.roll,
-      email: hitPlayer.email || "",
+      email: (hitPlayer.email || "").trim(),
       otpKey: "player_" + hitPlayer.id,
     };
   }
@@ -618,7 +648,7 @@ app.post(
       return res.status(423).json({ error: "Too many incorrect attempts. Please request a new code." });
     }
 
-    if (!/^d{6}$/.test(otp) || !eq(otpHash(user.otpKey, user.email, otp), d.h)) {
+    if (!/^\d{6}$/.test(otp) || !eq(otpHash(user.otpKey, (d.email || user.email).trim(), otp), d.h)) {
       await ref.update({ n: (d.n || 0) + 1 }).catch(() => {});
       const triesLeft = Math.max(0, 4 - (d.n || 0));
       return res.status(401).json({
@@ -796,10 +826,10 @@ const normRoll = (v) =>
     .toUpperCase()
     .replace(/[^A-Z0-9_-]/g, "")
     .slice(0, 12);
-// A roll number is 4 digits + 2 letters + 2 digits (e.g. 2501ME71). Small or capital letters are both accepted.
+// A roll number is 4 digits + 2 letters + 2 digits (e.g. 2401CS01). Small or capital letters are both accepted.
 const ROLL_RE = /^\d{4}[A-Z]{2}\d{2}$/;
 const ROLL_MSG =
-  "Roll number must be 4 digits, 2 letters, then 2 digits, like 2501ME71.";
+  "Roll number must be 4 digits, 2 letters, then 2 digits, like 2401CS01.";
 async function findPlayer(roll) {
   const r = normRoll(roll);
   if (!r) return null;
@@ -1967,7 +1997,7 @@ async function addStudents(list) {
       continue;
     }
     if (!ROLL_RE.test(rid)) {
-      skipped.push(name + " (roll number must look like 2501ME71)");
+      skipped.push(name + " (roll number must look like 2401CS01)");
       continue;
     }
     const extra = {}; // only non-empty private details

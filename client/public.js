@@ -477,7 +477,7 @@ function drawPublic() {
           Enter your institute roll number below to check your squad status and launch your personal attendance breakdown.
         </p>
         <div class="progress-search-row">
-          <input type="text" id="pub-roll-input" placeholder="Enter Roll Number (e.g. 2501ME71)" maxlength="8" autocapitalize="characters" autocomplete="username">
+          <input type="text" id="pub-roll-input" placeholder="Enter Roll Number (e.g. 2401CS01)" maxlength="8" autocapitalize="characters" autocomplete="username">
           <button class="pri" id="btn-check-progress">Check Progress</button>
         </div>
         <div id="pub-lookup-result" hidden></div>
@@ -799,7 +799,7 @@ async function checkPublicProgress() {
   if (!/^\d{4}[A-Z]{2}\d{2}$/.test(roll)) {
     res.hidden = false;
     res.innerHTML =
-      '<p class="err" style="margin:6px 0 0">Roll number must be 4 digits, 2 letters, then 2 digits, like 2501ME71.</p>';
+      '<p class="err" style="margin:6px 0 0">Roll number must be 4 digits, 2 letters, then 2 digits, like 2401CS01.</p>';
     return;
   }
   res.hidden = false;
