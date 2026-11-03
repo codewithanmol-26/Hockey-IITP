@@ -839,10 +839,11 @@ async function checkPublicProgress() {
     if (btn) {
       btn.onclick = () => {
         showLogin();
-        const pr = gid("pr");
+        const pr = gid("login-id") || gid("pr");
         if (pr) {
           pr.value = roll;
-          gid("pgo") && gid("pgo").click();
+          const pw = gid("login-pw");
+          if (pw) pw.focus();
         }
       };
     }

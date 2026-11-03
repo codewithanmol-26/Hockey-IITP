@@ -978,23 +978,23 @@ function showLogin() {
   const pd = $("pub-drawer");
   if (pd) pd.hidden = true;
 
-  $("pr").value = "";
-  $("pa").innerHTML = "";
-  $("pgo").hidden = false;
-  if ($("pforgot-roll-wrap")) $("pforgot-roll-wrap").hidden = false;
-  if ($("aforgot-box")) $("aforgot-box").hidden = true;
-  $("pe").textContent = "";
-  $("er").textContent = "";
-  $("pw").value = "";
-  $("an").value = "";
-  pStep = "roll";
-  pIsReset = false;
-  loginTab("player");
+  const idInp = $("login-id");
+  const pwInp = $("login-pw");
+  const errEl = $("login-err");
+  const fPanel = $("login-forgot-panel");
+  const uForm = $("unified-login-form");
+  if (pwInp) pwInp.value = "";
+  if (errEl) errEl.textContent = "";
+  if (fPanel) {
+    fPanel.hidden = true;
+    fPanel.innerHTML = "";
+  }
+  if (uForm) uForm.hidden = false;
   document.title = "IIT Patna Hockey · Member Login";
   syncInstall();
   setTimeout(() => {
-    const pr = $("pr");
-    if (pr && !$("pf").hidden) pr.focus();
+    if (idInp && !idInp.value) idInp.focus();
+    else if (pwInp) pwInp.focus();
   }, 100);
 }
 
@@ -1020,383 +1020,423 @@ function showApp() {
   const appEl = $("app");
   if (appEl) {
     appEl.hidden = false;
-    appEl.style.display = ""; // Clear inline override so CSS flex handles layout
+    appEl.style.display = "";
   }
   document.title = "IITP Hockey Attendance";
 }
-let staffCredMode = "alnum"; // single password by default for Coach & staff
+
+let staffCredMode = "password";
 let staffUserToggled = false;
+function renderStaffCredBox() {}
+async function detectStaffCodeType() {}
+function loginTab(m) {}
 
-function renderStaffCredBox() {
-  const wrap = $("staff-cred-wrap");
-  if (!wrap) return;
-  const isPat = staffCredMode === "pattern";
-  const isNum = staffCredMode === "numeric";
-  const roleVal = $("em") ? $("em").value : "coach";
-  const isCoach = roleVal === "coach";
+function initUnifiedLogin() {
+  const uForm = $("unified-login-form");
+  if (!uForm) return;
 
-  if (isPat) {
-    wrap.innerHTML = `
-      <div class="fl" style="margin-bottom:8px;">
-        <span class="fl-lbl">Draw pattern lock</span>
-        <p class="mute" style="margin:0 0 4px;font-size:0.8rem">Draw your pattern lock to log in.</p>
-        <div class="pat-box">
-          <div class="pat" id="staff-pad"></div>
-          <div class="pat-acts" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-            <button type="button" class="ghost2" id="staff-pad-clr">Clear pattern</button>
-            <span class="pat-stat mute" id="staff-pad-stat" style="font-size:0.8rem"></span>
-          </div>
-        </div>
-        <div style="margin-top:6px">
-          <button type="button" class="btn-link" id="btn-toggle-staff-mode" style="background:none;border:none;color:var(--pri,#0f4aa8);font-size:0.82rem;font-weight:600;cursor:pointer;padding:2px 0;text-decoration:underline;">
-            🔣 Or enter text password / PIN instead
-          </button>
-        </div>
-      </div>
-    `;
-    const pad = $("staff-pad");
-    if (pad) {
-      patternPad(pad, (v) => {
-        const pw = $("pw");
-        if (pw) pw.value = v;
-        const st = $("staff-pad-stat");
-        if (st) st.textContent = v ? `Pattern drawn (${v.split("-").length} dots)` : "";
-      });
-    }
-    const clr = $("staff-pad-clr");
-    if (clr) {
-      clr.onclick = () => {
-        const pad = $("staff-pad");
-        if (pad && pad.clear) pad.clear();
-        const pw = $("pw");
-        if (pw) pw.value = "";
-        const st = $("staff-pad-stat");
-        if (st) st.textContent = "";
-      };
-    }
-  } else {
-    wrap.innerHTML = `
-      <label class="fl">
-        <span class="fl-lbl">${isCoach ? "Coach Password" : (isNum ? "PIN (numbers only)" : "Code / Password")}</span>
-        <div style="position:relative;display:flex;align-items:center;">
-          <input id="staff-pw-txt" type="password" ${isNum ? 'inputmode="numeric"' : ''} placeholder="${isCoach ? "Enter Coach password" : (isNum ? "Enter 4-8 digit PIN" : "Your code or password")}" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding-right:36px;">
-          <button type="button" id="staff-pw-eye" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password" aria-label="Toggle password visibility">👁️</button>
-        </div>
-      </label>
-      <div style="margin-top:4px;margin-bottom:8px">
-        <button type="button" class="btn-link" id="btn-toggle-staff-mode" style="background:none;border:none;color:var(--pri,#0f4aa8);font-size:0.82rem;font-weight:600;cursor:pointer;padding:2px 0;text-decoration:underline;">
-          ✨ Or draw pattern lock instead
-        </button>
-      </div>
-    `;
-    const txt = $("staff-pw-txt");
-    if (txt) {
-      txt.oninput = (e) => {
-        const pw = $("pw");
-        if (pw) pw.value = e.target.value;
-      };
-      const pw = $("pw");
-      if (pw && pw.value) txt.value = pw.value;
-    }
-    const eye = $("staff-pw-eye");
-    if (eye) {
-      eye.onclick = () => {
-        const t = $("staff-pw-txt");
-        if (!t) return;
-        t.type = t.type === "password" ? "text" : "password";
-        eye.textContent = t.type === "password" ? "👁️" : "🙈";
-      };
-    }
-  }
-
-  const toggleBtn = $("btn-toggle-staff-mode");
-  if (toggleBtn) {
-    toggleBtn.onclick = () => {
-      staffUserToggled = true;
-      staffCredMode = staffCredMode === "pattern" ? "alnum" : "pattern";
-      const pw = $("pw");
-      if (pw) pw.value = "";
-      renderStaffCredBox();
+  const eyeBtn = $("login-pw-eye");
+  if (eyeBtn) {
+    eyeBtn.onclick = () => {
+      const pw = $("login-pw");
+      if (!pw) return;
+      pw.type = pw.type === "password" ? "text" : "password";
+      eyeBtn.textContent = pw.type === "password" ? "👁️" : "🙈";
     };
   }
-}
 
-async function detectStaffCodeType() {
-  const v = $("em") ? $("em").value : "coach";
-  const nameVal = $("an") ? $("an").value.trim() : "";
-  try {
-    const res = await api(`/api/auth/code-type?role=${encodeURIComponent(v)}&name=${encodeURIComponent(nameVal)}`);
-    if (res && res.codeType && !staffUserToggled) {
-      staffCredMode = res.codeType;
-      renderStaffCredBox();
-    }
-  } catch (e) {
-    if (!staffUserToggled) {
-      staffCredMode = "alnum";
-      renderStaffCredBox();
-    }
+  const forgotBtn = $("login-forgot-btn");
+  if (forgotBtn) {
+    forgotBtn.onclick = () => {
+      openUnifiedForgot();
+    };
   }
-}
 
-function loginTab(m) {
-  const pm = m !== "admin";
-  $("pf").hidden = !pm;
-  $("lf").hidden = pm;
-  $("t1").classList.toggle("on", pm);
-  $("t2").classList.toggle("on", !pm);
-  if (!pm) {
-    staffUserToggled = false;
-    detectStaffCodeType();
-    renderStaffCredBox();
-  }
-}
-$("t1").onclick = () => loginTab("player");
-$("t2").onclick = () => loginTab("admin");
-let coachOtpTimer = 0;
-function coachCount(sec) {
-  clearInterval(coachOtpTimer);
-  let n = sec;
-  const tick = () => {
-    const b = $("btn-coach-otp-send");
-    if (!b) {
-      clearInterval(coachOtpTimer);
+  uForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const errEl = $("login-err");
+    const subBtn = $("login-submit-btn");
+    if (errEl) errEl.textContent = "";
+    const idVal = ($("login-id") ? $("login-id").value : "").trim();
+    const pwVal = ($("login-pw") ? $("login-pw").value : "").trim();
+    if (!idVal) {
+      if (errEl) errEl.textContent = "Please enter your roll number or email.";
       return;
     }
-    b.disabled = n > 0;
-    b.textContent = n > 0 ? "Resend code in " + n + "s" : "📧 Send OTP to Coach Email";
-    if (n-- <= 0) clearInterval(coachOtpTimer);
+    if (!pwVal) {
+      if (errEl) errEl.textContent = "Please enter your password.";
+      return;
+    }
+    if (subBtn) subBtn.disabled = true;
+    try {
+      const r = await api("/api/login", {
+        method: "POST",
+        body: {
+          identifier: idVal,
+          password: pwVal,
+        },
+      });
+      saveToken(r.token);
+      closeLogin();
+      tab = "me";
+      initUnifiedLogin();
+boot();
+    } catch (x) {
+      if (errEl) {
+        if (x.needsSetup) {
+          errEl.innerHTML = `First time logging in? <button type="button" class="btn-link" id="btn-login-first-setup" style="color:var(--brand,#0f4aa8);font-weight:700;text-decoration:underline;background:none;border:none;cursor:pointer;">Set up password via Email OTP</button>`;
+          const su = $("btn-login-first-setup");
+          if (su) su.onclick = () => openUnifiedForgot(idVal);
+        } else {
+          errEl.textContent = x.message || "Invalid roll number, email, or password.";
+        }
+      }
+    } finally {
+      if (subBtn) subBtn.disabled = false;
+    }
   };
-  tick();
-  coachOtpTimer = setInterval(tick, 1000);
 }
 
-let coachForgotTab = "rec"; // "rec" or "otp"
+function openUnifiedForgot(initialId) {
+  const uForm = $("unified-login-form");
+  const fPanel = $("login-forgot-panel");
+  if (!fPanel) return;
+  if (uForm) uForm.hidden = true;
+  fPanel.hidden = false;
 
-function updateAdminForgot() {
-  const box = $("aforgot-box");
-  if (!box || box.hidden) return;
-  const v = $("em").value;
-  let t = "";
-  if (v === "coach") {
-    t = `
-    <div style="margin-bottom:8px;">
-      <b>🏑 Head Coach Password Recovery:</b>
-      <p class="mute" style="margin:4px 0 8px;font-size:0.83rem;">Select recovery method below. Recovery password is 100% private and never displayed to anyone.</p>
-      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-        <button type="button" class="${coachForgotTab === "rec" ? "pri" : "sec"} btn-sm" id="coach-rec-tab-rec">🛡️ Option 1: Recovery Password (Instant)</button>
-        <button type="button" class="${coachForgotTab === "otp" ? "pri" : "sec"} btn-sm" id="coach-rec-tab-otp">📧 Option 2: Email OTP</button>
-      </div>
-    </div>
-    
-    <div id="coach-rec-panel-rec" ${coachForgotTab === "rec" ? "" : "hidden"} style="padding:10px;background:var(--soft);border-radius:8px;border:1px solid var(--line);">
-      <p style="margin:0 0 8px;font-size:0.84rem;"><b>⚡ Instant Password Reset (Zero Wait):</b><br>Enter your secret Coach Recovery Password to immediately set a new password without waiting for institutional email delivery.</p>
-      <div style="position:relative;margin-bottom:8px;">
-        <input id="coach-rec-code" type="password" placeholder="Enter Coach Recovery Password" maxlength="30" style="width:100%;box-sizing:border-box;padding-right:36px;">
-        <button type="button" class="chg-eye-btn" data-t="coach-rec-code" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
-      </div>
-      <div style="position:relative;margin-bottom:8px;">
-        <input id="coach-rec-newpw" type="password" placeholder="Enter new password (4–30 characters)" maxlength="30" style="width:100%;box-sizing:border-box;padding-right:36px;">
-        <button type="button" class="chg-eye-btn" data-t="coach-rec-newpw" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
-      </div>
-      <button type="button" class="pri btn-sm" id="btn-coach-rec-submit">Reset Password &amp; Log In</button>
-      <div id="coach-rec-err" class="err" style="margin-top:6px;"></div>
-    </div>
+  let currentId = initialId || ($("login-id") ? $("login-id").value.trim() : "");
+  let coachMode = "rec";
 
-    <div id="coach-rec-panel-otp" ${coachForgotTab === "otp" ? "" : "hidden"} style="padding:10px;background:var(--soft);border-radius:8px;border:1px solid var(--line);">
-      <p style="margin:0 0 6px;font-size:0.84rem;"><b>📧 Reset via Email OTP:</b><br>A 6-digit verification code will be sent to <code>kiran.chaudhary16@iitp.ac.in</code>.</p>
-      <p class="mute" style="margin:0 0 8px;font-size:0.78rem;">ℹ️ <i>Note: Institutional email (@iitp.ac.in) may experience delivery delays due to campus filtering. If delayed, use Option 1 above for instant recovery.</i></p>
-      <div style="margin-bottom:8px;">
-        <button type="button" class="pri btn-sm" id="btn-coach-otp-send">📧 Send OTP to Coach Email</button>
-      </div>
-      <div id="coach-otp-form" hidden>
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
-          <input id="coach-otp-val" placeholder="6-digit OTP" maxlength="6" inputmode="numeric" style="flex:1;">
-          <button type="button" class="sec btn-sm" id="btn-coach-paste-otp">📋 Paste</button>
+  const renderForgot = () => {
+    const isCoach =
+      currentId.toLowerCase() === "coach" ||
+      currentId.toLowerCase() === "head coach" ||
+      currentId.toLowerCase() === "kiran.chaudhary16@iitp.ac.in";
+
+    if (isCoach) {
+      fPanel.innerHTML = `
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <b style="font-size:1.05rem;color:var(--ink);">👑 Head Coach Password Reset</b>
+            <button type="button" class="btn-link" id="btn-forgot-back" style="background:none;border:none;color:var(--brand,#0f4aa8);font-size:0.85rem;cursor:pointer;text-decoration:underline;">← Back to login</button>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+            <button type="button" class="${coachMode === "rec" ? "pri" : "sec"} btn-sm" id="coach-f-tab-rec">🛡️ Option 1: Secret Recovery Password (Instant)</button>
+            <button type="button" class="${coachMode === "otp" ? "pri" : "sec"} btn-sm" id="coach-f-tab-otp">📧 Option 2: Email OTP</button>
+          </div>
         </div>
-        <div style="position:relative;margin-bottom:8px;">
-          <input id="coach-new-pw" type="password" placeholder="New password (4+ chars)" maxlength="30" style="width:100%;box-sizing:border-box;padding-right:36px;">
-          <button type="button" class="chg-eye-btn" data-t="coach-new-pw" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
+
+        <div id="coach-f-panel-rec" ${coachMode === "rec" ? "" : "hidden"} style="padding:12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);">
+          <p style="margin:0 0 10px;font-size:0.84rem;color:var(--mute);">Enter your Coach Recovery Password to immediately set a new password without waiting for email.</p>
+          <div style="position:relative;margin-bottom:10px;">
+            <input id="coach-rec-code" class="lg-input" type="password" placeholder="Enter Coach Recovery Password" maxlength="60" required style="padding-right:38px;">
+            <button type="button" class="lg-pw-eye" data-eye="coach-rec-code" title="Toggle visibility">👁️</button>
+          </div>
+          <div style="position:relative;margin-bottom:12px;">
+            <input id="coach-rec-newpw" class="lg-input" type="password" placeholder="Enter new password (at least 4 chars)" maxlength="60" required style="padding-right:38px;">
+            <button type="button" class="lg-pw-eye" data-eye="coach-rec-newpw" title="Toggle visibility">👁️</button>
+          </div>
+          <p id="coach-rec-err" class="err" style="margin:0 0 8px;"></p>
+          <button type="button" class="pri lg-submit-btn" id="btn-coach-rec-submit">Reset Password &amp; Log In</button>
         </div>
-        <button type="button" class="pri btn-sm" id="btn-coach-otp-submit">Reset Password &amp; Log In</button>
-        <div id="coach-otp-err" class="err" style="margin-top:6px;"></div>
-      </div>
-    </div>`;
-  } else if (v === "captain" || v === "vice") {
-    t = `<b>🏑 ${v === "captain" ? "Captain" : "Vice-Captain"} Password Recovery:</b><br>Your login code is set and managed by the <b>Head Coach</b>.<br>Please contact the Coach to view or reset your access code.`;
-  } else {
-    t = `<b>🏑 Admin Password Recovery:</b><br>Admin accounts are managed by the <b>Head Coach</b>.<br>Please ask the Coach to reset your code in Admin Management.`;
-  }
-  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div>${t}</div><button type="button" class="mx" style="flex-shrink:0" title="Close" aria-label="Close" id="aforgot-close">✕</button></div>`;
-  const clr = $("aforgot-close");
-  if (clr) clr.onclick = () => (box.hidden = true);
 
-  box.querySelectorAll(".chg-eye-btn").forEach((btn) => {
-    btn.onclick = () => {
-      const inp = $(btn.dataset.t);
-      if (!inp) return;
-      inp.type = inp.type === "password" ? "text" : "password";
-      btn.textContent = inp.type === "password" ? "👁️" : "🙈";
-    };
-  });
+        <div id="coach-f-panel-otp" ${coachMode === "otp" ? "" : "hidden"} style="padding:12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);">
+          <p style="margin:0 0 8px;font-size:0.84rem;">Verification code will be sent to Coach registered email.</p>
+          <div style="margin-bottom:10px;">
+            <button type="button" class="pri btn-sm" id="btn-coach-send-otp">📧 Send Code to Coach Email</button>
+          </div>
+          <div id="coach-otp-box" hidden>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <input id="coach-otp-val" class="lg-input" placeholder="6-digit code" maxlength="6" inputmode="numeric" style="flex:1;">
+              <button type="button" class="sec btn-sm" id="btn-coach-otp-paste">📋 Paste</button>
+            </div>
+            <div style="position:relative;margin-bottom:12px;">
+              <input id="coach-otp-newpw" class="lg-input" type="password" placeholder="New password (at least 4 chars)" maxlength="60" style="padding-right:38px;">
+              <button type="button" class="lg-pw-eye" data-eye="coach-otp-newpw" title="Toggle visibility">👁️</button>
+            </div>
+            <p id="coach-otp-err" class="err" style="margin:0 0 8px;"></p>
+            <button type="button" class="pri lg-submit-btn" id="btn-coach-otp-submit">Reset Password &amp; Log In</button>
+          </div>
+        </div>
+      `;
+    } else {
+      fPanel.innerHTML = `
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <b style="font-size:1.05rem;color:var(--ink);">🔑 Reset Password via Email OTP</b>
+            <button type="button" class="btn-link" id="btn-forgot-back" style="background:none;border:none;color:var(--brand,#0f4aa8);font-size:0.85rem;cursor:pointer;text-decoration:underline;">← Back to login</button>
+          </div>
+          <p class="mute" style="margin:0 0 12px;font-size:0.85rem;line-height:1.4;">
+            Enter your Roll Number or registered Email. An OTP will be sent instantly.
+          </p>
+        </div>
 
-  if (v === "coach") {
-    const tabRec = $("coach-rec-tab-rec");
-    const tabOtp = $("coach-rec-tab-otp");
-    if (tabRec) {
-      tabRec.onclick = () => {
-        coachForgotTab = "rec";
-        updateAdminForgot();
-      };
-    }
-    if (tabOtp) {
-      tabOtp.onclick = () => {
-        coachForgotTab = "otp";
-        updateAdminForgot();
-      };
-    }
+        <label class="fl lg-label">
+          <span class="fl-lbl">Roll Number / Email</span>
+          <div style="display:flex;gap:8px;">
+            <input id="forgot-id-input" class="lg-input" value="${esc(currentId)}" placeholder="e.g. 2501ME71 or your email" autocapitalize="none" style="flex:1;">
+            <button type="button" class="pri btn-sm" id="btn-send-general-otp" style="white-space:nowrap;">📧 Send OTP</button>
+          </div>
+        </label>
 
-    // Option 1 submit: Recovery password
-    const recSubmit = $("btn-coach-rec-submit");
-    if (recSubmit) {
-      recSubmit.onclick = async () => {
-        const errEl = $("coach-rec-err");
-        if (errEl) errEl.textContent = "";
-        const recoveryCode = ($("coach-rec-code").value || "").trim();
-        const newCode = ($("coach-rec-newpw").value || "").trim();
-        if (!recoveryCode) {
-          if (errEl) errEl.textContent = "Please enter the Coach Recovery Password.";
-          return;
-        }
-        if (newCode.length < 4 || newCode.length > 30) {
-          if (errEl) errEl.textContent = "New password must be between 4 and 30 characters.";
-          return;
-        }
-        recSubmit.disabled = true;
-        try {
-          const r = await api("/api/coach/reset-with-recovery-code", {
-            method: "POST",
-            body: { recoveryCode, newCode },
-          });
-          toast("Password reset successful with Recovery Password! Logging in...");
-          saveToken(r.token);
-          box.hidden = true;
-          tab = "me";
-          boot();
-        } catch (x) {
-          if (errEl) errEl.textContent = x.message || "Invalid Recovery Password.";
-          recSubmit.disabled = false;
-        }
-      };
+        <div id="general-otp-box" hidden style="margin-top:14px;padding:12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span class="fl-lbl" style="margin:0;">6-Digit Verification Code</span>
+            <button type="button" class="sec btn-sm" id="btn-general-paste" style="font-size:0.78rem;padding:3px 8px;">📋 Paste</button>
+          </div>
+          <input id="forgot-otp-input" class="lg-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" style="letter-spacing:3px;font-weight:700;font-size:1.1rem;margin-bottom:10px;">
+
+          <label class="fl lg-label">
+            <span class="fl-lbl">New Password</span>
+            <div class="lg-pw-wrap">
+              <input id="forgot-new-pw" class="lg-input" type="password" placeholder="At least 4 characters" minlength="4" maxlength="60" required>
+              <button type="button" class="lg-pw-eye" data-eye="forgot-new-pw" title="Toggle visibility">👁️</button>
+            </div>
+          </label>
+
+          <label class="fl lg-label">
+            <span class="fl-lbl">Confirm New Password</span>
+            <div class="lg-pw-wrap">
+              <input id="forgot-new-pw2" class="lg-input" type="password" placeholder="Repeat new password" minlength="4" maxlength="60" required>
+              <button type="button" class="lg-pw-eye" data-eye="forgot-new-pw2" title="Toggle visibility">👁️</button>
+            </div>
+          </label>
+
+          <p id="forgot-err" class="err" style="margin:4px 0 8px;"></p>
+          <button type="button" class="pri lg-submit-btn" id="btn-forgot-save-submit">Save Password &amp; Log In</button>
+        </div>
+      `;
     }
 
-    // Option 2: Email OTP
-    const sendBtn = $("btn-coach-otp-send");
-    if (sendBtn) {
-      sendBtn.onclick = async () => {
-        sendBtn.disabled = true;
-        toast("Sending verification code to Coach email... Please wait.");
-        try {
-          const r = await api("/api/coach/forgot-otp", { method: "POST" });
-          toast("Verification code sent to " + (r.sentTo || "Coach email"));
-          const form = $("coach-otp-form");
-          if (form) form.hidden = false;
-          const otpInput = $("coach-otp-val");
-          if (otpInput) otpInput.focus();
-          coachCount(r.wait || 60);
-        } catch (err) {
-          toast(err.message || "Failed to send code", true);
-          sendBtn.disabled = false;
-        }
+    fPanel.querySelectorAll("[data-eye]").forEach((btn) => {
+      btn.onclick = () => {
+        const inp = $(btn.dataset.eye);
+        if (!inp) return;
+        inp.type = inp.type === "password" ? "text" : "password";
+        btn.textContent = inp.type === "password" ? "👁️" : "🙈";
+      };
+    });
+
+    const bBack = $("btn-forgot-back");
+    if (bBack) {
+      bBack.onclick = () => {
+        fPanel.hidden = true;
+        if (uForm) uForm.hidden = false;
       };
     }
-    const pasteBtn = $("btn-coach-paste-otp");
-    if (pasteBtn) {
-      pasteBtn.onclick = async () => {
-        try {
-          let text = "";
-          if (navigator.clipboard && navigator.clipboard.readText) {
-            text = await navigator.clipboard.readText();
-          } else {
-            text = prompt("Paste 6-digit OTP:") || "";
+
+    if (isCoach) {
+      const tabR = $("coach-f-tab-rec");
+      const tabO = $("coach-f-tab-otp");
+      if (tabR) tabR.onclick = () => { coachMode = "rec"; renderForgot(); };
+      if (tabO) tabO.onclick = () => { coachMode = "otp"; renderForgot(); };
+
+      const btnRecSub = $("btn-coach-rec-submit");
+      if (btnRecSub) {
+        btnRecSub.onclick = async () => {
+          const errEl = $("coach-rec-err");
+          if (errEl) errEl.textContent = "";
+          const recoveryCode = ($("coach-rec-code") ? $("coach-rec-code").value : "").trim();
+          const newCode = ($("coach-rec-newpw") ? $("coach-rec-newpw").value : "").trim();
+          if (!recoveryCode) {
+            if (errEl) errEl.textContent = "Please enter Coach Recovery Password.";
+            return;
           }
-          const digits = (text || "").replace(/\D/g, "").slice(0, 6);
-          if (digits) {
-            $("coach-otp-val").value = digits;
-            toast("OTP pasted!");
+          if (newCode.length < 4) {
+            if (errEl) errEl.textContent = "New password must be at least 4 characters.";
+            return;
           }
-        } catch (x) {
-          const text = prompt("Paste 6-digit OTP:") || "";
-          const digits = text.replace(/\D/g, "").slice(0, 6);
-          if (digits) {
-            $("coach-otp-val").value = digits;
-            toast("OTP pasted!");
+          btnRecSub.disabled = true;
+          try {
+            const r = await api("/api/coach/reset-with-recovery-code", {
+              method: "POST",
+              body: { recoveryCode, newCode },
+            });
+            saveToken(r.token);
+            toast("Password reset successfully! Logging in...");
+            closeLogin();
+            tab = "me";
+            boot();
+          } catch (x) {
+            if (errEl) errEl.textContent = x.message || "Invalid Recovery Password.";
+          } finally {
+            btnRecSub.disabled = false;
           }
-        }
-      };
+        };
+      }
+
+      const btnCoachSend = $("btn-coach-send-otp");
+      if (btnCoachSend) {
+        btnCoachSend.onclick = async () => {
+          btnCoachSend.disabled = true;
+          toast("Sending OTP instantly to Coach email...");
+          try {
+            const r = await api("/api/coach/forgot-otp", { method: "POST" });
+            toast("OTP code sent to " + (r.sentTo || "Coach email") + "!");
+            if ($("coach-otp-box")) $("coach-otp-box").hidden = false;
+          } catch (x) {
+            toast(x.message || "Failed to send code.", true);
+            btnCoachSend.disabled = false;
+          }
+        };
+      }
+
+      const btnCoachPaste = $("btn-coach-otp-paste");
+      if (btnCoachPaste) {
+        btnCoachPaste.onclick = async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            const clean = text.replace(/\D/g, "").slice(0, 6);
+            if (clean && $("coach-otp-val")) $("coach-otp-val").value = clean;
+          } catch (e) {}
+        };
+      }
+
+      const btnCoachOtpSub = $("btn-coach-otp-submit");
+      if (btnCoachOtpSub) {
+        btnCoachOtpSub.onclick = async () => {
+          const errEl = $("coach-otp-err");
+          if (errEl) errEl.textContent = "";
+          const otp = ($("coach-otp-val") ? $("coach-otp-val").value : "").trim();
+          const code = ($("coach-otp-newpw") ? $("coach-otp-newpw").value : "").trim();
+          if (otp.length < 6) {
+            if (errEl) errEl.textContent = "Please enter complete 6-digit OTP.";
+            return;
+          }
+          if (code.length < 4) {
+            if (errEl) errEl.textContent = "New password must be at least 4 characters.";
+            return;
+          }
+          btnCoachOtpSub.disabled = true;
+          try {
+            const r = await api("/api/coach/reset-password", {
+              method: "POST",
+              body: { otp, code, ctype: "password" },
+            });
+            saveToken(r.token);
+            toast("Password reset successfully! Logging in...");
+            closeLogin();
+            tab = "me";
+            boot();
+          } catch (x) {
+            if (errEl) errEl.textContent = x.message || "Invalid OTP or request.";
+          } finally {
+            btnCoachOtpSub.disabled = false;
+          }
+        };
+      }
+    } else {
+      const btnSendGen = $("btn-send-general-otp");
+      if (btnSendGen) {
+        btnSendGen.onclick = async () => {
+          const idInput = $("forgot-id-input");
+          const targetId = idInput ? idInput.value.trim() : "";
+          if (!targetId) {
+            toast("Please enter your roll number or email.", true);
+            return;
+          }
+          btnSendGen.disabled = true;
+          toast("Sending verification code instantly...");
+          try {
+            if (targetId.toLowerCase() === "coach" || targetId.toLowerCase() === "head coach" || targetId.toLowerCase() === "kiran.chaudhary16@iitp.ac.in") {
+              currentId = targetId;
+              renderForgot();
+              return;
+            }
+            let res;
+            if (/^\d{4}[A-Za-z]{2}\d{2}$/i.test(targetId)) {
+              res = await api("/api/player/otp", {
+                method: "POST",
+                body: { roll: targetId, reset: true },
+              });
+            } else {
+              res = await api("/api/auth/forgot-code-otp", {
+                method: "POST",
+                body: { email: targetId, identifier: targetId },
+              }).catch(() => api("/api/player/otp", {
+                method: "POST",
+                body: { email: targetId, reset: true },
+              }));
+            }
+            toast("Verification code sent to " + (res.sentTo || "your email") + "!");
+            if ($("general-otp-box")) $("general-otp-box").hidden = false;
+            if ($("forgot-otp-input")) $("forgot-otp-input").focus();
+          } catch (x) {
+            toast(x.message || "Could not send verification code.", true);
+            btnSendGen.disabled = false;
+          }
+        };
+      }
+
+      const btnPasteGen = $("btn-general-paste");
+      if (btnPasteGen) {
+        btnPasteGen.onclick = async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            const clean = text.replace(/\D/g, "").slice(0, 6);
+            if (clean && $("forgot-otp-input")) $("forgot-otp-input").value = clean;
+          } catch (e) {}
+        };
+      }
+
+      const btnSaveGen = $("btn-forgot-save-submit");
+      if (btnSaveGen) {
+        btnSaveGen.onclick = async () => {
+          const errEl = $("forgot-err");
+          if (errEl) errEl.textContent = "";
+          const targetId = ($("forgot-id-input") ? $("forgot-id-input").value : "").trim();
+          const otp = ($("forgot-otp-input") ? $("forgot-otp-input").value : "").trim();
+          const p1 = ($("forgot-new-pw") ? $("forgot-new-pw").value : "").trim();
+          const p2 = ($("forgot-new-pw2") ? $("forgot-new-pw2").value : "").trim();
+
+          if (otp.length < 6) {
+            if (errEl) errEl.textContent = "Please enter the 6-digit verification code.";
+            return;
+          }
+          if (p1.length < 4) {
+            if (errEl) errEl.textContent = "New password must be at least 4 characters.";
+            return;
+          }
+          if (p1 !== p2) {
+            if (errEl) errEl.textContent = "Passwords do not match.";
+            return;
+          }
+
+          btnSaveGen.disabled = true;
+          try {
+            const r = await api("/api/player/signup", {
+              method: "POST",
+              body: {
+                roll: targetId,
+                email: targetId,
+                otp,
+                code: p1,
+                ctype: "password",
+                reset: true,
+              },
+            }).catch(() => api("/api/auth/reset-with-otp", {
+              method: "POST",
+              body: { otp, newCode: p1, ctype: "password" },
+            }));
+
+            saveToken(r.token);
+            toast("Password reset successfully! Logging in...");
+            closeLogin();
+            tab = "me";
+            boot();
+          } catch (x) {
+            if (errEl) errEl.textContent = x.message || "Failed to reset password. Please check the code.";
+          } finally {
+            btnSaveGen.disabled = false;
+          }
+        };
+      }
     }
-    const submitBtn = $("btn-coach-otp-submit");
-    if (submitBtn) {
-      submitBtn.onclick = async () => {
-        const errEl = $("coach-otp-err");
-        if (errEl) errEl.textContent = "";
-        const otp = ($("coach-otp-val").value || "").trim();
-        const code = ($("coach-new-pw").value || "").trim();
-        if (!/^\d{6}$/.test(otp)) {
-          if (errEl) errEl.textContent = "Please enter the complete 6-digit code.";
-          return;
-        }
-        if (code.length < 4 || code.length > 30) {
-          if (errEl) errEl.textContent = "New password must be between 4 and 30 characters.";
-          return;
-        }
-        submitBtn.disabled = true;
-        try {
-          const r = await api("/api/coach/reset-password", {
-            method: "POST",
-            body: { otp, code },
-          });
-          toast("Password reset successful! Logging in...");
-          saveToken(r.token);
-          box.hidden = true;
-          tab = "me";
-          boot();
-        } catch (x) {
-          if (errEl) errEl.textContent = x.message || "Failed to reset password.";
-          submitBtn.disabled = false;
-        }
-      };
-    }
-  }
-}
-const aforgotBtn = $("aforgot");
-if (aforgotBtn) {
-  aforgotBtn.onclick = () => {
-    const box = $("aforgot-box");
-    if (!box) return;
-    box.hidden = !box.hidden;
-    if (!box.hidden) updateAdminForgot();
   };
+
+  renderForgot();
 }
-$("em").onchange = () => {
-  const v = $("em").value;
-  $("anw").hidden = v !== "admin";
-  if (v === "coach") {
-    $("an").value = "";
-  } else if (v === "admin") {
-    $("an").placeholder = "Name registered in admin list";
-    $("an").value = "";
-  }
-  staffUserToggled = false;
-  detectStaffCodeType();
-  updateAdminForgot();
-};
-if ($("an")) {
-  $("an").onblur = () => {
-    if ($("em").value === "admin" && $("an").value.trim()) {
-      detectStaffCodeType();
-    }
-  };
-}
+
 function saveToken(t) {
   token = t;
   try {
@@ -2072,8 +2112,13 @@ function pOtp(sentTo, wait, isReset) {
     </div>
     ${sixBox("po")}
   </div>
-  <div class="fl">${pIsReset ? "New security type" : "Security type"}<div class="seg" id="pty">${CTYPES.map((t) => `<button type="button" data-t="${t[0]}" class="${t[0] === pType ? "on" : ""}">${t[1]}</button>`).join("")}</div></div>
-  <div id="pcw">${codeInput(pType, "new")}</div>
+  <label class="fl">
+    <span>${pIsReset ? "New Password" : "Create Password"}</span>
+    <div style="position:relative;display:flex;align-items:center;">
+      <input id="pc" type="password" placeholder="At least 4 characters" minlength="4" maxlength="60" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
+      <button type="button" class="pw-eye" id="pc-eye" title="Show or hide password" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.05rem;color:var(--mute);padding:4px;">👁️</button>
+    </div>
+  </label>
   <button class="pri big" id="plg">${submitText}</button><button type="button" id="presend" disabled>Send the code again</button>
   <div style="margin-top:12px;text-align:center">
     <button type="button" class="btn-forgot-pw" id="preset-cancel" style="text-decoration:none;font-weight:500;color:var(--mute)">← Cancel and back to login</button>
@@ -2533,9 +2578,8 @@ function openEditCoach() {
   d.showModal();
 }
 
-// ---- change login password / PIN / pattern / code ----
-let myCodeType = "alnum";
-let changeNewType = "alnum";
+// ---- change login password / code ----
+let myCodeType = "password";
 
 function openChangeCode(startForgot = false) {
   const dlg = $("codedlg");
@@ -2544,48 +2588,9 @@ function openChangeCode(startForgot = false) {
 
   const isPl = role === "player";
   const isCoach = role === "coach";
-  changeNewType = myCodeType || "alnum";
-  let curInputMode = myCodeType || "alnum";
-  let userToggledCur = false;
   let isForgot = !!startForgot;
   let chgOtpTimer = 0;
   let coachChgForgotMethod = "rec";
-
-  const renderCurInput = (type) => {
-    if (type === "pattern") {
-      return `
-        <div class="fl">
-          <span class="chg-lbl">Current Pattern Lock</span>
-          <p class="mute" style="margin:0 0 6px;font-size:0.8rem">Draw your current pattern to verify it's you.</p>
-          <div class="pat-box">
-            <div class="pat" id="chg-cur-pad"></div>
-            <div class="pat-acts">
-              <button type="button" class="ghost2" id="chg-cur-clr">Clear pattern</button>
-              <span class="pat-stat mute" id="chg-cur-stat"></span>
-            </div>
-          </div>
-          <input id="curcode" type="hidden" required>
-        </div>
-      `;
-    }
-    if (type === "numeric") {
-      return `
-        <label class="fl">
-          <span class="chg-lbl">Current PIN</span>
-          <input id="curcode" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Current 4-8 digit PIN" autocomplete="current-password" required>
-        </label>
-      `;
-    }
-    return `
-      <label class="fl">
-        <span class="chg-lbl">${isCoach ? "Current Coach Password" : "Current Password / Code"}</span>
-        <div style="position:relative;display:flex;align-items:center;">
-          <input id="curcode" type="password" placeholder="${isCoach ? "Enter current Coach password (or 1234)" : "Enter current password or code"}" autocomplete="current-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
-          <button type="button" class="chg-eye-btn" data-t="curcode" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
-        </div>
-      </label>
-    `;
-  };
 
   const renderForgotOtpBox = () => {
     if (isCoach) {
@@ -2611,14 +2616,14 @@ function openChangeCode(startForgot = false) {
           <label class="fl">
             <span class="chg-lbl">Coach Recovery Password</span>
             <div style="position:relative;display:flex;align-items:center;">
-              <input id="chg-coach-rec-code" type="password" placeholder="Enter Coach Recovery Password" maxlength="30" autocomplete="off" style="width:100%;box-sizing:border-box;padding-right:36px;">
+              <input id="chg-coach-rec-code" type="password" placeholder="Enter Coach Recovery Password" maxlength="60" autocomplete="off" style="width:100%;box-sizing:border-box;padding-right:36px;">
               <button type="button" class="chg-eye-btn" data-t="chg-coach-rec-code" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
             </div>
           </label>
           <p class="mute" style="margin:2px 0 0;font-size:0.78rem;">⚡ Instant reset without waiting for email. 100% private and secure.</p>
         </div>
         <div id="coach-chg-panel-otp" ${coachChgForgotMethod === "otp" ? "" : "hidden"} style="margin-top:6px;">
-          <p class="mute" style="margin:0 0 8px;font-size:0.8rem;">A 6-digit code will be sent to <code>kiran.chaudhary16@iitp.ac.in</code>. <i>(Note: Academic email may have greylisting delays. If delayed, use Option 1).</i></p>
+          <p class="mute" style="margin:0 0 8px;font-size:0.8rem;">A 6-digit code will be sent to your Coach email.</p>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
             <button type="button" class="pri btn-sm" id="btn-chg-send-otp">📧 Send OTP to Email</button>
             <button type="button" class="sec btn-sm" id="btn-chg-paste-otp" style="display:none;">📋 Paste Code</button>
@@ -2642,11 +2647,11 @@ function openChangeCode(startForgot = false) {
             <b style="font-size:0.92rem; color:var(--ink);">Forgot Password · Verify via Email OTP</b>
           </div>
           <button type="button" id="btn-toggle-normal" class="btn-link" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.82rem; cursor:pointer; text-decoration:underline;">
-            I know my current code
+            I know my current password
           </button>
         </div>
         <p class="mute" style="margin:0 0 10px; font-size:0.82rem; line-height:1.4;">
-          Get a 6-digit OTP on your registered email to set a new password, PIN, or pattern lock without entering your current one.
+          Get a 6-digit OTP on your registered email to set a new password without entering your current one.
         </p>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
           <button type="button" class="pri btn-sm" id="btn-chg-send-otp">📧 Send OTP to Email</button>
@@ -2661,85 +2666,6 @@ function openChangeCode(startForgot = false) {
         </div>
       </div>
     `;
-  };
-
-  const renderNewInputs = (type) => {
-    if (type === "pattern") {
-      return `
-        <div class="fl">
-          <span class="chg-lbl">New Pattern Lock</span>
-          <p class="mute" style="margin:0 0 4px;font-size:0.8rem">Draw new pattern connecting at least 4 dots.</p>
-          <div class="pat-box">
-            <div class="pat" id="chg-new-pad"></div>
-            <div class="pat-acts">
-              <button type="button" class="ghost2" id="chg-new-clr">Clear</button>
-              <span class="pat-stat mute" id="chg-new-stat"></span>
-            </div>
-          </div>
-          <input id="newcode" type="hidden">
-        </div>
-        <div class="fl" style="margin-top:6px">
-          <span class="chg-lbl">Confirm New Pattern</span>
-          <p class="mute" style="margin:0 0 4px;font-size:0.8rem">Draw the same pattern again to confirm.</p>
-          <div class="pat-box">
-            <div class="pat" id="chg-conf-pad"></div>
-            <div class="pat-acts">
-              <button type="button" class="ghost2" id="chg-conf-clr">Clear</button>
-              <span class="pat-stat mute" id="chg-conf-stat"></span>
-            </div>
-          </div>
-          <input id="newcode2" type="hidden">
-        </div>
-      `;
-    }
-    if (type === "numeric") {
-      return `
-        <label class="fl">
-          <span class="chg-lbl">New PIN (4 to 8 digits)</span>
-          <input id="newcode" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="4 to 8 digits" autocomplete="new-password" required>
-        </label>
-        <label class="fl">
-          <span class="chg-lbl">Confirm New PIN</span>
-          <input id="newcode2" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Repeat 4 to 8 digits" autocomplete="new-password" required>
-        </label>
-        <div class="chg-hint">💡 Numeric PIN can be 4 to 8 digits.</div>
-      `;
-    }
-    return `
-      <label class="fl">
-        <span class="chg-lbl">${isCoach ? "New Coach Password" : "New Password (All Character Types)"}</span>
-        <div style="position:relative;display:flex;align-items:center;">
-          <input id="newcode" type="password" placeholder="Any characters: letters, numbers, symbols (4–30 chars)" maxlength="30" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
-          <button type="button" class="chg-eye-btn" data-t="newcode" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
-        </div>
-      </label>
-      <label class="fl">
-        <span class="chg-lbl">Confirm New Password</span>
-        <div style="position:relative;display:flex;align-items:center;">
-          <input id="newcode2" type="password" placeholder="Repeat new password" maxlength="30" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
-          <button type="button" class="chg-eye-btn" data-t="newcode2" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
-        </div>
-      </label>
-      <div class="chg-hint">💡 Accepts all types of characters: uppercase & lowercase letters, numbers, symbols (@#$%^&* etc.), spaces, or punctuation (4–30 characters). Not restricted to alphanumeric.</div>
-    `;
-  };
-
-  const btnLabel = (type) => {
-    if (isForgot) {
-      if (isCoach && coachChgForgotMethod === "rec") {
-        return "Reset Password with Recovery Password";
-      }
-      return type === "pattern"
-        ? "Verify OTP & Set Pattern"
-        : type === "numeric"
-          ? "Verify OTP & Set PIN"
-          : "Verify OTP & Set Password";
-    }
-    return type === "pattern"
-      ? "Save New Pattern"
-      : type === "numeric"
-        ? "Save New PIN"
-        : "Save New Password";
   };
 
   const renderDialog = () => {
@@ -2757,10 +2683,10 @@ function openChangeCode(startForgot = false) {
       ? `roll <b>${esc(me || "Player")}</b>`
       : `<b>${esc(WHO || roleTitle)}</b> (${roleTitle})`;
 
-    const dlgTitle = isForgot ? "Reset Password / Credentials" : "Change Password / Credentials";
+    const dlgTitle = isForgot ? "Reset Password" : "Change Password";
     const dlgSub = isForgot
-      ? `Verify via email OTP and set new credentials for ${userLabel}. Choose from all types of security: any-character password, numeric PIN, or pattern lock.`
-      : `Update credentials for ${userLabel}. Choose from all types of security: any-character password (letters, numbers, symbols), numeric PIN, or pattern lock.`;
+      ? `Verify via email OTP and set a new password for ${userLabel}.`
+      : `Update password for ${userLabel}. Accepts all types of characters: letters, numbers, symbols (at least 4 characters).`;
 
     const h = `
       <h2 id="codedlg-title">${dlgTitle}</h2>
@@ -2768,31 +2694,42 @@ function openChangeCode(startForgot = false) {
       <form id="codeform" autocomplete="off">
         <div id="chg-cur-wrap">
           ${isForgot ? renderForgotOtpBox() : `
-            ${renderCurInput(curInputMode)}
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:4px; margin-bottom:6px;">
-              <button type="button" class="btn-link" id="btn-toggle-cur-mode" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.83rem; font-weight:600; cursor:pointer; padding:2px 0; text-decoration:underline;">
-                ${curInputMode === "pattern" ? "🔣 Or enter current text password / PIN (or 1234) instead" : "✨ Or draw current pattern lock instead"}
-              </button>
+            <label class="fl">
+              <span class="chg-lbl">${isCoach ? "Current Coach Password" : "Current Password"}</span>
+              <div style="position:relative;display:flex;align-items:center;">
+                <input id="curcode" type="password" placeholder="${isCoach ? "Enter current Coach password" : "Enter current password"}" autocomplete="current-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
+                <button type="button" class="chg-eye-btn" data-t="curcode" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
+              </div>
+            </label>
+            <div style="display:flex; justify-content:flex-end; align-items:center; margin-top:4px; margin-bottom:6px;">
               <button type="button" class="btn-link" id="btn-toggle-forgot" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.83rem; font-weight:600; cursor:pointer; padding:2px 0; text-decoration:underline;">
-                🔑 Forgot current password / pattern? Verify with Email OTP
+                🔑 Forgot current password? Verify with Email OTP
               </button>
             </div>
           `}
         </div>
-        <div class="fl" style="margin-top:14px">
-          <span class="chg-lbl">Choose Password / Security Type</span>
-          <div class="seg" id="chg-pty" style="display:flex; flex-wrap:wrap; gap:4px;">
-            <button type="button" data-t="alnum" class="${changeNewType === "alnum" ? "on" : ""}" style="flex:1; min-width:130px;">🔣 All Types (Any Character)</button>
-            <button type="button" data-t="numeric" class="${changeNewType === "numeric" ? "on" : ""}" style="flex:1; min-width:110px;">🔢 Numeric PIN</button>
-            <button type="button" data-t="pattern" class="${changeNewType === "pattern" ? "on" : ""}" style="flex:1; min-width:110px;">✨ Pattern Lock</button>
-          </div>
+
+        <div id="chg-new-wrap" style="margin-top:12px;">
+          <label class="fl">
+            <span class="chg-lbl">New Password</span>
+            <div style="position:relative;display:flex;align-items:center;">
+              <input id="newcode" type="password" placeholder="At least 4 characters" minlength="4" maxlength="60" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
+              <button type="button" class="chg-eye-btn" data-t="newcode" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
+            </div>
+          </label>
+          <label class="fl">
+            <span class="chg-lbl">Confirm New Password</span>
+            <div style="position:relative;display:flex;align-items:center;">
+              <input id="newcode2" type="password" placeholder="Repeat new password" minlength="4" maxlength="60" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding-right:36px;">
+              <button type="button" class="chg-eye-btn" data-t="newcode2" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
+            </div>
+          </label>
+          <div class="chg-hint">💡 Password must be at least 4 characters. Accepts any letters, numbers, spaces, or symbols.</div>
         </div>
-        <div id="chg-new-wrap">
-          ${renderNewInputs(changeNewType)}
-        </div>
+
         <p id="codemsg" class="err" role="alert"></p>
         <div class="ctl">
-          <button type="submit" class="pri" id="codebtn">${btnLabel(changeNewType)}</button>
+          <button type="submit" class="pri" id="codebtn">${isForgot ? "Reset Password" : "Save New Password"}</button>
           <button type="button" id="codex">Cancel</button>
         </div>
       </form>
@@ -2801,221 +2738,105 @@ function openChangeCode(startForgot = false) {
     bindDialogEvents();
   };
 
-  const bindCurInputEvents = () => {
-    if (curInputMode === "pattern" && $("chg-cur-pad")) {
-      patternPad($("chg-cur-pad"), (v) => {
-        const cur = $("curcode");
-        if (cur) cur.value = v;
-        const st = $("chg-cur-stat");
-        if (st) st.textContent = v ? `Pattern drawn (${v.split("-").length} dots)` : "";
-      });
-      if ($("chg-cur-clr")) {
-        $("chg-cur-clr").onclick = () => {
-          const curPad = $("chg-cur-pad");
-          if (curPad && curPad.clear) curPad.clear();
-          const cur = $("curcode");
-          if (cur) cur.value = "";
-          const st = $("chg-cur-stat");
-          if (st) st.textContent = "";
-        };
-      }
-    } else if (curInputMode === "numeric" && $("curcode")) {
-      $("curcode").oninput = (e) =>
-        (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8));
-    }
-  };
-
   const bindDialogEvents = () => {
-    if ($("codex")) {
-      $("codex").onclick = () => {
-        clearInterval(chgOtpTimer);
-        dlg.close();
+    body.querySelectorAll(".chg-eye-btn").forEach((btn) => {
+      btn.onclick = () => {
+        const inp = $(btn.dataset.t);
+        if (!inp) return;
+        inp.type = inp.type === "password" ? "text" : "password";
+        btn.textContent = inp.type === "password" ? "👁️" : "🙈";
       };
-    }
+    });
 
-    if ($("btn-toggle-cur-mode")) {
-      $("btn-toggle-cur-mode").onclick = () => {
-        userToggledCur = true;
-        curInputMode = curInputMode === "pattern" ? "alnum" : "pattern";
-        renderDialog();
-      };
-    }
-
-    if ($("btn-toggle-forgot")) {
-      $("btn-toggle-forgot").onclick = () => {
-        clearInterval(chgOtpTimer);
-        isForgot = true;
-        renderDialog();
-      };
-    }
-
-    if ($("btn-toggle-normal")) {
-      $("btn-toggle-normal").onclick = () => {
+    const btnNormal = $("btn-toggle-normal");
+    if (btnNormal) {
+      btnNormal.onclick = () => {
         clearInterval(chgOtpTimer);
         isForgot = false;
         renderDialog();
       };
     }
 
-    if ($("btn-coach-chg-tab-rec")) {
-      $("btn-coach-chg-tab-rec").onclick = () => {
-        coachChgForgotMethod = "rec";
+    const btnForgot = $("btn-toggle-forgot");
+    if (btnForgot) {
+      btnForgot.onclick = () => {
+        isForgot = true;
         renderDialog();
       };
     }
 
-    if ($("btn-coach-chg-tab-otp")) {
-      $("btn-coach-chg-tab-otp").onclick = () => {
-        coachChgForgotMethod = "otp";
-        renderDialog();
+    if (isForgot && isCoach) {
+      const tabR = $("btn-coach-chg-tab-rec");
+      const tabO = $("btn-coach-chg-tab-otp");
+      if (tabR) {
+        tabR.onclick = () => {
+          coachChgForgotMethod = "rec";
+          renderDialog();
+        };
+      }
+      if (tabO) {
+        tabO.onclick = () => {
+          coachChgForgotMethod = "otp";
+          renderDialog();
+        };
+      }
+    }
+
+    const sendOtpBtn = $("btn-chg-send-otp");
+    if (sendOtpBtn) {
+      sendOtpBtn.onclick = async () => {
+        sendOtpBtn.disabled = true;
+        const statusEl = $("chg-otp-status");
+        if (statusEl) statusEl.textContent = "";
+        toast("Sending verification code instantly...");
+        try {
+          const endpoint = isCoach ? "/api/coach/forgot-otp" : "/api/auth/forgot-code-otp";
+          const res = await api(endpoint, { method: "POST" });
+          const area = $("chg-otp-input-area");
+          if (area) area.style.display = "block";
+          const pasteBtn = $("btn-chg-paste-otp");
+          if (pasteBtn) pasteBtn.style.display = "inline-block";
+          if (statusEl) {
+            statusEl.className = "ok";
+            statusEl.textContent = "✓ Code sent to " + (res.sentTo || "email") + ". Valid for 10 min.";
+          }
+          toast("Verification code sent to " + (res.sentTo || "email") + "!");
+          const otpInp = $("chg-otp-code");
+          if (otpInp) otpInp.focus();
+        } catch (err) {
+          sendOtpBtn.disabled = false;
+          if (statusEl) {
+            statusEl.className = "err";
+            statusEl.textContent = err.message || "Failed to send verification code.";
+          }
+          toast(err.message || "Failed to send verification code.", true);
+        }
       };
     }
 
-    if (isForgot) {
-      const sendOtpBtn = $("btn-chg-send-otp");
-      const pasteOtpBtn = $("btn-chg-paste-otp");
-      const otpArea = $("chg-otp-input-area");
-      const otpStatus = $("chg-otp-status");
-      const otpInput = $("chg-otp-code");
-
-      if (sendOtpBtn) {
-        sendOtpBtn.onclick = async () => {
-          sendOtpBtn.disabled = true;
-          try {
-            const r = await api("/api/auth/forgot-code-otp", { method: "POST" });
-            toast("Verification code sent to " + (r.sentTo || "email"));
-            if (otpArea) otpArea.style.display = "";
-            if (pasteOtpBtn) pasteOtpBtn.style.display = "";
-            if (otpStatus) {
-              otpStatus.className = "ok";
-              otpStatus.textContent = `Verification code sent to ${r.sentTo || "email"}. Valid for 10 minutes.`;
-            }
-            if (otpInput) otpInput.focus();
-
-            let n = r.wait || 60;
-            clearInterval(chgOtpTimer);
-            const tick = () => {
-              if (!sendOtpBtn) {
-                clearInterval(chgOtpTimer);
-                return;
-              }
-              sendOtpBtn.disabled = n > 0;
-              sendOtpBtn.textContent = n > 0 ? `Resend code in ${n}s` : "📧 Resend OTP";
-              if (n-- <= 0) clearInterval(chgOtpTimer);
-            };
-            tick();
-            chgOtpTimer = setInterval(tick, 1000);
-          } catch (err) {
-            toast(err.message || "Failed to send code", true);
-            sendOtpBtn.disabled = false;
-            if (otpStatus) {
-              otpStatus.className = "err";
-              otpStatus.textContent = err.message || "Failed to send verification code.";
-            }
+    const pasteOtpBtn = $("btn-chg-paste-otp");
+    if (pasteOtpBtn) {
+      pasteOtpBtn.onclick = async () => {
+        try {
+          const text = await navigator.clipboard.readText();
+          const clean = text.replace(/\D/g, "").slice(0, 6);
+          if (clean && $("chg-otp-code")) {
+            $("chg-otp-code").value = clean;
+            toast("OTP code pasted!");
           }
-        };
-      }
-
-      if (pasteOtpBtn) {
-        pasteOtpBtn.onclick = async () => {
-          try {
-            let text = "";
-            if (navigator.clipboard && navigator.clipboard.readText) {
-              text = await navigator.clipboard.readText();
-            } else {
-              text = prompt("Paste 6-digit OTP:") || "";
-            }
-            const digits = (text || "").replace(/\D/g, "").slice(0, 6);
-            if (digits && otpInput) {
-              otpInput.value = digits;
-              toast("OTP pasted!");
-            }
-          } catch (x) {
-            const text = prompt("Paste 6-digit OTP:") || "";
-            const digits = (text || "").replace(/\D/g, "").slice(0, 6);
-            if (digits && otpInput) {
-              otpInput.value = digits;
-              toast("OTP pasted!");
-            }
-          }
-        };
-      }
-
-      if (otpInput) {
-        otpInput.oninput = (e) => {
-          e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
-        };
-      }
-    } else {
-      // Bind current credential input (pattern or code)
-      bindCurInputEvents();
-
-      // Dynamically verify credential type from server to guarantee pattern lock renders
-      api("/api/me/code-type")
-        .then((r) => {
-          if (r && r.codeType) {
-            myCodeType = r.codeType;
-            if (!userToggledCur && curInputMode !== r.codeType) {
-              curInputMode = r.codeType;
-              const curWrap = $("chg-cur-wrap");
-              if (curWrap && !isForgot) {
-                renderDialog();
-              }
-            }
-          }
-        })
-        .catch(() => {});
-    }
-
-    // Bind segmented buttons for new type
-    const pty = $("chg-pty");
-    if (pty) {
-      pty.onclick = (e) => {
-        const b = e.target.closest("button[data-t]");
-        if (!b) return;
-        changeNewType = b.dataset.t;
-        pty.querySelectorAll("button").forEach((btn) => btn.classList.toggle("on", btn === b));
-        const newWrap = $("chg-new-wrap");
-        if (newWrap) newWrap.innerHTML = renderNewInputs(changeNewType);
-        const codeBtn = $("codebtn");
-        if (codeBtn) codeBtn.textContent = btnLabel(changeNewType);
-        const msg = $("codemsg");
-        if (msg) msg.textContent = "";
-        bindNewInputs();
-
-    body.querySelectorAll(".chg-eye-btn").forEach((btn) => {
-      btn.onclick = () => {
-        const inp = $(btn.dataset.t);
-        if (!inp) return;
-        inp.type = inp.type === "password" ? "text" : "password";
-        btn.textContent = inp.type === "password" ? "👁️" : "🙈";
-      };
-    });
+        } catch (e) {}
       };
     }
 
-    bindNewInputs();
-
-    body.querySelectorAll(".chg-eye-btn").forEach((btn) => {
-      btn.onclick = () => {
-        const inp = $(btn.dataset.t);
-        if (!inp) return;
-        inp.type = inp.type === "password" ? "text" : "password";
-        btn.textContent = inp.type === "password" ? "👁️" : "🙈";
-      };
-    });
-
-    // Form submit
     const form = $("codeform");
     if (form) {
       form.onsubmit = async (e) => {
         e.preventDefault();
         const msg = $("codemsg");
         if (msg) {
-          msg.className = "err";
           msg.textContent = "";
+          msg.className = "err";
         }
-
         const cur = ($("curcode") ? $("curcode").value : "").trim();
         const nw = ($("newcode") ? $("newcode").value : "").trim();
         const nw2 = ($("newcode2") ? $("newcode2").value : "").trim();
@@ -3030,52 +2851,27 @@ function openChangeCode(startForgot = false) {
             }
           } else {
             if (!/^\d{6}$/.test(otpVal)) {
-              if (msg) msg.textContent = "Please send and enter the complete 6-digit verification code.";
+              if (msg) msg.textContent = "Please enter the 6-digit verification code.";
               return;
             }
           }
         } else {
           if (!cur) {
-            if (msg) msg.textContent = curInputMode === "pattern" ? "Please draw your current pattern." : "Please enter your current password or PIN.";
+            if (msg) msg.textContent = "Please enter your current password.";
             return;
           }
         }
 
-        if (changeNewType === "pattern") {
-          if (!nw || nw.split("-").length < 4) {
-            if (msg) msg.textContent = "Draw a new pattern connecting at least 4 dots.";
-            return;
-          }
-          if (!nw2) {
-            if (msg) msg.textContent = "Draw the confirm pattern to confirm.";
-            return;
-          }
-          if (nw !== nw2) {
-            if (msg) msg.textContent = "Patterns do not match. Try drawing again.";
-            return;
-          }
-        } else if (changeNewType === "numeric") {
-          if (!/^\d{4,8}$/.test(nw)) {
-            if (msg) msg.textContent = "PIN must be between 4 and 8 digits.";
-            return;
-          }
-          if (nw !== nw2) {
-            if (msg) msg.textContent = "PINs do not match.";
-            return;
-          }
-        } else {
-          if (nw.length < 4 || nw.length > 30) {
-            if (msg) msg.textContent = "New password must be between 4 and 30 characters (any letters, numbers, symbols).";
-            return;
-          }
-          if (nw !== nw2) {
-            if (msg) msg.textContent = "Passwords do not match.";
-            return;
-          }
+        if (nw.length < 4 || nw.length > 60) {
+          if (msg) msg.textContent = "New password must be at least 4 characters.";
+          return;
         }
-
+        if (nw !== nw2) {
+          if (msg) msg.textContent = "Passwords do not match.";
+          return;
+        }
         if (!isForgot && cur === nw) {
-          if (msg) msg.textContent = "New credentials must be different from current ones.";
+          if (msg) msg.textContent = "New password must be different from current password.";
           return;
         }
 
@@ -3098,94 +2894,52 @@ function openChangeCode(startForgot = false) {
             } else {
               res = await api("/api/auth/reset-with-otp", {
                 method: "POST",
-                body: { otp: otpVal, newCode: nw, ctype: changeNewType },
+                body: { otp: otpVal, newCode: nw, ctype: "password" },
               });
             }
           } else {
             res = await api("/api/auth/change-code", {
               method: "POST",
-              body: { currentCode: cur, newCode: nw, ctype: changeNewType },
+              body: { currentCode: cur, newCode: nw, ctype: "password" },
             });
           }
 
-          myCodeType = res.codeType || changeNewType;
+          myCodeType = "password";
           if (msg) {
             msg.className = "ok";
-            msg.textContent = res.message || "Updated successfully!";
+            msg.textContent = res.message || "Password updated successfully!";
           }
           setTimeout(() => {
             clearInterval(chgOtpTimer);
             dlg.close();
-            if (btn) {
-              btn.disabled = false;
-              btn.textContent = btnLabel(changeNewType);
-            }
-            toast(res.message || "Updated successfully!");
-          }, 1200);
+            if (btn) btn.disabled = false;
+            toast(res.message || "Password updated successfully!");
+          }, 1000);
         } catch (err) {
           if (msg) {
             msg.className = "err";
-            msg.textContent = err.message || (isForgot ? "Failed to reset. Check verification code." : "Failed to update. Check current credential.");
+            msg.textContent = err.message || (isForgot ? "Failed to reset password." : "Failed to update password. Check current password.");
           }
           if (btn) {
             btn.disabled = false;
-            btn.textContent = btnLabel(changeNewType);
+            btn.textContent = isForgot ? "Reset Password" : "Save New Password";
           }
         }
       };
     }
-  };
 
-  const bindNewInputs = () => {
-    if (changeNewType === "pattern") {
-      const newPad = $("chg-new-pad");
-      if (newPad) {
-        patternPad(newPad, (v) => {
-          const n = $("newcode");
-          if (n) n.value = v;
-          const st = $("chg-new-stat");
-          if (st) st.textContent = v ? `Pattern drawn (${v.split("-").length} dots)` : "";
-        });
-      }
-      if ($("chg-new-clr")) {
-        $("chg-new-clr").onclick = () => {
-          if (newPad && newPad.clear) newPad.clear();
-          const n = $("newcode");
-          if (n) n.value = "";
-          const st = $("chg-new-stat");
-          if (st) st.textContent = "";
-        };
-      }
-      const confPad = $("chg-conf-pad");
-      if (confPad) {
-        patternPad(confPad, (v) => {
-          const n2 = $("newcode2");
-          if (n2) n2.value = v;
-          const st = $("chg-conf-stat");
-          if (st) st.textContent = v ? `Pattern drawn (${v.split("-").length} dots)` : "";
-        });
-      }
-      if ($("chg-conf-clr")) {
-        $("chg-conf-clr").onclick = () => {
-          if (confPad && confPad.clear) confPad.clear();
-          const n2 = $("newcode2");
-          if (n2) n2.value = "";
-          const st = $("chg-conf-stat");
-          if (st) st.textContent = "";
-        };
-      }
-    } else if (changeNewType === "numeric") {
-      const nc = $("newcode");
-      if (nc) nc.oninput = (e) => (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8));
-      const nc2 = $("newcode2");
-      if (nc2) nc2.oninput = (e) => (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8));
+    const cancelBtn = $("codex");
+    if (cancelBtn) {
+      cancelBtn.onclick = () => {
+        clearInterval(chgOtpTimer);
+        dlg.close();
+      };
     }
   };
 
   renderDialog();
   dlg.showModal();
 }
-
 // ---- add students (captain / admin) ----
 function openAdd() {
   $("sm").textContent = "";
@@ -7548,45 +7302,328 @@ function openMatches() {
   d.showModal();
 }
 
-// ---------- HOME TAB (no attendance figures here; they are on the Attendance tab) ----------
+// ---------- ROLE-BASED DASHBOARDS (Coach / Leadership / Player) ----------
 function vMe() {
   fetchNews();
   fetchLeaderboard();
-  const first = esc((WHO || "").split(" ")[0] || "there"),
-    mine = pl ? P.find((x) => x.id === me) : null;
-  const sub = pl
-    ? mine
-      ? [mine.position || "Hockey player", mine.roll]
-          .filter(Boolean)
-          .join(" · ")
-      : "Hockey player"
-    : role === "captain"
-      ? "Captain"
-      : role === "vice"
-        ? "Vice-captain"
-        : "Admin";
-  $("view").innerHTML = `${welcomeHero()}
-  ${annCard()}${featTiles()}${lbPreviewCard()}${teamCard()}
-  ${gphCard()}
-  <div class="grid home-cards-grid">${upCard()}${newsCard()}${histCard()}</div>`;
+  if (role === "coach") {
+    vCoachDashboard();
+  } else if (role === "captain" || role === "vice" || role === "admin") {
+    vLeadershipDashboard();
+  } else {
+    vPlayerDashboard();
+  }
+}
+
+function vCoachDashboard() {
+  const hr = new Date().getHours();
+  const greeting = hr < 5 ? "Late night" : hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
+  const first = esc((WHO || "").split(" ")[0] || "Coach");
+
+  const q = stats("all").filter((x) => x.t);
+  const totalSess = rsess("all");
+  const t = q.reduce((a, x) => a + x.t, 0);
+  const teamTurnout = t ? Math.round((q.reduce((a, x) => a + x.pr, 0) * 100) / t) : 0;
+  const activeStaffCount = ADM.filter((a) => !a.disabled).length;
+
+  const todayStr = new Date().toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  $("view").innerHTML = `
+    <div class="card hero coach-hero" id="wel">
+      <div class="coach-badge-row">
+        <span class="role-pill coach-pill">👑 Head Coach</span>
+        <span class="mute" style="font-size:0.83rem;">${todayStr}</span>
+      </div>
+      <div class="wtop" id="wel-profile-btn" style="cursor:pointer;" title="View Coach Profile">
+        ${avatar(WHO, MYPH, 68)}
+        <div class="wtx">
+          <span class="wg">${greeting} 👋</span>
+          <h2>${first}</h2>
+          <span class="mute">Head Coach · IIT Patna Hockey Team</span>
+        </div>
+      </div>
+      <div class="stats wst coach-stats">
+        <div><b>${P.length}</b>Squad Players</div>
+        <div><b>${totalSess}</b>Sessions Held</div>
+        <div><b>${teamTurnout}%</b>Squad Turnout</div>
+        <div><b>${activeStaffCount}</b>Staff &amp; Admins</div>
+      </div>
+    </div>
+
+    <!-- Coach Command Center Quick Actions -->
+    <div class="card coach-cmd-card">
+      <h2 style="margin:0 0 4px;">⚡ Head Coach Command Center</h2>
+      <p class="mute" style="margin:0 0 12px;font-size:0.85rem;">Fast-track actions to direct squad training, staff permissions, and reports.</p>
+      <div class="coach-actions-grid">
+        <button type="button" class="coach-act-btn pri" data-go="admins">
+          <span class="act-ic">🛡️</span>
+          <div class="act-tx">
+            <b>Manage Admins &amp; Staff</b>
+            <small>Captains, vice-captains, staff roles</small>
+          </div>
+        </button>
+        <button type="button" class="coach-act-btn" data-go="take">
+          <span class="act-ic">✅</span>
+          <div class="act-tx">
+            <b>Take Attendance</b>
+            <small>Roll call &amp; session logging</small>
+          </div>
+        </button>
+        <button type="button" class="coach-act-btn" data-go="players">
+          <span class="act-ic">👥</span>
+          <div class="act-tx">
+            <b>Squad Roster</b>
+            <small>${P.length} players, positions &amp; jersey numbers</small>
+          </div>
+        </button>
+        <button type="button" class="coach-act-btn" data-go="plan">
+          <span class="act-ic">📅</span>
+          <div class="act-tx">
+            <b>Playing Days &amp; Timings</b>
+            <small>Schedule practice sessions &amp; venue</small>
+          </div>
+        </button>
+        <button type="button" class="coach-act-btn" data-go="stats">
+          <span class="act-ic">📊</span>
+          <div class="act-tx">
+            <b>Attendance Analytics</b>
+            <small>Monthly sheets, Excel &amp; CSV export</small>
+          </div>
+        </button>
+        <button type="button" class="coach-act-btn" id="coach-quick-ann">
+          <span class="act-ic">📢</span>
+          <div class="act-tx">
+            <b>Post Team Notice</b>
+            <small>Broadcast announcement to squad</small>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    ${annCard()}
+    ${lbPreviewCard()}
+    ${teamCard()}
+    ${gphCard()}
+    <div class="grid home-cards-grid">${upCard()}${newsCard()}${histCard()}</div>
+  `;
+
   bindHome();
   bindAnn();
   heroCover();
-  if ($("gpset"))
-    $("gpset").onclick = () => pickFiles((f) => setGroupPhoto(f[0]));
+
+  const cAnn = $("coach-quick-ann");
+  if (cAnn) cAnn.onclick = () => {
+    if (typeof openAnn === "function") openAnn();
+  };
+  if ($("gpset")) $("gpset").onclick = () => pickFiles((f) => setGroupPhoto(f[0]));
   if ($("gprm")) $("gprm").onclick = clearGroupPhoto;
   if ($("gpimg")) $("gpimg").onclick = () => openImg(GPH.img);
-  document
-    .querySelectorAll(".btn-gthumb[data-g]")
-    .forEach((b) => (b.onclick = () => openPhoto(b.dataset.g)));
+  document.querySelectorAll(".btn-gthumb[data-g]").forEach((b) => (b.onclick = () => openPhoto(b.dataset.g)));
   if ($("mxe")) $("mxe").onclick = openMatches;
-  if ($("nwr"))
-    $("nwr").onclick = () => {
-      newsAt = 0;
-      NEWS = null;
-      fetchNews(true);
-      render();
-    };
+  if ($("nwr")) $("nwr").onclick = () => { newsAt = 0; NEWS = null; fetchNews(true); render(); };
+}
+
+function vLeadershipDashboard() {
+  const hr = new Date().getHours();
+  const greeting = hr < 5 ? "Late night" : hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
+  const first = esc((WHO || "").split(" ")[0] || "Leader");
+  const roleTitle = role === "captain" ? "Captain" : role === "vice" ? "Vice-captain" : "Admin";
+
+  const q = stats("all").filter((x) => x.t);
+  const t = q.reduce((a, x) => a + x.t, 0);
+  const teamTurnout = t ? Math.round((q.reduce((a, x) => a + x.pr, 0) * 100) / t) : 0;
+
+  const nx = Object.keys(PL).sort().find((x) => planLive(x));
+  const pn = nx && PL[nx];
+  const r = nx && SCH.team[dayIdx(nx)];
+  const nextTxt = nx ? `<b>${dlabel(nx)}</b> · ${esc(dlong(nx))}` : "<b>No playing day fixed yet</b>";
+  const nextSub = nx ? [pn.time || (r && r[3]) || "Time to be announced", pn.venue ? "📍 " + pn.venue : ""].filter(Boolean).map(esc).join(" · ") : "Schedule practice in Playing Days.";
+
+  const todayKey = today();
+  const isTodaySession = !!PL[todayKey];
+  const isTodayMarked = !!(SS[todayKey] && Object.keys(SS[todayKey]).length > 0);
+  let todayStatusHtml = "";
+  if (isTodaySession) {
+    if (isTodayMarked) {
+      const presentCount = Object.values(SS[todayKey]).filter(Boolean).length;
+      todayStatusHtml = `<span style="color:#059669;font-weight:700;">✅ Today's Attendance Marked (${presentCount} present)</span>`;
+    } else {
+      todayStatusHtml = `<span style="color:#d97706;font-weight:700;">⚠️ Today's Practice Attendance Pending</span>`;
+    }
+  } else {
+    todayStatusHtml = `<span class="mute">No practice scheduled for today.</span>`;
+  }
+
+  const lp = MYPID && P.find((x) => x.id === MYPID);
+  let playerStatHtml = "";
+  if (lp) {
+    const a = statsFor(lp, "all");
+    playerStatHtml = `<div><b>${a.pct}%</b>My Attendance</div><div><b>${a.pr}/${a.t}</b>My Sessions</div>`;
+  }
+
+  const todayStr = new Date().toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  $("view").innerHTML = `
+    <div class="card hero leader-hero" id="wel">
+      <div class="coach-badge-row">
+        <span class="role-pill leader-pill">🏑 ${roleTitle} Console</span>
+        <span class="mute" style="font-size:0.83rem;">${todayStr}</span>
+      </div>
+      <div class="wtop" id="wel-profile-btn" style="cursor:pointer;" title="View Profile">
+        ${avatar(WHO, MYPH, 68)}
+        <div class="wtx">
+          <span class="wg">${greeting} 👋</span>
+          <h2>${first}</h2>
+          <span class="mute">${roleTitle} · IIT Patna Hockey</span>
+        </div>
+      </div>
+
+      <div class="wnext" style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:12px;padding:12px 14px;">
+        <span class="wl">🏑 Practice &amp; Attendance Status</span>
+        <div style="font-size:1.02rem;margin:4px 0 6px;">${todayStatusHtml}</div>
+        <small class="mute" style="display:block;margin-bottom:8px;">${nextTxt} (${nextSub})</small>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="pri btn-sm" data-go="take">✅ Take Attendance Now</button>
+          <button type="button" class="sec btn-sm" data-go="plan">📅 Set Playing Days</button>
+        </div>
+      </div>
+
+      <div class="stats wst" style="margin-top:12px;">
+        <div><b>${P.length}</b>Squad Size</div>
+        <div><b>${teamTurnout}%</b>Team Turnout</div>
+        ${playerStatHtml}
+      </div>
+    </div>
+
+    <!-- Leadership Quick Tools -->
+    <div class="card">
+      <h2 style="margin:0 0 10px;">⚡ Team Leadership Tools</h2>
+      <div class="fts fts2">
+        <button type="button" class="ft" data-go="take"><span class="ic">✅</span><b>Take Attendance</b></button>
+        <button type="button" class="ft" data-go="plan"><span class="ic">📅</span><b>Playing Days</b></button>
+        <button type="button" class="ft" data-go="players"><span class="ic">👥</span><b>Manage Squad</b></button>
+        <button type="button" class="ft" data-go="stats"><span class="ic">📊</span><b>Attendance Matrix</b></button>
+        <button type="button" class="ft" data-go="leaderboard"><span class="ic">🏆</span><b>Leaderboard</b></button>
+        <button type="button" class="ft" id="btn-leader-tpl"><span class="ic">✉️</span><b>WhatsApp Message</b></button>
+      </div>
+    </div>
+
+    ${annCard()}
+    ${lbPreviewCard()}
+    ${teamCard()}
+    ${gphCard()}
+    <div class="grid home-cards-grid">${upCard()}${newsCard()}${histCard()}</div>
+  `;
+
+  bindHome();
+  bindAnn();
+  heroCover();
+
+  const bTpl = $("btn-leader-tpl");
+  if (bTpl) bTpl.onclick = () => {
+    if (typeof openTpl === "function") openTpl();
+  };
+  if ($("gpset")) $("gpset").onclick = () => pickFiles((f) => setGroupPhoto(f[0]));
+  if ($("gprm")) $("gprm").onclick = clearGroupPhoto;
+  if ($("gpimg")) $("gpimg").onclick = () => openImg(GPH.img);
+  document.querySelectorAll(".btn-gthumb[data-g]").forEach((b) => (b.onclick = () => openPhoto(b.dataset.g)));
+  if ($("mxe")) $("mxe").onclick = openMatches;
+  if ($("nwr")) $("nwr").onclick = () => { newsAt = 0; NEWS = null; fetchNews(true); render(); };
+}
+
+function vPlayerDashboard() {
+  const hr = new Date().getHours();
+  const greeting = hr < 5 ? "Late night" : hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
+  const first = esc((WHO || "").split(" ")[0] || "Player");
+  const mine = P.find((x) => x.id === me) || { name: WHO, roll: me, position: "Hockey player" };
+
+  const a = statsFor(mine, "all");
+  const ds = dates().filter((d) => SS[d] && SS[d][mine.id] !== undefined);
+  let st = 0;
+  for (let i = ds.length - 1; i >= 0 && SS[ds[i]][mine.id]; i--) st++;
+
+  const allLeaderStats = stats("all").filter((x) => x.t > 0).sort((x, y) => y.pct - x.pct || y.pr - x.pr);
+  const myRankIdx = allLeaderStats.findIndex((x) => x.id === mine.id);
+  const myRank = myRankIdx >= 0 ? myRankIdx + 1 : "-";
+
+  const pctColor = a.pct >= 75 ? "#059669" : a.pct >= 60 ? "#d97706" : "#dc2626";
+
+  const nx = Object.keys(PL).sort().find((x) => planLive(x));
+  const pn = nx && PL[nx];
+  const r = nx && SCH.team[dayIdx(nx)];
+  const nextTxt = nx ? `<b>${dlabel(nx)}</b> · ${esc(dlong(nx))}` : "<b>No playing day fixed yet</b>";
+  const nextSub = nx ? [pn.time || (r && r[3]) || "Time to be announced", pn.venue ? "📍 " + pn.venue : ""].filter(Boolean).map(esc).join(" · ") : "The captain will schedule the next session.";
+
+  const posEmoji = (mine.position || "").toLowerCase().includes("forward") ? "⚡" : (mine.position || "").toLowerCase().includes("mid") ? "🎯" : (mine.position || "").toLowerCase().includes("def") ? "🛡️" : (mine.position || "").toLowerCase().includes("goal") ? "🧤" : "🏑";
+
+  $("view").innerHTML = `
+    <div class="card hero player-hero" id="wel">
+      <div class="coach-badge-row">
+        <span class="role-pill player-pill">${posEmoji} ${esc(mine.position || "Squad Player")}</span>
+        <span class="mute" style="font-size:0.83rem;font-weight:600;">${esc(mine.roll || "")}</span>
+      </div>
+      <div class="wtop" id="wel-profile-btn" style="cursor:pointer;" title="View your profile">
+        ${avatar(WHO, MYPH, 68)}
+        <div class="wtx">
+          <span class="wg">${greeting} 👋</span>
+          <h2>${first}</h2>
+          <span class="mute">${esc(mine.position || "Hockey player")}${mine.jersey ? " · Jersey #" + esc(mine.jersey) : ""}</span>
+        </div>
+      </div>
+
+      <!-- Player Performance Metrics -->
+      <div class="stats wst" style="margin-top:12px;">
+        <div style="border-left:3px solid ${pctColor};padding-left:8px;">
+          <b style="color:${pctColor};">${a.pct}%</b>
+          Attendance
+        </div>
+        <div><b>${a.pr}/${a.t}</b>Sessions Present</div>
+        <div><b>${st}</b>Day Streak 🔥</div>
+        <div><b>#${myRank}</b>Squad Rank 🏆</div>
+      </div>
+
+      <!-- Next Practice Alert -->
+      <div class="wnext" style="margin-top:12px;">
+        <span class="wl">🏑 Next Practice</span>
+        <div>${nextTxt}</div>
+        <small>${nextSub}</small>
+      </div>
+    </div>
+
+    <!-- Player Development, Position Drills & Health -->
+    <div class="card">
+      <h2 style="margin:0 0 10px;">🏋️ Training, Drills &amp; Resources</h2>
+      <div class="fts fts2">
+        <button type="button" class="ft" data-go="train"><span class="ic">⌚</span><b>Position Workouts</b></button>
+        <button type="button" class="ft" data-go="train"><span class="ic">🥗</span><b>Diet &amp; Nutrition</b></button>
+        <button type="button" class="ft" data-go="leaderboard"><span class="ic">🏆</span><b>Leaderboard</b></button>
+        <button type="button" class="ft" data-go="stats"><span class="ic">📊</span><b>My Attendance Record</b></button>
+        <button type="button" class="ft" data-go="rules"><span class="ic">📖</span><b>Hockey Rules &amp; Signals</b></button>
+        <button type="button" class="ft" data-go="gallery"><span class="ic">🖼️</span><b>Team Gallery</b></button>
+      </div>
+    </div>
+
+    ${annCard()}
+    ${lbPreviewCard()}
+    <div class="grid home-cards-grid">${upCard()}${newsCard()}${histCard()}</div>
+  `;
+
+  bindHome();
+  bindAnn();
+  heroCover();
+
+  if ($("mxe")) $("mxe").onclick = openMatches;
+  if ($("nwr")) $("nwr").onclick = () => { newsAt = 0; NEWS = null; fetchNews(true); render(); };
 }
 
 // ---------- GALLERY ----------

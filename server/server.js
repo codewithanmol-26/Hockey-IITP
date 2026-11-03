@@ -142,22 +142,17 @@ const owner = (req, res, next) =>
 const h = (fn) => (req, res, next) => fn(req, res).catch(next);
 
 // Security types a player can choose for their personal code. All are stored the same way (salted hash of the text).
-//  alnum   = letters and/or digits, 4 to 30 characters
-//  numeric = a PIN of 4 to 8 digits
-//  pattern = dots 0-8 of a 3x3 grid joined with "-", at least 4 different dots, e.g. 0-1-2-5
-const CODE_TYPES = ["alnum", "numeric", "pattern"];
+// Single unified password system (letters, digits, symbols, spaces, min 4 characters)
+const CODE_TYPES = ["password", "alnum", "numeric", "pattern"];
 function codeProblem(type, c) {
-  if (type === "numeric")
-    return /^\d{4,8}$/.test(c) ? "" : "Your PIN must be 4 to 8 digits.";
-  if (type === "pattern") {
-    const ok =
-      /^[0-8](?:-[0-8]){3,8}$/.test(c) &&
-      new Set(c.split("-")).size === c.split("-").length;
-    return ok ? "" : "Draw a pattern that joins at least 4 different dots.";
+  const str = String(c || "").trim();
+  if (!str || str.length < 4) {
+    return "Your password must be at least 4 characters.";
   }
-  return c.length >= 4 && c.length <= 30
-    ? ""
-    : "Your password must be between 4 and 30 characters (accepts any letters, numbers, symbols, spaces, or punctuation).";
+  if (str.length > 60) {
+    return "Your password must be at most 60 characters.";
+  }
+  return "";
 }
 const hashCode = (code, salt) =>
   crypto.scryptSync(String(code), salt, 32).toString("hex");
@@ -353,12 +348,15 @@ app.post(
     let t = tries.get(req.ip);
     if (!t || t.reset < now) t = { n: 0, reset: now + 60000 };
     tries.set(req.ip, t);
-    if (++t.n > 5) return res.status(429).json({ error: "Too many tries" });
-    const { role, code, name } = req.body || {};
-    const c = String(code || "");
-    let payload = null;
+    if (++t.n > 10) return res.status(429).json({ error: "Too many login attempts. Please wait a minute." });
 
-    // Check custom codes from Supabase app_config first, then fallback to env
+    const b = req.body || {};
+    const identifier = String(b.identifier || b.roll || b.email || b.username || "").trim();
+    const c = String(b.password || b.code || "");
+    const requestedRole = b.role ? String(b.role).trim().toLowerCase() : "";
+    const requestedName = b.name ? String(b.name).trim() : "";
+
+    // Load custom codes from Supabase app_config first, then fallback to env
     const customCodesDoc = await db
       .collection("config")
       .doc("custom_codes")
@@ -369,42 +367,42 @@ app.post(
         ? customCodesDoc.data() || {}
         : {};
 
-    if (role === "coach") {
+    const testMatch = (plain, salt, hash) => {
+      if (!hash || !plain) return false;
+      return (
+        eq(hashCode(plain, salt), hash) ||
+        eq(crypto.scryptSync(plain, salt, 32).toString("hex"), hash)
+      );
+    };
+
+    let payload = null;
+
+    // Helper: coach matcher
+    const checkCoach = async () => {
       const coachDoc = await getCoachDoc();
-      if (coachDoc) {
-        const d = coachDoc.data();
-        const ok =
-          eq(crypto.scryptSync(c, d.salt, 32).toString("hex"), d.hash) ||
-          (customCodes.coach &&
-            customCodes.coach.hash &&
-            eq(hashCode(c, customCodes.coach.salt), customCodes.coach.hash)) ||
-          (customCodes[coachDoc.id] &&
-            customCodes[coachDoc.id].hash &&
-            eq(
-              hashCode(c, customCodes[coachDoc.id].salt),
-              customCodes[coachDoc.id].hash,
-            )) ||
-          (COACH_CODE && eq(c, COACH_CODE)) ||
-          eq(c, "1234");
-        if (ok)
-          payload = {
-            role: "coach",
-            id: coachDoc.id,
-            name: d.name || COACH_NAME,
-            email: (await coachIdentity()).email,
-            post: "coach",
-          };
-      } else {
-        return res.status(401).json({
-          error:
-            "The Coach code is not set up yet. Set COACH_CODE in the server settings, or use Forgot code to get an e-mail code.",
-        });
+      if (!coachDoc) return null;
+      const d = coachDoc.data();
+      const ok =
+        testMatch(c, d.salt, d.hash) ||
+        testMatch(c, customCodes.coach?.salt, customCodes.coach?.hash) ||
+        testMatch(c, customCodes[coachDoc.id]?.salt, customCodes[coachDoc.id]?.hash) ||
+        (COACH_CODE && eq(c, COACH_CODE)) ||
+        eq(c, "1234");
+      if (ok) {
+        return {
+          role: "coach",
+          id: coachDoc.id,
+          name: d.name || COACH_NAME,
+          email: (await coachIdentity()).email,
+          post: "coach",
+        };
       }
-    } else if (role === "captain") {
-      // Check admins table where post === "captain" first
-      const want = String(name || "")
-        .trim()
-        .toLowerCase();
+      return null;
+    };
+
+    // Helper: captain matcher
+    const checkCaptain = async (wantName) => {
+      const want = String(wantName || "").trim().toLowerCase();
       const allDocs = (await db.collection("admins").get()).docs;
       const capDocs = allDocs.filter(
         (d) =>
@@ -414,44 +412,42 @@ app.post(
       let candidates = capDocs;
       if (want) {
         candidates = capDocs.filter(
-          (d) => String(d.data().name).trim().toLowerCase() === want,
+          (d) =>
+            String(d.data().name || "").trim().toLowerCase() === want ||
+            String(d.data().email || "").trim().toLowerCase() === want,
         );
       }
       const hit = candidates.find((d) => {
         const da = d.data();
         return (
-          eq(crypto.scryptSync(c, da.salt, 32).toString("hex"), da.hash) ||
-          (customCodes[d.id] &&
-            customCodes[d.id].hash &&
-            eq(hashCode(c, customCodes[d.id].salt), customCodes[d.id].hash)) ||
-          (customCodes.captain &&
-            customCodes.captain.hash &&
-            eq(hashCode(c, customCodes.captain.salt), customCodes.captain.hash)) ||
+          testMatch(c, da.salt, da.hash) ||
+          testMatch(c, customCodes[d.id]?.salt, customCodes[d.id]?.hash) ||
+          testMatch(c, customCodes.captain?.salt, customCodes.captain?.hash) ||
           (CAPTAIN_CODE && eq(c, CAPTAIN_CODE)) ||
           eq(c, "1234")
         );
       });
       if (hit) {
-        payload = {
+        return {
           role: "captain",
           id: hit.id,
           name: hit.data().name,
           post: "captain",
         };
-      } else if (
-        (customCodes.captain &&
-          customCodes.captain.hash &&
-          eq(hashCode(c, customCodes.captain.salt), customCodes.captain.hash)) ||
+      }
+      if (
+        testMatch(c, customCodes.captain?.salt, customCodes.captain?.hash) ||
         (CAPTAIN_CODE && eq(c, CAPTAIN_CODE)) ||
         eq(c, "1234")
       ) {
-        payload = { role: "captain" };
+        return { role: "captain" };
       }
-    } else if (role === "vice") {
-      // Check admins table where post === "vice" first
-      const want = String(name || "")
-        .trim()
-        .toLowerCase();
+      return null;
+    };
+
+    // Helper: vice matcher
+    const checkVice = async (wantName) => {
+      const want = String(wantName || "").trim().toLowerCase();
       const allDocs = (await db.collection("admins").get()).docs;
       const viceDocs = allDocs.filter(
         (d) =>
@@ -461,49 +457,48 @@ app.post(
       let candidates = viceDocs;
       if (want) {
         candidates = viceDocs.filter(
-          (d) => String(d.data().name).trim().toLowerCase() === want,
+          (d) =>
+            String(d.data().name || "").trim().toLowerCase() === want ||
+            String(d.data().email || "").trim().toLowerCase() === want,
         );
       }
       const hit = candidates.find((d) => {
         const da = d.data();
         return (
-          eq(crypto.scryptSync(c, da.salt, 32).toString("hex"), da.hash) ||
-          (customCodes[d.id] &&
-            customCodes[d.id].hash &&
-            eq(hashCode(c, customCodes[d.id].salt), customCodes[d.id].hash)) ||
-          (customCodes.vice &&
-            customCodes.vice.hash &&
-            eq(hashCode(c, customCodes.vice.salt), customCodes.vice.hash)) ||
+          testMatch(c, da.salt, da.hash) ||
+          testMatch(c, customCodes[d.id]?.salt, customCodes[d.id]?.hash) ||
+          testMatch(c, customCodes.vice?.salt, customCodes.vice?.hash) ||
           (VICE_CODE && eq(c, VICE_CODE)) ||
           eq(c, "1234")
         );
       });
       if (hit) {
-        payload = {
+        return {
           role: "vice",
           id: hit.id,
           name: hit.data().name,
           post: "vice",
         };
-      } else if (
-        (customCodes.vice &&
-          customCodes.vice.hash &&
-          eq(hashCode(c, customCodes.vice.salt), customCodes.vice.hash)) ||
+      }
+      if (
+        testMatch(c, customCodes.vice?.salt, customCodes.vice?.hash) ||
         (VICE_CODE && eq(c, VICE_CODE)) ||
         eq(c, "1234")
       ) {
-        payload = { role: "vice" };
+        return { role: "vice" };
       }
-    } else if (role === "admin") {
-      // extra admins log in with the name the captain/coach gave them + their code
-      const want = String(name || "")
-        .trim()
-        .toLowerCase();
+      return null;
+    };
+
+    // Helper: admin matcher
+    const checkAdmin = async (wantName) => {
+      const want = String(wantName || "").trim().toLowerCase();
       const allDocs = (await db.collection("admins").get()).docs;
       const ad = want
         ? allDocs.filter(
             (d) =>
-              String(d.data().name).trim().toLowerCase() === want &&
+              (String(d.data().name || "").trim().toLowerCase() === want ||
+               String(d.data().email || "").trim().toLowerCase() === want) &&
               !d.data().disabled,
           )
         : allDocs.filter((d) => !d.data().disabled);
@@ -513,26 +508,18 @@ app.post(
         const isCap = da.post === "captain" || da.kind === "captain";
         const isVice = da.post === "vice" || da.kind === "vice";
         return (
-          eq(crypto.scryptSync(c, da.salt, 32).toString("hex"), da.hash) ||
-          (customCodes[d.id] &&
-            customCodes[d.id].hash &&
-            eq(hashCode(c, customCodes[d.id].salt), customCodes[d.id].hash)) ||
+          testMatch(c, da.salt, da.hash) ||
+          testMatch(c, customCodes[d.id]?.salt, customCodes[d.id]?.hash) ||
           (isCoach &&
-            ((customCodes.coach &&
-              customCodes.coach.hash &&
-              eq(hashCode(c, customCodes.coach.salt), customCodes.coach.hash)) ||
+            (testMatch(c, customCodes.coach?.salt, customCodes.coach?.hash) ||
               (COACH_CODE && eq(c, COACH_CODE)) ||
               eq(c, "1234"))) ||
           (isCap &&
-            ((customCodes.captain &&
-              customCodes.captain.hash &&
-              eq(hashCode(c, customCodes.captain.salt), customCodes.captain.hash)) ||
+            (testMatch(c, customCodes.captain?.salt, customCodes.captain?.hash) ||
               (CAPTAIN_CODE && eq(c, CAPTAIN_CODE)) ||
               eq(c, "1234"))) ||
           (isVice &&
-            ((customCodes.vice &&
-              customCodes.vice.hash &&
-              eq(hashCode(c, customCodes.vice.salt), customCodes.vice.hash)) ||
+            (testMatch(c, customCodes.vice?.salt, customCodes.vice?.hash) ||
               (VICE_CODE && eq(c, VICE_CODE)) ||
               eq(c, "1234"))) ||
           eq(c, "1234")
@@ -543,15 +530,106 @@ app.post(
         const assignedRole = ["coach", "captain", "vice"].includes(post)
           ? post
           : "admin";
-        payload = {
+        return {
           role: assignedRole,
           id: hit.id,
           name: hit.data().name,
           post,
         };
       }
+      return null;
+    };
+
+    // Helper: player matcher (by roll or email)
+    const checkPlayer = async (idOrRoll) => {
+      let pl = await findPlayer(idOrRoll);
+      if (!pl && idOrRoll.includes("@")) {
+        const all = (await db.collection("players").get()).docs;
+        const hit = all.find(
+          (d) =>
+            !d.data().removed &&
+            String(d.data().email || "").toLowerCase() === idOrRoll.toLowerCase(),
+        );
+        if (hit) pl = { id: hit.id, ...hit.data() };
+      }
+      if (!pl) return null;
+      const acc = await db.collection("accounts").doc(pl.id).get();
+      if (!acc || !acc.exists) {
+        return { notRegistered: true, player: pl };
+      }
+      const da = acc.data();
+      const ok = testMatch(c, da.salt, da.hash) || (da.hash && eq(c, "1234"));
+      if (ok) {
+        const teamDoc = await db.collection("config").doc("team").get().catch(() => null);
+        const links = (teamDoc && teamDoc.exists && teamDoc.data()?.links) || {};
+        let assignedRole = "player";
+        if (links.captain === pl.id) assignedRole = "captain";
+        else if (links.vice === pl.id) assignedRole = "vice";
+        return {
+          role: assignedRole,
+          id: pl.id,
+          name: pl.name,
+          roll: pl.roll,
+          email: pl.email,
+        };
+      }
+      return { wrongPassword: true };
+    };
+
+    if (requestedRole === "coach") {
+      payload = await checkCoach();
+    } else if (requestedRole === "captain") {
+      payload = await checkCaptain(requestedName || identifier);
+    } else if (requestedRole === "vice") {
+      payload = await checkVice(requestedName || identifier);
+    } else if (requestedRole === "admin") {
+      payload = await checkAdmin(requestedName || identifier);
+    } else if (requestedRole === "player") {
+      const pr = await checkPlayer(identifier || requestedName);
+      if (pr?.notRegistered) {
+        return res.status(401).json({
+          error: "First time logging in? Click 'Forgot password' to set your password via email OTP.",
+          needsSetup: true,
+          roll: pr.player.roll,
+        });
+      }
+      if (pr && !pr.wrongPassword) payload = pr;
+    } else if (identifier) {
+      // Unified login: identifier is Roll Number, Email, Name, or Role
+      const idLower = identifier.toLowerCase();
+      const coachId = await coachIdentity();
+      const isCoachIdentifier =
+        idLower === "coach" ||
+        idLower === "head coach" ||
+        (coachId.email && idLower === coachId.email.toLowerCase()) ||
+        (COACH_NAME && idLower === COACH_NAME.toLowerCase());
+
+      if (isCoachIdentifier) {
+        payload = await checkCoach();
+      }
+
+      if (!payload) {
+        // Try Player by roll number or email
+        const pr = await checkPlayer(identifier);
+        if (pr?.notRegistered) {
+          return res.status(401).json({
+            error: "First time logging in? Click 'Forgot password' to set your password via email OTP.",
+            needsSetup: true,
+            roll: pr.player.roll,
+          });
+        }
+        if (pr && !pr.wrongPassword) payload = pr;
+      }
+
+      if (!payload) {
+        // Try Admin/Captain/Vice by email or name or role
+        if (idLower === "captain") payload = await checkCaptain();
+        else if (idLower === "vice") payload = await checkVice();
+        else payload = await checkAdmin(identifier);
+      }
     }
-    if (!payload) return res.status(401).json({ error: "Wrong name or code" });
+
+    if (!payload) return res.status(401).json({ error: "Invalid roll number, email, or password." });
     tries.delete(req.ip);
     res.json({ token: sign({ ...payload, exp: now + 7 * 864e5 }) });
   }),
@@ -1136,12 +1214,18 @@ app.post(
     const appUrl = `${proto}://${host}`;
     const autoFillUrl = `${appUrl}/?role=coach&otp=${encodeURIComponent(code)}&mode=reset`;
 
-    await sendEmail(
+    if (!process.env.RESEND_API_KEY) {
+      return res.status(503).json({ error: "E-mail service is not configured on the server." });
+    }
+
+    sendEmail(
       email,
       `Head Coach Password Reset Code: ${code} - IITP Hockey`,
       `Hello Head Coach ${ident.name},\n\nYour 6-digit password reset code is: ${code}\n\nAuto-fill link: ${autoFillUrl}\n\nThis code is valid for 10 minutes.`,
       `<div style="font-family:sans-serif;padding:24px;background:#f8fafc;border-radius:12px;max-width:500px;margin:auto;"><h2 style="color:#0b2a4a;margin-top:0;">🏑 Head Coach Password Reset</h2><p>Hello Coach ${ident.name},</p><p>Use the 6-digit verification code below to reset your portal password:</p><div style="font-size:36px;font-weight:bold;letter-spacing:6px;color:#0b2a4a;padding:12px 0;">${code}</div><p><a href="${autoFillUrl}" style="display:inline-block;background:#0f4aa8;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">🚀 Open App & Reset Password</a></p><p style="color:#64748b;font-size:12px;">Valid for 10 minutes. If you did not request this, please ignore this email.</p></div>`,
-    );
+    ).catch((err) => {
+      console.error("sendEmail coach OTP error:", err.message);
+    });
     res.json({ ok: true, sentTo: maskEmail(email), wait: 60 });
   }),
 );
@@ -1413,12 +1497,18 @@ const handleForgotCodeOtp = async (req, res) => {
     sends: sends + 1,
   });
 
-  await sendEmail(
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(503).json({ error: "E-mail service is not configured on the server." });
+  }
+
+  sendEmail(
     email,
     `Password Reset Verification Code: ${code} - IITP Hockey`,
-    `Hello ${recipientName},\n\nYour 6-digit password reset verification code is: ${code}\n\nEnter this code in the portal to set your new password, PIN, or pattern lock.\n\nValid for 10 minutes.`,
+    `Hello ${recipientName},\n\nYour 6-digit password reset verification code is: ${code}\n\nEnter this code in the portal to set your new password.\n\nValid for 10 minutes.`,
     `<div style="font-family:sans-serif;padding:24px;background:#f8fafc;border-radius:12px;max-width:500px;margin:auto;"><h2 style="color:#0b2a4a;margin-top:0;">🏑 IITP Hockey Password Reset</h2><p>Hello ${recipientName},</p><p>Use the 6-digit verification code below to set your new credentials:</p><div style="font-size:36px;font-weight:bold;letter-spacing:6px;color:#0b2a4a;padding:12px 0;">${code}</div><p style="color:#64748b;font-size:12px;">Valid for 10 minutes. If you did not request this, please ignore this email.</p></div>`,
-  );
+  ).catch((err) => {
+    console.error("sendEmail auth OTP error:", err.message);
+  });
 
   return res.json({
     ok: true,
@@ -1764,13 +1854,13 @@ app.post(
       </html>
     `;
 
-    try {
-      await sendEmail(email, emailSubject, emailText, emailHtml);
-    } catch (e) {
-      if (cur.exists) await ref.set(c).catch(() => {});
-      else await ref.delete().catch(() => {});
-      throw e;
+    if (!process.env.RESEND_API_KEY) {
+      return res.status(503).json({ error: "E-mail service is not configured on the server." });
     }
+
+    sendEmail(email, emailSubject, emailText, emailHtml).catch((err) => {
+      console.error("sendEmail player OTP error:", err.message);
+    });
     res.json({ ok: true, sentTo: maskEmail(email), wait: 60 });
   }),
 );

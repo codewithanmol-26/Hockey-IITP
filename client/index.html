@@ -27,8 +27,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap"
     rel="stylesheet">
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
-  <link rel="preload" href="style.css?v=84" as="style">
-  <link rel="stylesheet" href="style.css?v=84">
+  <link rel="preload" href="style.css?v=87" as="style">
+  <link rel="stylesheet" href="style.css?v=87">
 </head>
 
 <body>
@@ -91,42 +91,42 @@
     <div class="lg-card">
       <button type="button" id="lgx" class="lgx" data-ic="close" aria-label="Close" title="Close login popup"></button>
       <img class="lg-logo" src="icons/iitp-hockey-crest.svg" alt="IIT Patna Hockey Crest" width="84" height="84">
-      <h1>IITP Hockey</h1>
-      <p class="lg-sub">Attendance · Schedule · Rules</p>
-      <div class="seg" role="tablist"><button type="button" id="t1" class="on">Player</button><button type="button"
-          id="t2">Captain / Admin</button></div>
+      <h2 class="lg-card-title">Hockey Login</h2>
 
-      <form id="pf" autocomplete="off">
-        <label class="fl">Roll number<input id="pr" placeholder="e.g. 2501ME71" maxlength="8"
-            autocapitalize="characters" spellcheck="false" autocomplete="username" required></label>
-        <div id="pa"></div>
-        <p id="pe" class="err" role="alert"></p>
-        <button class="pri big" id="pgo">Continue</button>
-        <div class="login-forgot-row" id="pforgot-roll-wrap">
-          <button type="button" class="btn-forgot-pw" id="pforgot-roll">Forgot Password / Code?</button>
+      <form id="unified-login-form" autocomplete="on">
+        <label class="fl lg-label">
+          <span class="fl-lbl">Roll Number / Email</span>
+          <input id="login-id" class="lg-input" placeholder="Enter your roll number or email" autocapitalize="none" spellcheck="false" autocomplete="username" required>
+        </label>
+
+        <label class="fl lg-label">
+          <span class="fl-lbl">Password</span>
+          <div class="lg-pw-wrap">
+            <input id="login-pw" class="lg-input" type="password" placeholder="Enter your password" autocomplete="current-password" required>
+            <button type="button" id="login-pw-eye" class="lg-pw-eye" title="Show or hide password" aria-label="Toggle password visibility">👁️</button>
+          </div>
+        </label>
+
+        <div class="lg-forgot-row">
+          <button type="button" class="lg-forgot-link" id="login-forgot-btn">Forgot password?</button>
         </div>
-        <p class="hint">New here? Enter your roll number. The captain must have added you first.</p>
+
+        <p id="login-err" class="err" role="alert" style="margin:4px 0 8px;"></p>
+
+        <button type="submit" class="pri big lg-submit-btn" id="login-submit-btn">Login</button>
       </form>
 
-      <form id="lf" hidden>
-        <label class="fl">Login as<select id="em">
-            <option value="coach" selected>Coach (Head Coach)</option>
-            <option value="captain">Captain</option>
-            <option value="vice">Vice-captain</option>
-            <option value="admin">Admin</option>
-          </select></label>
-        <label class="fl" id="anw" hidden>Your name<input id="an" placeholder="Name registered in admin list"
-            autocomplete="username"></label>
-        <div id="staff-cred-wrap"></div>
-        <input id="pw" type="hidden">
-        <div class="login-forgot-row">
-          <button type="button" class="btn-forgot-pw" id="aforgot">Forgot Password / Code?</button>
-        </div>
-        <div id="aforgot-box" class="note" style="margin:8px 0 12px;font-size:0.84rem;line-height:1.5" hidden></div>
-        <p id="er" class="err" role="alert"></p>
-        <button class="pri big">Log in</button>
-      </form>
-      <button type="button" id="inst" class="ghost" hidden>⬇ Install app</button>
+      <!-- Forgot Password / Recovery Box -->
+      <div id="login-forgot-panel" hidden style="margin-top:14px;text-align:left;"></div>
+
+      <!-- Hidden fallbacks for legacy references -->
+      <div style="display:none;" aria-hidden="true">
+        <button id="t1"></button><button id="t2"></button>
+        <form id="pf"><input id="pr"><div id="pa"></div><p id="pe"></p><button id="pgo"></button><button id="pforgot-roll"></button></form>
+        <form id="lf"><select id="em"><option value="coach">coach</option></select><input id="an"><input id="pw"><p id="er"></p><button id="lgo"></button><button id="aforgot"></button><div id="aforgot-box"></div></form>
+      </div>
+
+      <button type="button" id="inst" class="ghost" hidden style="margin-top:12px;">⬇ Install app</button>
     </div>
   </section>
 
@@ -230,10 +230,10 @@
   </script>
   <script src="config.js"></script>
   <script src="icons.js?v=83"></script>
-  <script src="public.js?v=83"></script>
+  <script src="public.js?v=87"></script>
   <script src="extras.js"></script>
   <script src="help.js?v=83"></script>
-  <script src="app.js?v=86"></script>
+  <script src="app.js?v=87"></script>
   <script src="chat.js?v=84"></script>
 </body>
 
