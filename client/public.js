@@ -938,25 +938,21 @@ new MutationObserver(() => {
     b.setAttribute("aria-label", o ? "Close menu" : "Menu");
   });
 }).observe(gid("menu"), { attributes: true, attributeFilter: ["hidden"] });
-// Login popup modal close button, backdrop click, and Escape key
+// Login popup modal close button and Escape key
 const lgxBtn = gid("lgx");
 if (lgxBtn) {
   lgxBtn.hidden = false;
-  lgxBtn.onclick = () => {
+  lgxBtn.onclick = (e) => {
+    if (e) e.preventDefault();
     if (typeof closeLogin === "function") closeLogin();
     else showPublic();
   };
 }
 
-const loginModal = gid("login");
-if (loginModal) {
-  loginModal.addEventListener("click", (e) => {
-    if (e.target === loginModal) {
-      if (typeof closeLogin === "function") closeLogin();
-      else showPublic();
-    }
-  });
-}
+// Mobile protection: Do NOT close login modal on backdrop touches or clicks.
+// On mobile devices, touch scrolling and virtual keyboard resizing fire click events
+// on the backdrop container (#login), which was prematurely kicking users back to the public page.
+// The user can close the modal intentionally via the 'X' button (#lgx) or Escape key.
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {

@@ -992,19 +992,35 @@ function showLogin() {
 }
 
 function resetLoginForm() {
-  const idForm = $("login-id-form");
-  const otpForm = $("login-otp-form");
   const errEl = $("login-err");
   const otpErrEl = $("login-otp-err");
   const otpInp = $("login-otp");
-  if (idForm) idForm.hidden = false;
-  if (otpForm) otpForm.hidden = true;
-  if (errEl) errEl.textContent = "";
+  const statusBox = $("login-status-box");
+  const destEl = $("login-otp-dest");
+  if (errEl) {
+    errEl.textContent = "";
+    errEl.style.color = "";
+  }
   if (otpErrEl) otpErrEl.textContent = "";
   if (otpInp) otpInp.value = "";
+  if (statusBox) statusBox.style.display = "none";
+  if (destEl) destEl.textContent = "";
   if (otpCooldownInterval) {
     clearInterval(otpCooldownInterval);
     otpCooldownInterval = null;
+  }
+  const resendBtn = $("login-resend-btn");
+  if (resendBtn) {
+    resendBtn.disabled = true;
+    resendBtn.style.color = "var(--mute, #64748b)";
+    resendBtn.style.cursor = "default";
+    resendBtn.textContent = "Resend OTP";
+  }
+  const sendBtn = $("login-send-btn");
+  if (sendBtn) {
+    sendBtn.disabled = false;
+    sendBtn.style.opacity = "";
+    sendBtn.textContent = "Send OTP ✉️";
   }
 }
 
@@ -1042,25 +1058,38 @@ async function detectStaffCodeType() {}
 function loginTab(m) {}
 
 function initUnifiedLogin() {
-  const idForm = $("login-id-form");
-  const otpForm = $("login-otp-form");
+  const form = $("unified-login-form");
   const idInp = $("login-id");
   const otpInp = $("login-otp");
   const errEl = $("login-err");
-  const otpErrEl = $("login-otp-err");
   const sendBtn = $("login-send-btn");
   const verifyBtn = $("login-verify-btn");
-  const backBtn = $("login-back-btn");
   const resendBtn = $("login-resend-btn");
   const destEl = $("login-otp-dest");
+  const statusBox = $("login-status-box");
   const lgxBtn = $("lgx");
+  const cancelBtn = $("login-cancel-btn");
 
-  if (!idForm) return;
+  if (!idInp || !verifyBtn) return;
 
   if (lgxBtn) {
     lgxBtn.onclick = (e) => {
-      e.preventDefault();
+      if (e) e.preventDefault();
       closeLogin();
+    };
+  }
+
+  if (cancelBtn) {
+    cancelBtn.onclick = (e) => {
+      if (e) e.preventDefault();
+      closeLogin();
+    };
+  }
+
+  if (form) {
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      return false;
     };
   }
 
@@ -1069,9 +1098,14 @@ function initUnifiedLogin() {
     let remaining = seconds;
     if (resendBtn) {
       resendBtn.disabled = true;
-      resendBtn.style.opacity = "0.6";
+      resendBtn.style.color = "var(--mute, #64748b)";
       resendBtn.style.cursor = "not-allowed";
       resendBtn.textContent = "Resend OTP (" + remaining + "s)";
+    }
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.style.opacity = "0.6";
+      sendBtn.textContent = "Sent ✉️ (" + remaining + "s)";
     }
     otpCooldownInterval = setInterval(() => {
       remaining--;
@@ -1080,12 +1114,18 @@ function initUnifiedLogin() {
         otpCooldownInterval = null;
         if (resendBtn) {
           resendBtn.disabled = false;
-          resendBtn.style.opacity = "";
+          resendBtn.style.color = "var(--pri, #2563eb)";
           resendBtn.style.cursor = "pointer";
           resendBtn.textContent = "Resend OTP";
         }
-      } else if (resendBtn) {
-        resendBtn.textContent = "Resend OTP (" + remaining + "s)";
+        if (sendBtn) {
+          sendBtn.disabled = false;
+          sendBtn.style.opacity = "";
+          sendBtn.textContent = "Send OTP ✉️";
+        }
+      } else {
+        if (resendBtn) resendBtn.textContent = "Resend OTP (" + remaining + "s)";
+        if (sendBtn) sendBtn.textContent = "Sent ✉️ (" + remaining + "s)";
       }
     }, 1000);
   };
@@ -1093,17 +1133,23 @@ function initUnifiedLogin() {
   const handleSendOtp = async (isResend = false) => {
     const idVal = (idInp ? idInp.value : otpLoginTargetId || "").trim();
     if (!idVal) {
-      if (errEl) errEl.textContent = "Please enter your roll number, email, or role.";
-      return;
+      if (errEl) {
+        errEl.style.color = "";
+        errEl.textContent = "Please enter your roll number or email.";
+      }
+      if (idInp) idInp.focus();
+      return false;
     }
-    if (errEl) errEl.textContent = "";
-    if (otpErrEl) otpErrEl.textContent = "";
+    if (errEl) {
+      errEl.textContent = "";
+      errEl.style.color = "";
+    }
 
     const activeBtn = isResend ? resendBtn : sendBtn;
     const origText = activeBtn ? activeBtn.innerHTML : "";
     if (activeBtn) {
       activeBtn.disabled = true;
-      if (!isResend) activeBtn.innerHTML = "Sending code... ✉️";
+      activeBtn.innerHTML = isResend ? "Sending... ✉️" : "Sending code... ✉️";
     }
 
     try {
@@ -1113,41 +1159,131 @@ function initUnifiedLogin() {
       });
       otpLoginTargetId = idVal;
       if (destEl) destEl.textContent = res.sentTo || idVal;
-      if (idForm) idForm.hidden = true;
-      if (otpForm) otpForm.hidden = false;
+      if (statusBox) statusBox.style.display = "block";
       if (otpInp) {
-        otpInp.value = "";
         otpInp.focus();
       }
       startCooldown(res.wait || 45);
       toast("Verification code sent to " + (res.sentTo || idVal) + "!");
+      return true;
     } catch (x) {
-      const targetErr = isResend ? otpErrEl : errEl;
-      if (targetErr) targetErr.textContent = x.message || "Could not send verification code. Please try again.";
-    } finally {
+      if (errEl) {
+        errEl.style.color = "";
+        errEl.textContent = x.message || "Could not send verification code. Please try again.";
+      }
       if (activeBtn) {
         activeBtn.disabled = false;
-        if (!isResend) activeBtn.innerHTML = origText;
+        activeBtn.innerHTML = origText;
+      }
+      return false;
+    }
+  };
+
+  const handleVerify = async () => {
+    if (errEl) {
+      errEl.textContent = "";
+      errEl.style.color = "";
+    }
+    const idVal = (idInp ? idInp.value : otpLoginTargetId || "").trim();
+    if (!idVal) {
+      if (errEl) {
+        errEl.style.color = "";
+        errEl.textContent = "Please enter your roll number or email.";
+      }
+      if (idInp) idInp.focus();
+      return;
+    }
+
+    const code = (otpInp ? otpInp.value : "").trim().replace(/\D/g, "");
+    if (!code) {
+      // If user provided ID but OTP is empty, send OTP automatically and prompt them
+      const sent = await handleSendOtp(false);
+      if (sent && errEl) {
+        errEl.style.color = "var(--ink, #0b2a4a)";
+        errEl.textContent = "Code sent! Enter the 6-digit OTP above to log in.";
+      }
+      return;
+    }
+
+    if (code.length !== 6) {
+      if (errEl) {
+        errEl.style.color = "";
+        errEl.textContent = "Please enter the 6-digit code sent to your email.";
+      }
+      if (otpInp) otpInp.focus();
+      return;
+    }
+
+    const origText = verifyBtn ? verifyBtn.innerHTML : "";
+    if (verifyBtn) {
+      verifyBtn.disabled = true;
+      verifyBtn.innerHTML = "Logging in... 🚀";
+    }
+
+    try {
+      const r = await api("/api/auth/verify-otp", {
+        method: "POST",
+        body: {
+          identifier: idVal,
+          otp: code,
+        },
+      });
+      saveToken(r.token);
+      closeLogin();
+      tab = (r.user?.role === "player") ? "me" : "att";
+      boot();
+      toast("Welcome back, " + (r.user?.name || "Player") + "!");
+    } catch (x) {
+      if (errEl) {
+        errEl.style.color = "";
+        errEl.textContent = x.message || "Invalid or expired verification code.";
+      }
+      if (otpInp) {
+        otpInp.focus();
+        otpInp.select();
+      }
+    } finally {
+      if (verifyBtn) {
+        verifyBtn.disabled = false;
+        verifyBtn.innerHTML = origText || "Login";
       }
     }
   };
 
-  idForm.onsubmit = async (e) => {
-    e.preventDefault();
-    await handleSendOtp(false);
-  };
+  if (sendBtn) {
+    sendBtn.onclick = async (e) => {
+      e.preventDefault();
+      if (sendBtn.disabled) return;
+      await handleSendOtp(false);
+    };
+  }
 
   if (resendBtn) {
-    resendBtn.onclick = async () => {
+    resendBtn.onclick = async (e) => {
+      e.preventDefault();
       if (resendBtn.disabled) return;
       await handleSendOtp(true);
     };
   }
 
-  if (backBtn) {
-    backBtn.onclick = () => {
-      resetLoginForm();
-      if (idInp) idInp.focus();
+  if (verifyBtn) {
+    verifyBtn.onclick = async (e) => {
+      e.preventDefault();
+      await handleVerify();
+    };
+  }
+
+  if (idInp) {
+    idInp.onkeydown = async (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const code = (otpInp ? otpInp.value : "").trim();
+        if (code.length === 6) {
+          await handleVerify();
+        } else {
+          await handleSendOtp(false);
+        }
+      }
     };
   }
 
@@ -1155,47 +1291,14 @@ function initUnifiedLogin() {
     otpInp.oninput = () => {
       const val = otpInp.value.replace(/\D/g, "").slice(0, 6);
       otpInp.value = val;
-      if (val.length === 6) {
-        if (otpForm.requestSubmit) otpForm.requestSubmit();
-        else if (verifyBtn) verifyBtn.click();
+      if (val.length === 6 && idInp && idInp.value.trim()) {
+        handleVerify();
       }
     };
-  }
-
-  if (otpForm) {
-    otpForm.onsubmit = async (e) => {
-      e.preventDefault();
-      if (otpErrEl) otpErrEl.textContent = "";
-      const code = (otpInp ? otpInp.value : "").trim();
-      if (!/^\d{6}$/.test(code)) {
-        if (otpErrEl) otpErrEl.textContent = "Please enter the 6-digit code received on your email.";
-        return;
-      }
-      const origText = verifyBtn ? verifyBtn.innerHTML : "";
-      if (verifyBtn) {
-        verifyBtn.disabled = true;
-        verifyBtn.innerHTML = "Verifying... 🚀";
-      }
-      try {
-        const r = await api("/api/auth/verify-otp", {
-          method: "POST",
-          body: {
-            identifier: otpLoginTargetId || (idInp ? idInp.value : ""),
-            otp: code,
-          },
-        });
-        saveToken(r.token);
-        closeLogin();
-        tab = (r.user?.role === "player") ? "me" : "att";
-        boot();
-        toast("Welcome back, " + (r.user?.name || "Player") + "!");
-      } catch (x) {
-        if (otpErrEl) otpErrEl.textContent = x.message || "Invalid or expired verification code.";
-      } finally {
-        if (verifyBtn) {
-          verifyBtn.disabled = false;
-          verifyBtn.innerHTML = origText;
-        }
+    otpInp.onkeydown = async (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        await handleVerify();
       }
     };
   }
@@ -1327,14 +1430,12 @@ function handleUrlAuthParams() {
 
     // Instant One-Click Auto-Login from Email link
     if (activeId && otp && otp.length === 6) {
-      const idForm = $("login-id-form");
-      const otpForm = $("login-otp-form");
-      if (idForm) idForm.hidden = true;
-      if (otpForm) otpForm.hidden = false;
       const otpInp = $("login-otp");
       if (otpInp) otpInp.value = otp;
       const destEl = $("login-otp-dest");
       if (destEl) destEl.textContent = activeId;
+      const statusBox = $("login-status-box");
+      if (statusBox) statusBox.style.display = "block";
       setTimeout(() => {
         const verifyBtn = $("login-verify-btn");
         if (verifyBtn) verifyBtn.click();

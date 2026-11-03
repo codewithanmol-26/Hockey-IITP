@@ -7956,6 +7956,13 @@ img.sig,
   outline: none;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
+#login-otp::placeholder {
+  letter-spacing: normal;
+  font-family: inherit;
+  font-weight: 400;
+  font-size: 0.95rem;
+  color: var(--mute);
+}
 .lg-pw-wrap {
   position: relative;
   display: flex;
