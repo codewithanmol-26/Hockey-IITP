@@ -4383,7 +4383,7 @@ function vStats() {
     `<div class="card"><h2>Attendance</h2><div class="ctl">${mSel("gm", gMonth, true)}</div>
   <div class="stats"><div><b>${n}</b>Playing days</div><div><b>${ns}</b>Sessions</div><div><b>${tr}%</b>${admin ? "Team turnout" : "My attendance"}</div></div>
   ${admin ? podium(st, medal) : tier ? `<div class="tier"><span>${tier[0]}</span><div><b>${tier[1]} level</b><br><span class="mute">Gold 90% or more · Silver 75% or more · Bronze 60% or more</span></div></div>` : ""}
-  <table><tr><th>Player</th><th class="n">Present</th><th class="n">Sessions</th><th>%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td><div class="bar"><i style="width:${x.pct}%"></i></div>${x.pct}%</td></tr>`).join("")}</table>
+  <table><tr><th>Player</th><th class="n">Present</th><th class="n">Sessions</th><th class="n">%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td class="n">${x.pct}%</td></tr>`).join("")}</table>
   <p class="mute">% = sessions present ÷ total sessions (${ns}). The total is the same for every player; a missed session counts as absent.</p>${L[m] ? '<p class="mute">Includes the imported register totals.</p>' : ""}
   <div class="chips"><button id="shr">⤴ Share report</button></div></div>
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
@@ -7888,16 +7888,7 @@ function chartBlocks(ttl, pts, st, tr, m, vis) {
     t2 = admin
       ? "Days attended vs missed by month (average per player)"
       : "My days attended vs missed by month",
-    t3 = admin ? "Attendance % by player" + ml : "My attendance % by month",
     t4 = (admin ? "Team" : "My") + " present vs absent" + ml;
-  const md = medalFn(st),
-    rows = admin
-      ? st.map((x) => ({
-          l: (md(x) ? md(x) + " " : "") + x.p.name,
-          v: x.pct,
-          id: x.p.id,
-        }))
-      : per.map((x) => ({ l: mshort(x.k), v: x.pct }));
   return `<div class="card"><h2>Charts</h2>
   <h3 class="chh">${esc(t1)} <span class="pill">Line</span></h3>${pts.length ? '<div id="ch1" class="chart"></div>' : '<p class="mute">No day-by-day records for this month. Monthly totals only.</p>'}
   <h3 class="chh">${esc(t2)} <span class="pill">Grouped bar</span></h3>${
@@ -7912,7 +7903,6 @@ function chartBlocks(ttl, pts, st, tr, m, vis) {
         )
       : '<p class="mute">No data yet.</p>'
   }
-  <h3 class="chh">${esc(t3)} <span class="pill">Horizontal bar</span></h3>${rows.length ? hbar(rows, t3) : '<p class="mute">No data yet.</p>'}
   <h3 class="chh">${esc(t4)} <span class="pill">Donut</span></h3>${donut(
     [
       { n: "Present", c: "var(--p)", v: pr },
