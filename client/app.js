@@ -6267,8 +6267,12 @@ function vAdmins() {
               <label class="fl" id="aplw" style="flex:1; min-width:180px; margin:0;" hidden>Which Squad Player
                 <select id="apl">
                   <option value="">Choose a player…</option>
-                  ${P.map((x) => `<option value="${esc(x.id)}" data-n="${esc(x.name)}">${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}
+                  ${P.map((x) => `<option value="${esc(x.id)}" data-n="${esc(x.name)}" data-em="${esc(x.email || "")}">${esc(x.name)}${x.roll ? " · " + esc(x.roll) : ""}</option>`).join("")}
                 </select>
+              </label>
+
+              <label class="fl" id="aemw" style="flex:1; min-width:200px; margin:0;">Email for OTP
+                <input id="aem" type="email" placeholder="Email address (for OTP verification)" maxlength="120">
               </label>
             </div>
 
@@ -6311,7 +6315,7 @@ function vAdmins() {
                   <b>${esc(a.name)}</b><br>
                   ${cfg.badge}
                   <span class="pill ${a.disabled ? "r" : "g"}">${a.disabled ? "Access off" : "Access on"}</span>
-                  ${a.playerId ? `<span class="pill g">⚽ Player${linkedPlayer ? ": " + esc(linkedPlayer.name) : ""}</span>` : `<span class="pill">👔 Staff</span>`}
+                  ${a.playerId ? `<span class="pill g">⚽ Player${linkedPlayer ? ": " + esc(linkedPlayer.name) : ""}</span>` : `<span class="pill">👔 Staff${a.email ? ` · ✉️ ${esc(a.email)}` : ""}</span>`}
                 </span>
               </span>
               
@@ -6338,10 +6342,13 @@ function vAdmins() {
     if (p === "coach") {
       $("akind").value = "instructor";
       $("akind").disabled = true;
-      $("aplw").hidden = true;
+      if ($("aplw")) $("aplw").hidden = true;
+      if ($("aemw")) $("aemw").hidden = false;
     } else {
       $("akind").disabled = false;
-      $("aplw").hidden = $("akind").value !== "player";
+      const isPl = $("akind") && $("akind").value === "player";
+      if ($("aplw")) $("aplw").hidden = !isPl;
+      if ($("aemw")) $("aemw").hidden = isPl;
     }
   };
   if ($("apost")) $("apost").onchange = syncPostKind;
@@ -6350,6 +6357,7 @@ function vAdmins() {
     $("apl").onchange = () => {
       const o = $("apl").selectedOptions[0];
       if (o && o.dataset.n) $("an2").value = o.dataset.n;
+      if (o && o.dataset.em && $("aem")) $("aem").value = o.dataset.em;
     };
   }
   if ($("btn-top-rep-coach")) {
@@ -6359,26 +6367,58 @@ function vAdmins() {
   if ($("aadd")) {
     $("aadd").onclick = () => {
       const post = $("apost") ? $("apost").value : "admin";
-      const kind = post === "coach" ? "instructor" : ($("akind") ? $("akind").value : "instructor");
-      const pid = post === "coach" ? "" : ($("apl") ? $("apl").value : ""),
+      const kind =
+        post === "coach"
+          ? "instructor"
+          : $("akind")
+            ? $("akind").value
+            : "instructor";
+      const pid = post === "coach" ? "" : $("apl") ? $("apl").value : "",
         name = ($("an2").value || "").trim(),
-        code = $("ac").value;
+        code = $("ac").value,
+        email = $("aem") ? ($("aem").value || "").trim() : "";
       if (!name || code.length < 4)
         return alert("Enter a name and a code of at least 4 characters.");
       if (kind === "player" && !pid)
-        return alert("Please choose which player from the dropdown to link this admin to.");
+        return alert(
+          "Please choose which player from the dropdown to link this admin to.",
+        );
+      if (kind !== "player") {
+        if (!email)
+          return alert(
+            "Please enter an Email address for OTP verification.",
+          );
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+          return alert(
+            "Please enter a valid email address (e.g. name@iitp.ac.in).",
+          );
+      }
 
       if (post === "coach" && hasCoach) {
-        if (!confirm("Appointing a new Coach will replace the current Coach. Proceed?")) return;
+        if (
+          !confirm(
+            "Appointing a new Coach will replace the current Coach. Proceed?",
+          )
+        )
+          return;
       }
 
       run(async () => {
         await api("/api/admins", {
           method: "POST",
-          body: { name, code, post, kind, playerId: kind === "player" ? pid : null },
+          body: {
+            name,
+            code,
+            post,
+            kind,
+            playerId: kind === "player" ? pid : null,
+            email: kind !== "player" ? email : (email || null),
+          },
         });
         await load(true);
-        alert(`${POST_CONFIG[post] ? POST_CONFIG[post].label : "Admin"} "${name}" added successfully!`);
+        alert(
+          `${POST_CONFIG[post] ? POST_CONFIG[post].label : "Admin"} "${name}" added successfully!`,
+        );
       });
     };
   }
@@ -6480,6 +6520,10 @@ function openEditAdmin(adminId) {
       </select>
     </label>
 
+    <label class="fl" id="eda-em-wrap" ${a.playerId ? "hidden" : ""}>Email for OTP
+      <input id="eda-email" type="email" value="${esc(a.email || "")}" placeholder="Email address (for OTP verification)" maxlength="120">
+    </label>
+
     <label class="fl">New Login Code (Leave empty to keep unchanged)
       <input id="eda-code" type="password" placeholder="New code (4 to 30 characters)" maxlength="30" autocomplete="new-password">
     </label>
@@ -6497,16 +6541,31 @@ function openEditAdmin(adminId) {
     </div>
   `;
 
+  if ($("eda-pl")) {
+    $("eda-pl").onchange = () => {
+      const isPl = !!$("eda-pl").value;
+      if ($("eda-em-wrap")) $("eda-em-wrap").hidden = isPl;
+    };
+  }
+
   $("eda-cancel").onclick = () => d.close();
   $("eda-save").onclick = () => {
     const name = ($("eda-name").value || "").trim();
     const newPost = $("eda-post").value;
     const pid = $("eda-pl").value || "";
+    const email = $("eda-email") ? ($("eda-email").value || "").trim() : "";
     const code = ($("eda-code").value || "").trim();
     const disabled = $("eda-dis").value === "1";
 
     if (!name) return alert("Administrator name is required.");
-    if (code && code.length < 4) return alert("New code must be at least 4 characters.");
+    if (code && code.length < 4)
+      return alert("New code must be at least 4 characters.");
+    if (!pid) {
+      if (!email)
+        return alert("Email address is required for OTP verification.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+        return alert("Please enter a valid email address.");
+    }
 
     run(async () => {
       const body = {
@@ -6514,6 +6573,7 @@ function openEditAdmin(adminId) {
         post: newPost,
         kind: newPost,
         playerId: pid || null,
+        email: pid ? (email || null) : email,
         disabled,
       };
       if (code) body.code = code;

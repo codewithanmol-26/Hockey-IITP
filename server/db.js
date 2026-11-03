@@ -137,6 +137,7 @@ function rowToDoc(col, row) {
       id,
       data: () => ({
         name: row.name,
+        email: row.email || "",
         disabled: !!row.disabled,
         salt: row.salt,
         hash: row.hash,
@@ -812,9 +813,11 @@ async function readAllFromSupabase() {
       const post = ["coach", "captain", "vice", "admin"].includes(rawKind)
         ? rawKind
         : "admin";
+      const adminEmails = configMap.admin_emails || {};
       return {
         id: a.id,
         name: a.name,
+        email: adminEmails[a.id] || a.email || "",
         disabled: !!a.disabled,
         photo: a.photo || "",
         created: a.created_at || 0,

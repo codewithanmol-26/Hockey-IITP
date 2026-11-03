@@ -321,6 +321,31 @@ async function syncLeadership() {
   }
 }
 
+async function getAdminEmails() {
+  const doc = await db
+    .collection("config")
+    .doc("admin_emails")
+    .get()
+    .catch(() => null);
+  return (doc && doc.exists ? doc.data() : {}) || {};
+}
+
+async function setAdminEmail(adminId, email) {
+  if (!adminId) return;
+  const doc = await db
+    .collection("config")
+    .doc("admin_emails")
+    .get()
+    .catch(() => null);
+  const emails = (doc && doc.exists ? doc.data() : {}) || {};
+  if (email) {
+    emails[adminId] = String(email).trim().toLowerCase();
+  } else {
+    delete emails[adminId];
+  }
+  await db.collection("config").doc("admin_emails").set(emails);
+}
+
 app.post(
   "/api/login",
   h(async (req, res) => {
@@ -1320,15 +1345,17 @@ const handleForgotCodeOtp = async (req, res) => {
   } else {
     // Admin, Captain, Vice-Captain
     if (u.id) {
-      const aDoc = await db
-        .collection("admins")
-        .doc(u.id)
-        .get()
-        .catch(() => null);
+      const [aDoc, emailsDoc] = await Promise.all([
+        db.collection("admins").doc(u.id).get().catch(() => null),
+        db.collection("config").doc("admin_emails").get().catch(() => null),
+      ]);
+      const adminEmails =
+        (emailsDoc && emailsDoc.exists ? emailsDoc.data() : {}) || {};
       if (aDoc && aDoc.exists) {
         const aData = aDoc.data();
-        if (aData.email && EMAIL_RE.test(aData.email)) {
-          email = aData.email.trim();
+        const configuredEmail = adminEmails[u.id] || aData.email;
+        if (configuredEmail && EMAIL_RE.test(configuredEmail)) {
+          email = configuredEmail.trim();
         } else if (aData.playerId) {
           const plDoc = await db
             .collection("players")
@@ -3049,8 +3076,34 @@ app.post(
         .status(400)
         .json({ error: "Chosen player not found in squad roster" });
 
+    // Validate email when adding admin who is not in squad player
+    let email = b.email ? str(b.email, 120).trim().toLowerCase() : "";
+    if (!playerId) {
+      if (!email) {
+        return res.status(400).json({
+          error:
+            "Email address is required for administrators not in the squad (used for OTP verification).",
+        });
+      }
+      if (!EMAIL_RE.test(email)) {
+        return res.status(400).json({
+          error: "Please enter a valid email address (e.g. name@iitp.ac.in).",
+        });
+      }
+    } else if (!email) {
+      // Squad player: inherit player's email if available
+      const plDoc = await db
+        .collection("players")
+        .doc(playerId)
+        .get()
+        .catch(() => null);
+      if (plDoc && plDoc.exists && plDoc.data().email) {
+        email = str(plDoc.data().email, 120).trim().toLowerCase();
+      }
+    }
+
     const salt = crypto.randomBytes(16).toString("hex");
-    await db.collection("admins").add({
+    const docRef = await db.collection("admins").add({
       name,
       disabled: false,
       kind: post,
@@ -3060,6 +3113,10 @@ app.post(
       salt,
       hash: crypto.scryptSync(code, salt, 32).toString("hex"),
     });
+
+    if (email) {
+      await setAdminEmail(docRef.id, email);
+    }
     await syncLeadership();
     done(res);
   }),
@@ -3156,7 +3213,7 @@ app.put(
     }
 
     if (b.email !== undefined) {
-      const em = str(b.email, 120).trim();
+      const em = str(b.email, 120).trim().toLowerCase();
       upd.email = em;
     }
 
@@ -3164,6 +3221,9 @@ app.put(
       return res
         .status(400)
         .json({ error: "That e-mail address does not look right." });
+    if (upd.email !== undefined) {
+      await setAdminEmail(req.params.id, upd.email);
+    }
     if (isTargetCoach && (upd.name || upd.email !== undefined))
       await setCoachIdentity(upd.name, upd.email).catch(() => {});
 
@@ -3255,6 +3315,7 @@ app.delete(
 
     // Rule: "coach can remove anyone" - non-coaches can remove general admins but cannot remove Coach
     await ref.delete();
+    await setAdminEmail(req.params.id, null);
     await syncLeadership();
     done(res);
   }),
