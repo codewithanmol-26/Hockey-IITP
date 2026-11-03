@@ -159,8 +159,51 @@
     // 8. Down arrow button for scrolling directly to bottom of answer
     initScrollBottom();
 
+    // 9. Delegated File Card Download click handler
+    const msgs = document.getElementById("chat-msgs");
+    if (msgs) {
+      msgs.addEventListener("click", (e) => {
+        const btn = e.target.closest(
+          ".chat-file-btn, a[href*='/api/export/attendance']",
+        );
+        if (btn) {
+          e.preventDefault();
+          e.stopPropagation();
+          const url =
+            btn.getAttribute("data-url") || btn.getAttribute("href");
+          if (url) downloadAttendanceFile(url);
+        }
+      });
+    }
+
     // Populate initial greeting and chips
     resetChat();
+  }
+
+  function downloadAttendanceFile(url) {
+    let token = "";
+    try {
+      token = localStorage.getItem("hk_token") || "";
+    } catch (e) {}
+
+    const separator = url.includes("?") ? "&" : "?";
+    const fullUrl =
+      token && !url.includes("token=")
+        ? `${url}${separator}token=${encodeURIComponent(token)}`
+        : url;
+
+    const a = document.createElement("a");
+    a.href = fullUrl;
+    a.setAttribute("download", "");
+    a.target = "_blank";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try {
+        document.body.removeChild(a);
+      } catch (_) {}
+    }, 250);
   }
 
   /**
@@ -322,20 +365,64 @@
       const isAdmin = prof && (prof.role === "admin" || prof.role === "captain" || prof.role === "vice" || prof.role === "coach");
       const chipList = isAdmin
         ? [
-            { label: "📊 Squad Attendance", q: "Show me an overview of squad attendance and top attendees." },
-            { label: "👥 Team Roster", q: "List all active squad players with their positions." },
-            { label: "📅 Practice Schedule", q: "What are the upcoming practice plans and playing days?" },
-            { label: "🛡️ Admin Access", q: "What administrative tools and controls do I have access to?" },
-            { label: "🔥 Warm-up Routine", q: "What are the recommended team warm-up drills?" },
-            { label: "🥗 Sports Nutrition", q: "How should I plan athletic nutrition for hockey practice and matches?" }
+            {
+              label: "📊 Attendance MS File",
+              q: "Generate MS file for monthwise attendance.",
+            },
+            {
+              label: "👥 Squad Attendance",
+              q: "Show me an overview of squad attendance and top attendees.",
+            },
+            {
+              label: "📋 Team Roster",
+              q: "List all active squad players with their positions.",
+            },
+            {
+              label: "📅 Practice Schedule",
+              q: "What are the upcoming practice plans and playing days?",
+            },
+            {
+              label: "🛡️ Admin Access",
+              q: "What administrative tools and controls do I have access to?",
+            },
+            {
+              label: "🔥 Warm-up Routine",
+              q: "What are the recommended team warm-up drills?",
+            },
+            {
+              label: "🥗 Sports Nutrition",
+              q: "How should I plan athletic nutrition for hockey practice and matches?",
+            },
           ]
         : [
-            { label: "🥗 Plan Diet", q: "How should I plan my diet for hockey practice and matches?" },
-            { label: "📅 Next Practice", q: "When is the next practice scheduled?" },
-            { label: "⚡ Penalty Corner", q: "Explain the rules of penalty corner in field hockey" },
-            { label: "📊 Attendance", q: "What is my attendance percentage?" },
-            { label: "🔥 Warm-up Routine", q: "What are the recommended team warm-up drills?" },
-            { label: "🧤 Goalkeeping Tips", q: "What are key field hockey goalkeeping positioning tips?" }
+            {
+              label: "📊 Attendance MS File",
+              q: "Generate MS file for monthwise attendance.",
+            },
+            {
+              label: "🥗 Plan Diet",
+              q: "How should I plan my diet for hockey practice and matches?",
+            },
+            {
+              label: "📅 Next Practice",
+              q: "When is the next practice scheduled?",
+            },
+            {
+              label: "⚡ Penalty Corner",
+              q: "Explain the rules of penalty corner in field hockey",
+            },
+            {
+              label: "📊 My Attendance",
+              q: "What is my attendance percentage?",
+            },
+            {
+              label: "🔥 Warm-up Routine",
+              q: "What are the recommended team warm-up drills?",
+            },
+            {
+              label: "🧤 Goalkeeping Tips",
+              q: "What are key field hockey goalkeeping positioning tips?",
+            },
           ];
 
       chipList.forEach(item => {
@@ -645,14 +732,97 @@
       .replace(/>/g, "&gt;");
   }
 
+  function renderMarkdownTable(lines) {
+    if (lines.length < 2) return lines.join("<br>");
+    const isSep = /^\|?(\s*:?-+:?\s*\|?)+$/.test(lines[1]);
+    if (!isSep) return lines.join("<br>");
+
+    const parseRow = (str) =>
+      str
+        .replace(/^\|/, "")
+        .replace(/\|$/, "")
+        .split("|")
+        .map((c) => c.trim());
+
+    const headers = parseRow(lines[0]);
+    const bodyRows = lines.slice(2);
+
+    let html =
+      '<div class="chat-table-wrap"><table class="chat-table"><thead><tr>';
+    headers.forEach((h) => {
+      html += `<th>${h}</th>`;
+    });
+    html += "</tr></thead><tbody>";
+
+    bodyRows.forEach((rowStr) => {
+      if (!rowStr.trim()) return;
+      const cells = parseRow(rowStr);
+      html += "<tr>";
+      cells.forEach((c) => {
+        html += `<td>${c}</td>`;
+      });
+      html += "</tr>";
+    });
+    html += "</tbody></table></div>";
+    return html;
+  }
+
   function renderMarkdown(text) {
     if (!text) return "";
     let s = escapeHtml(text);
+
+    // Headings
+    s = s.replace(/^###\s+(.*)$/gm, '<h4 class="chat-h4">$1</h4>');
+    s = s.replace(/^##\s+(.*)$/gm, '<h3 class="chat-h3">$1</h3>');
+    s = s.replace(/^#\s+(.*)$/gm, '<h3 class="chat-h3">$1</h3>');
 
     // Bold **text**
     s = s.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
     // Italic *text*
     s = s.replace(/\*(.*?)\*/g, "<i>$1</i>");
+
+    // Markdown Links [Label](URL) -> File cards or regular links
+    s = s.replace(/\[(.*?)\]\((.*?)\)/g, (match, label, rawUrl) => {
+      const url = rawUrl.trim();
+      if (
+        url.includes("/api/export/attendance") ||
+        url.endsWith(".xls") ||
+        url.endsWith(".csv")
+      ) {
+        const isXls =
+          url.includes("format=excel") ||
+          url.includes("format=xls") ||
+          url.endsWith(".xls");
+        const cleanLabel = label.replace(/^[📊📄📁📗]\s*/, "");
+        return `<div class="chat-file-card">
+          <div class="chat-file-card-icon">${isXls ? "📗" : "📄"}</div>
+          <div class="chat-file-card-body">
+            <div class="chat-file-card-title">${cleanLabel}</div>
+            <div class="chat-file-card-meta">${
+              isXls
+                ? "Microsoft Excel Workbook (.xls)"
+                : "Universal CSV Spreadsheet (.csv)"
+            }</div>
+          </div>
+          <button type="button" class="chat-file-btn" data-url="${url}" title="Download File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            <span>Download</span>
+          </button>
+        </div>`;
+      }
+      return `<a href="${url}" target="_blank" rel="noopener" class="chat-link">${label}</a>`;
+    });
+
+    // Parse Markdown tables before line-break processing
+    s = s.replace(/(?:^\|[^\n]+\|\r?\n?)+/gm, (tableMatch) => {
+      const lines = tableMatch
+        .trim()
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      return renderMarkdownTable(lines);
+    });
+
     // Bullet lists
     s = s.replace(/^\s*[\*\-]\s+(.*)$/gm, "<li>$1</li>");
     s = s.replace(/(<li>.*<\/li>)/s, "<ul>$1</ul>");

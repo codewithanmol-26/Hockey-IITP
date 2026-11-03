@@ -92,7 +92,9 @@ const verify = (t) => {
   }
 };
 const bearer = (req) =>
-  (req.headers.authorization || "").replace(/^Bearer /, "");
+  (req.headers.authorization || "").replace(/^Bearer /, "") ||
+  (req.query && (req.query.token || req.query.auth)) ||
+  "";
 async function who(req) {
   const p = verify(bearer(req));
   if (!p) return null;
@@ -4478,6 +4480,109 @@ app.delete(
   h(async (req, res) => {
     await db.collection("helpMsgs").doc(req.params.id).delete();
     res.json({ ok: true });
+  }),
+);
+
+const attendanceExporter = require("./attendanceExporter");
+
+function resolveExportMonth(monthParam, sessions, legacy) {
+  if (!monthParam || monthParam === "all") return "all";
+  const m = String(monthParam).trim().toLowerCase();
+  if (/^\d{4}-\d{2}$/.test(m)) return m;
+
+  const availableMonths = new Set();
+  Object.keys(sessions || {}).forEach((d) => availableMonths.add(d.slice(0, 7)));
+  Object.keys(legacy || {}).forEach((k) => availableMonths.add(k));
+  const sortedMonths = Array.from(availableMonths).sort();
+
+  if (m === "latest" || m === "current") {
+    return sortedMonths[sortedMonths.length - 1] || "all";
+  }
+
+  const monthNames = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+  ];
+  const matchedIdx = monthNames.findIndex(
+    (name) => m.includes(name) || name.startsWith(m),
+  );
+  if (matchedIdx !== -1) {
+    const mm = String(matchedIdx + 1).padStart(2, "0");
+    const matching = sortedMonths.filter((x) => x.endsWith("-" + mm)).pop();
+    if (matching) return matching;
+  }
+  return m;
+}
+
+// ---- Attendance MS File Exporter (.xls / .csv) ----
+app.get(
+  "/api/export/attendance",
+  h(async (req, res) => {
+    const p = await who(req);
+    if (!p) {
+      return res
+        .status(401)
+        .json({ error: "Login required to download attendance MS files." });
+    }
+
+    const { month = "all", format = "excel" } = req.query;
+    const all = await readAll(false);
+    const activePlayers = (all.players || []).filter((pl) => !pl.removed);
+    const resolvedMonth = resolveExportMonth(month, all.sessions, all.legacy);
+
+    const isExcel = format === "excel" || format === "xls";
+    let fileContent = "";
+    const ext = isExcel ? "xls" : "csv";
+    const contentType = isExcel
+      ? "application/vnd.ms-excel; charset=utf-8"
+      : "text/csv; charset=utf-8";
+
+    if (resolvedMonth === "all") {
+      fileContent = isExcel
+        ? attendanceExporter.generateAllMonthsExcelHtml({
+            sessions: all.sessions || {},
+            legacy: all.legacy || {},
+            players: activePlayers,
+          })
+        : attendanceExporter.generateAllMonthsCsv({
+            sessions: all.sessions || {},
+            legacy: all.legacy || {},
+            players: activePlayers,
+          });
+    } else {
+      fileContent = isExcel
+        ? attendanceExporter.generateMonthExcelHtml({
+            month: resolvedMonth,
+            sessions: all.sessions || {},
+            legacy: all.legacy || {},
+            players: activePlayers,
+          })
+        : attendanceExporter.generateMonthCsv({
+            month: resolvedMonth,
+            sessions: all.sessions || {},
+            legacy: all.legacy || {},
+            players: activePlayers,
+          });
+    }
+
+    const fileLabel = resolvedMonth === "all" ? "Full_Season" : resolvedMonth;
+    const filename = `IITP_Hockey_Attendance_${fileLabel}.${ext}`;
+    res.setHeader("Content-Type", contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`,
+    );
+    res.send(fileContent);
   }),
 );
 

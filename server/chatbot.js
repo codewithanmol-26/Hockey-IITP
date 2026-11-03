@@ -6,6 +6,7 @@
 
 const { GoogleGenAI } = require("@google/genai");
 const db = require("./db");
+const { formatMonthLabel } = require("./attendanceExporter");
 
 let ai = null;
 let currentKey = null;
@@ -325,6 +326,10 @@ async function chat({ message, user, userProfile, history = [] }) {
     /attendance|present|absent|percentage|attended|my record|stats/i.test(
       qLower,
     );
+  const isAskingExport =
+    /generate.*(file|excel|ms|sheet|csv|attendance)|export.*attendance|download.*attendance|ms file|excel file|attendance.*file|attendance.*excel|monthwise.*attendance|attendance.*sheet|excel sheet|attendance.*download/i.test(
+      qLower,
+    );
   const isAskingSchedule =
     /schedule|practice|timing|when|today|tomorrow|playing day|match/i.test(
       qLower,
@@ -359,11 +364,22 @@ async function chat({ message, user, userProfile, history = [] }) {
     };
   }
 
-  if (isAskingTeamStats || isAskingAttendance || (isAdmin && isAskingRoster)) {
+  if (
+    isAskingTeamStats ||
+    isAskingAttendance ||
+    isAskingExport ||
+    (isAdmin && isAskingRoster)
+  ) {
     context.teamSessions = await getTeamSessionsSummary();
   }
 
-  if (isAdmin && (isAskingRoster || isAskingAttendance || isAskingTeamStats)) {
+  if (
+    isAdmin &&
+    (isAskingRoster ||
+      isAskingAttendance ||
+      isAskingExport ||
+      isAskingTeamStats)
+  ) {
     context.squadRoster = await getSquadRosterSummary();
   }
 
@@ -427,6 +443,55 @@ async function chat({ message, user, userProfile, history = [] }) {
     }
   }
 
+  if (isAskingExport || isAskingAttendance) {
+    try {
+      const [sessions, legacy] = await Promise.all([
+        db.getSessions(),
+        db.getLegacy(),
+      ]);
+      const monthMap = {};
+      for (const d of Object.keys(sessions || {})) {
+        const m = d.slice(0, 7);
+        monthMap[m] = (monthMap[m] || 0) + 1;
+      }
+      for (const m in legacy || {}) {
+        monthMap[m] = (monthMap[m] || 0) + (legacy[m].days || 0);
+      }
+      const sortedMonths = Object.keys(monthMap).sort();
+      const latestMonth = sortedMonths[sortedMonths.length - 1];
+
+      context.attendanceExportOptions = {
+        isExportSupported: true,
+        supportedFormats: [
+          "Microsoft Excel (.xls) - formatted with color-coded Present/Absent, bold headers, and turnout metrics",
+          "Universal CSV (.csv) - UTF-8 BOM, fully compatible with Microsoft Excel and Google Sheets",
+        ],
+        availableMonths: sortedMonths.map((m) => ({
+          month: m,
+          label: formatMonthLabel(m),
+          totalSessions: monthMap[m],
+          excelDownloadUrl: `/api/export/attendance?month=${m}&format=excel`,
+          csvDownloadUrl: `/api/export/attendance?month=${m}&format=csv`,
+        })),
+        latestMonth: latestMonth
+          ? {
+              month: latestMonth,
+              label: formatMonthLabel(latestMonth),
+              excelDownloadUrl: `/api/export/attendance?month=${latestMonth}&format=excel`,
+              csvDownloadUrl: `/api/export/attendance?month=${latestMonth}&format=csv`,
+            }
+          : null,
+        fullSeasonMatrix: {
+          label: "Full Season (All Months)",
+          excelDownloadUrl: "/api/export/attendance?month=all&format=excel",
+          csvDownloadUrl: "/api/export/attendance?month=all&format=csv",
+        },
+      };
+    } catch (e) {
+      console.warn("Could not load export options for grounding:", e.message);
+    }
+  }
+
   const roleDesc = userProfile
     ? userProfile.role === "coach"
       ? `👑 Head Coach (${userProfile.name || "Coach"}) - Supreme Administrator with Full Authority`
@@ -486,6 +551,21 @@ TOPIC GUIDANCE:
      * For upcoming practice days, refer ONLY to upcomingPlannedDays or weeklyPracticeTimings below. Never guess unannounced dates.
      * If the user is an Admin, they can access ANY player's attendance and squad rankings via queriedPlayerAttendance or squadAttendanceSummary.
      * If the user is NOT an Admin, for individual player attendance, use ONLY verified playerAttendance. If not logged in, tell them to log in. Players can only see their own attendance.
+4. GENERATING MICROSOFT FILES (MS FILES & ATTENDANCE SPREADSHEETS):
+   - You ARE FULLY CAPABLE of generating and exporting Microsoft Excel (.xls) and CSV spreadsheet files for monthwise attendance and full-season records!
+   - NEVER say you cannot create, export, or generate files. The file exporter engine is active on the server.
+   - When the user asks to generate MS files, download attendance spreadsheets, or export monthwise attendance:
+     a) Confirm clearly and cheerfully that the official MS attendance files are ready for download.
+     b) Provide a tidy summary table (Month, Sessions Count, Quick Links) or a quick preview of attendance stats.
+     c) Provide DIRECT, CLICKABLE markdown download links for the files using the exact URLs from attendanceExportOptions:
+        - Single month:
+          * [📊 Download October 2026 Attendance (MS Excel .xls)](/api/export/attendance?month=2026-10&format=excel)
+          * [📄 Download October 2026 Attendance (CSV)](/api/export/attendance?month=2026-10&format=csv)
+        - Full Season (All Months):
+          * [📁 Download Full Season Attendance (MS Excel .xls)](/api/export/attendance?month=all&format=excel)
+          * [📄 Download Full Season Attendance (CSV)](/api/export/attendance?month=all&format=csv)
+     d) If the user specifically mentions a month (e.g. October, August, latest), feature that month prominently first, followed by the Full Season matrix.
+     e) Emphasize that these MS files include roll numbers, player names, positions, jersey numbers, day-by-day attendance (P/A), total sessions attended, and turnout percentage, and open seamlessly in Microsoft Excel, Office 365, and Google Sheets.
 
 VERIFIED GROUNDING DATA FROM SUPABASE:
 ${JSON.stringify(context, null, 2)}
