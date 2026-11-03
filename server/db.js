@@ -130,9 +130,9 @@ function rowToDoc(col, row) {
   }
   if (col === "admins") {
     const rawKind = row.kind || "";
-    const post = ["coach", "captain", "vice", "admin"].includes(rawKind)
+    const post = ["coach", "captain", "vice", "admin", "developer"].includes(rawKind)
       ? rawKind
-      : "admin";
+      : (rawKind || "admin");
     return {
       id,
       data: () => ({
@@ -349,7 +349,7 @@ function docToRow(col, id, data) {
     if (data.photo !== undefined) row.photo = data.photo || null;
     const postVal = data.post !== undefined ? data.post : data.kind;
     if (postVal !== undefined) {
-      row.kind = ["coach", "captain", "vice", "admin"].includes(postVal)
+      row.kind = ["coach", "captain", "vice", "admin", "developer"].includes(postVal)
         ? postVal
         : (postVal || "admin");
     }
@@ -810,9 +810,9 @@ async function readAllFromSupabase() {
     })),
     admins: (adminsRes.data || []).map((a) => {
       const rawKind = a.kind || "";
-      const post = ["coach", "captain", "vice", "admin"].includes(rawKind)
+      const post = ["coach", "captain", "vice", "admin", "developer"].includes(rawKind)
         ? rawKind
-        : "admin";
+        : (rawKind || "admin");
       const adminEmails = configMap.admin_emails || {};
       return {
         id: a.id,

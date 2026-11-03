@@ -1480,11 +1480,14 @@ window.getHockeyUserContext = function () {
   }
   if (role === "admin") {
     const isInst = !myKind || myKind === "instructor" || !MYPID;
+    const myAdm = (typeof ADM !== "undefined" && Array.isArray(ADM)) ? ADM.find((x) => x.id === ADMID || (MYPID && x.playerId === MYPID)) : null;
+    const isDev = myAdm && getAdminPost(myAdm) === "developer";
     return {
       role: "admin",
+      post: isDev ? "developer" : "admin",
       adminType: isInst ? "instructor" : "player",
-      title: isInst ? "Instructor" : "Player (Admin)",
-      name: WHO || "Instructor",
+      title: isDev ? "General Admin (Developer)" : (isInst ? "Instructor" : "Player (Admin)"),
+      name: WHO || "Admin",
       id: ADMID,
       playerId: MYPID,
     };
@@ -2787,6 +2790,7 @@ function drawSidebar() {
     sb.innerHTML = "";
     return;
   }
+  const myAdm = (typeof ADM !== "undefined" && Array.isArray(ADM)) ? ADM.find((x) => x.id === ADMID || (MYPID && x.playerId === MYPID)) : null;
   const rn =
     role === "coach"
       ? "Coach"
@@ -2794,9 +2798,11 @@ function drawSidebar() {
         ? "Captain"
         : role === "vice"
           ? "Vice-captain"
-          : role === "admin"
-            ? "Admin"
-            : "Player";
+          : (myAdm && getAdminPost(myAdm) === "developer")
+            ? "Developer"
+            : role === "admin"
+              ? "Admin"
+              : "Player";
 
   const allTabs = tabsFor();
   const mainKeys = ["me", "take", "plan", "stats", "schedule"];
@@ -2979,6 +2985,7 @@ function render() {
   $("nav")
     .querySelectorAll("button")
     .forEach((b) => (b.onclick = () => go(b.dataset.t)));
+  const myAdm = (typeof ADM !== "undefined" && Array.isArray(ADM)) ? ADM.find((x) => x.id === ADMID || (MYPID && x.playerId === MYPID)) : null;
   const rn =
     role === "coach"
       ? "Coach"
@@ -2986,9 +2993,11 @@ function render() {
         ? "Captain"
         : role === "vice"
           ? "Vice-captain"
-          : role === "admin"
-            ? "Admin"
-            : "Player";
+          : (myAdm && getAdminPost(myAdm) === "developer")
+            ? "Developer"
+            : role === "admin"
+              ? "Admin"
+              : "Player";
   $("who").textContent = loaded ? (WHO === rn ? rn : WHO + " · " + rn) : "";
   $("hp").innerHTML = loaded ? avatar(WHO, MYPH, 34) : "";
 
@@ -5166,12 +5175,14 @@ const POST_CONFIG = {
   coach: { label: "Coach", badge: '<span class="pill gold">👑 Coach</span>', icon: "👑", order: 0 },
   captain: { label: "Captain", badge: '<span class="pill blue">🎖️ Captain</span>', icon: "🎖️", order: 1 },
   vice: { label: "Vice-captain", badge: '<span class="pill teal">🥈 Vice-captain</span>', icon: "🥈", order: 2 },
-  admin: { label: "Admin", badge: '<span class="pill purple">🛡️ Admin</span>', icon: "🛡️", order: 3 },
+  developer: { label: "Developer", badge: '<span class="pill purple">💻 Developer</span>', icon: "💻", order: 3 },
+  admin: { label: "Admin", badge: '<span class="pill purple">🛡️ Admin</span>', icon: "🛡️", order: 4 },
 };
 
 function getAdminPost(a) {
   if (!a) return "admin";
   const p = String(a.post || a.kind || "admin").toLowerCase().trim();
+  if (p === "developer" || p === "dev") return "developer";
   return POST_CONFIG[p] ? p : "admin";
 }
 
@@ -5375,6 +5386,7 @@ function vAdmins() {
                   ${hasCoach ? "" : '<option value="coach">👑 Coach</option>'}
                   <option value="captain">🎖️ Captain</option>
                   <option value="vice">🥈 Vice-captain</option>
+                  <option value="developer">💻 Developer</option>
                   <option value="admin" selected>🛡️ Admin</option>
                 </select>
               </label>
@@ -5764,7 +5776,7 @@ function vProfile() {
     }
     h = `${own ? "" : back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
-    <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill blue">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "captain" && a.playerId === id) ? '<span class="pill blue">🎖️ Captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "vice" && a.playerId === id) ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "admin" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill purple">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
+    <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill blue">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "captain" && a.playerId === id) ? '<span class="pill blue">🎖️ Captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "vice" && a.playerId === id) ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "developer" && a.playerId === id) ? '<span class="pill purple">💻 Developer</span>' : ""}${ADM.some((a) => getAdminPost(a) === "admin" && a.playerId === id) || (role === "admin" && MYPID === id && !ADM.some((a) => getAdminPost(a) === "developer" && a.playerId === id)) ? '<span class="pill purple">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
     ${canPh ? photoBtns(own, photoPath, p.photo, `<button class="pri" id="pedit">✏️ Edit profile</button>`) : ""}
     ${gone ? `<div class="note">Removed ${p.removedAt ? when(p.removedAt) : ""}${p.removedBy ? " by " + esc(p.removedBy) : ""}. All details and attendance below are kept.${admin ? " Restore brings them back to the team." : ""}</div>` : ""}</div>
     <div class="grid"><div class="card"><h2>Chart</h2><div class="hero2"><div class="ring" style="--v:${a.pct}"><b>${a.pct}%</b></div>${dots ? `<div style="flex:1;min-width:150px"><p class="mute" style="margin:0 0 4px">Last ${Math.min(42, ds.length)} sessions</p><div class="dots">${dots}</div></div>` : ""}</div></div>
@@ -6004,6 +6016,7 @@ function vProfile() {
                         <option value="coach">👑 Coach (Transfers Coach Post)</option>
                         <option value="captain" ${post === "captain" ? "selected" : ""}>🎖️ Captain</option>
                         <option value="vice" ${post === "vice" ? "selected" : ""}>🥈 Vice-captain</option>
+                        <option value="developer" ${post === "developer" ? "selected" : ""}>💻 Developer</option>
                         <option value="admin" ${post === "admin" ? "selected" : ""}>🛡️ Admin</option>
                       </select>
                     </label>

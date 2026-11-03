@@ -134,9 +134,9 @@ const auth = async (req, res, next) => {
     next(e);
   }
 };
-// owner = administrators: Head Coach, Captain, Vice-captain, and Admin.
+// owner = administrators: Head Coach, Captain, Vice-captain, Developer, and Admin.
 // All administrators have full permission across tools and records; adding a new admin is reserved for Coach.
-const LEADER_ROLES = ["coach", "captain", "vice", "admin"];
+const LEADER_ROLES = ["coach", "captain", "vice", "admin", "developer"];
 const owner = (req, res, next) =>
   req.user && LEADER_ROLES.includes(req.user.role)
     ? next()
@@ -2418,11 +2418,11 @@ app.post(
         error: "An admin with that name already exists. Use a different name.",
       });
 
-    // Valid posts: coach, captain, vice, admin
+    // Valid posts: coach, captain, vice, admin, developer
     const rawPost = String(b.post || b.kind || "admin")
       .toLowerCase()
       .trim();
-    const post = ["coach", "captain", "vice", "admin"].includes(rawPost)
+    const post = ["coach", "captain", "vice", "admin", "developer"].includes(rawPost)
       ? rawPost
       : "admin";
 
@@ -2489,9 +2489,14 @@ app.post(
       }
     }
 
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = crypto.createHash("sha256").update(salt).digest("hex");
     const docRef = await db.collection("admins").add({
       name,
       disabled: false,
+      salt,
+      hash,
+      photo: "",
       kind: post,
       post,
       playerId,
@@ -2544,7 +2549,7 @@ app.put(
       const newPost = String(b.post || b.kind || "")
         .toLowerCase()
         .trim();
-      if (["coach", "captain", "vice", "admin"].includes(newPost)) {
+      if (["coach", "captain", "vice", "admin", "developer"].includes(newPost)) {
         const allAdmins = (await db.collection("admins").get()).docs;
         const currentCoachDoc = allAdmins.find(
           (d) =>
@@ -4053,11 +4058,13 @@ app.post(
         const aData = aDoc && aDoc.exists ? aDoc.data() : {};
         const isInstructor =
           aData.kind === "instructor" || (!aData.kind && !aData.playerId);
+        const isDev = aData.post === "developer" || aData.kind === "developer";
         userProfile = {
           role: "admin",
+          post: isDev ? "developer" : (aData.post || "admin"),
           adminType: isInstructor ? "instructor" : "player",
-          title: isInstructor ? "Instructor" : "Player (Admin)",
-          name: aData.name || user.name || "Instructor",
+          title: isDev ? "General Admin (Developer)" : (isInstructor ? "Instructor" : "Player (Admin)"),
+          name: aData.name || user.name || (isDev ? "Developer" : "Instructor"),
           id: user.id,
         };
         if (aData.playerId) {
