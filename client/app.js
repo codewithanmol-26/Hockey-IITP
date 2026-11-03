@@ -1170,28 +1170,56 @@ function coachCount(sec) {
   coachOtpTimer = setInterval(tick, 1000);
 }
 
+let coachForgotTab = "rec"; // "rec" or "otp"
+
 function updateAdminForgot() {
   const box = $("aforgot-box");
   if (!box || box.hidden) return;
   const v = $("em").value;
   let t = "";
   if (v === "coach") {
-    t = `<b>🏑 Head Coach Password Recovery:</b><br>
-    A 6-digit code will be sent to the Coach's registered e-mail.<br>
-    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-      <button type="button" class="pri btn-sm" id="btn-coach-otp-send">📧 Send OTP to Coach Email</button>
+    t = `
+    <div style="margin-bottom:8px;">
+      <b>🏑 Head Coach Password Recovery:</b>
+      <p class="mute" style="margin:4px 0 8px;font-size:0.83rem;">Select recovery method below. Recovery password is 100% private and never displayed to anyone.</p>
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+        <button type="button" class="${coachForgotTab === "rec" ? "pri" : "sec"} btn-sm" id="coach-rec-tab-rec">🛡️ Option 1: Recovery Password (Instant)</button>
+        <button type="button" class="${coachForgotTab === "otp" ? "pri" : "sec"} btn-sm" id="coach-rec-tab-otp">📧 Option 2: Email OTP</button>
+      </div>
     </div>
-    <div id="coach-otp-form" hidden style="margin-top:10px;padding:10px;background:var(--soft);border-radius:8px;border:1px solid var(--line);">
-      <p style="margin:0 0 6px;font-size:0.85rem;">Enter the 6-digit verification code sent to the Coach's e-mail and your new password:</p>
-      <div style="display:flex;gap:6px;margin-bottom:8px;">
-        <input id="coach-otp-val" placeholder="6-digit OTP" maxlength="6" inputmode="numeric" style="flex:1;">
-        <button type="button" class="sec btn-sm" id="btn-coach-paste-otp">📋 Paste</button>
+    
+    <div id="coach-rec-panel-rec" ${coachForgotTab === "rec" ? "" : "hidden"} style="padding:10px;background:var(--soft);border-radius:8px;border:1px solid var(--line);">
+      <p style="margin:0 0 8px;font-size:0.84rem;"><b>⚡ Instant Password Reset (Zero Wait):</b><br>Enter your secret Coach Recovery Password to immediately set a new password without waiting for institutional email delivery.</p>
+      <div style="position:relative;margin-bottom:8px;">
+        <input id="coach-rec-code" type="password" placeholder="Enter Coach Recovery Password" maxlength="30" style="width:100%;box-sizing:border-box;padding-right:36px;">
+        <button type="button" class="chg-eye-btn" data-t="coach-rec-code" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
       </div>
-      <input id="coach-new-pw" type="password" placeholder="New password (any type, 4+ chars)" maxlength="30" style="width:100%;box-sizing:border-box;margin-bottom:8px;">
-      <div style="display:flex;gap:8px;">
-        <button type="button" class="pri btn-sm" id="btn-coach-otp-submit">Reset Password & Log In</button>
+      <div style="position:relative;margin-bottom:8px;">
+        <input id="coach-rec-newpw" type="password" placeholder="Enter new password (4–30 characters)" maxlength="30" style="width:100%;box-sizing:border-box;padding-right:36px;">
+        <button type="button" class="chg-eye-btn" data-t="coach-rec-newpw" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
       </div>
-      <div id="coach-otp-err" class="err" style="margin-top:6px;"></div>
+      <button type="button" class="pri btn-sm" id="btn-coach-rec-submit">Reset Password &amp; Log In</button>
+      <div id="coach-rec-err" class="err" style="margin-top:6px;"></div>
+    </div>
+
+    <div id="coach-rec-panel-otp" ${coachForgotTab === "otp" ? "" : "hidden"} style="padding:10px;background:var(--soft);border-radius:8px;border:1px solid var(--line);">
+      <p style="margin:0 0 6px;font-size:0.84rem;"><b>📧 Reset via Email OTP:</b><br>A 6-digit verification code will be sent to <code>kiran.chaudhary16@iitp.ac.in</code>.</p>
+      <p class="mute" style="margin:0 0 8px;font-size:0.78rem;">ℹ️ <i>Note: Institutional email (@iitp.ac.in) may experience delivery delays due to campus filtering. If delayed, use Option 1 above for instant recovery.</i></p>
+      <div style="margin-bottom:8px;">
+        <button type="button" class="pri btn-sm" id="btn-coach-otp-send">📧 Send OTP to Coach Email</button>
+      </div>
+      <div id="coach-otp-form" hidden>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <input id="coach-otp-val" placeholder="6-digit OTP" maxlength="6" inputmode="numeric" style="flex:1;">
+          <button type="button" class="sec btn-sm" id="btn-coach-paste-otp">📋 Paste</button>
+        </div>
+        <div style="position:relative;margin-bottom:8px;">
+          <input id="coach-new-pw" type="password" placeholder="New password (4+ chars)" maxlength="30" style="width:100%;box-sizing:border-box;padding-right:36px;">
+          <button type="button" class="chg-eye-btn" data-t="coach-new-pw" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
+        </div>
+        <button type="button" class="pri btn-sm" id="btn-coach-otp-submit">Reset Password &amp; Log In</button>
+        <div id="coach-otp-err" class="err" style="margin-top:6px;"></div>
+      </div>
     </div>`;
   } else if (v === "captain" || v === "vice") {
     t = `<b>🏑 ${v === "captain" ? "Captain" : "Vice-Captain"} Password Recovery:</b><br>Your login code is set and managed by the <b>Head Coach</b>.<br>Please contact the Coach to view or reset your access code.`;
@@ -1202,11 +1230,71 @@ function updateAdminForgot() {
   const clr = $("aforgot-close");
   if (clr) clr.onclick = () => (box.hidden = true);
 
+  box.querySelectorAll(".chg-eye-btn").forEach((btn) => {
+    btn.onclick = () => {
+      const inp = $(btn.dataset.t);
+      if (!inp) return;
+      inp.type = inp.type === "password" ? "text" : "password";
+      btn.textContent = inp.type === "password" ? "👁️" : "🙈";
+    };
+  });
+
   if (v === "coach") {
+    const tabRec = $("coach-rec-tab-rec");
+    const tabOtp = $("coach-rec-tab-otp");
+    if (tabRec) {
+      tabRec.onclick = () => {
+        coachForgotTab = "rec";
+        updateAdminForgot();
+      };
+    }
+    if (tabOtp) {
+      tabOtp.onclick = () => {
+        coachForgotTab = "otp";
+        updateAdminForgot();
+      };
+    }
+
+    // Option 1 submit: Recovery password
+    const recSubmit = $("btn-coach-rec-submit");
+    if (recSubmit) {
+      recSubmit.onclick = async () => {
+        const errEl = $("coach-rec-err");
+        if (errEl) errEl.textContent = "";
+        const recoveryCode = ($("coach-rec-code").value || "").trim();
+        const newCode = ($("coach-rec-newpw").value || "").trim();
+        if (!recoveryCode) {
+          if (errEl) errEl.textContent = "Please enter the Coach Recovery Password.";
+          return;
+        }
+        if (newCode.length < 4 || newCode.length > 30) {
+          if (errEl) errEl.textContent = "New password must be between 4 and 30 characters.";
+          return;
+        }
+        recSubmit.disabled = true;
+        try {
+          const r = await api("/api/coach/reset-with-recovery-code", {
+            method: "POST",
+            body: { recoveryCode, newCode },
+          });
+          toast("Password reset successful with Recovery Password! Logging in...");
+          saveToken(r.token);
+          box.hidden = true;
+          tab = "me";
+          boot();
+        } catch (x) {
+          if (errEl) errEl.textContent = x.message || "Invalid Recovery Password.";
+          recSubmit.disabled = false;
+        }
+      };
+    }
+
+    // Option 2: Email OTP
     const sendBtn = $("btn-coach-otp-send");
     if (sendBtn) {
       sendBtn.onclick = async () => {
         sendBtn.disabled = true;
+        toast("Sending verification code to Coach email... Please wait.");
         try {
           const r = await api("/api/coach/forgot-otp", { method: "POST" });
           toast("Verification code sent to " + (r.sentTo || "Coach email"));
@@ -1257,8 +1345,8 @@ function updateAdminForgot() {
           if (errEl) errEl.textContent = "Please enter the complete 6-digit code.";
           return;
         }
-        if (code.length < 4) {
-          if (errEl) errEl.textContent = "New password must be at least 4 characters.";
+        if (code.length < 4 || code.length > 30) {
+          if (errEl) errEl.textContent = "New password must be between 4 and 30 characters.";
           return;
         }
         submitBtn.disabled = true;
@@ -2455,11 +2543,13 @@ function openChangeCode(startForgot = false) {
   if (!dlg || !body) return;
 
   const isPl = role === "player";
+  const isCoach = role === "coach";
   changeNewType = myCodeType || "alnum";
   let curInputMode = myCodeType || "alnum";
   let userToggledCur = false;
   let isForgot = !!startForgot;
   let chgOtpTimer = 0;
+  let coachChgForgotMethod = "rec";
 
   const renderCurInput = (type) => {
     if (type === "pattern") {
@@ -2498,6 +2588,52 @@ function openChangeCode(startForgot = false) {
   };
 
   const renderForgotOtpBox = () => {
+    if (isCoach) {
+      return `
+      <div class="card" style="margin:0 0 12px; padding:12px 14px; background:linear-gradient(135deg, rgba(15,74,168,0.06), transparent); border:1px solid rgba(15,74,168,0.25); border-radius:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:1.1rem;">🔑</span>
+            <b style="font-size:0.92rem; color:var(--ink);">Head Coach Password Recovery</b>
+          </div>
+          <button type="button" id="btn-toggle-normal" class="btn-link" style="background:none; border:none; color:var(--pri, #0f4aa8); font-size:0.82rem; cursor:pointer; text-decoration:underline;">
+            I know my current password
+          </button>
+        </div>
+        <p class="mute" style="margin:0 0 10px; font-size:0.82rem; line-height:1.4;">
+          Select recovery option below. Use Recovery Password for instant access without waiting for institutional email.
+        </p>
+        <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+          <button type="button" class="${coachChgForgotMethod === "rec" ? "pri" : "sec"} btn-sm" id="btn-coach-chg-tab-rec">🛡️ Option 1: Recovery Password (Instant)</button>
+          <button type="button" class="${coachChgForgotMethod === "otp" ? "pri" : "sec"} btn-sm" id="btn-coach-chg-tab-otp">📧 Option 2: Email OTP</button>
+        </div>
+        <div id="coach-chg-panel-rec" ${coachChgForgotMethod === "rec" ? "" : "hidden"} style="margin-top:6px;">
+          <label class="fl">
+            <span class="chg-lbl">Coach Recovery Password</span>
+            <div style="position:relative;display:flex;align-items:center;">
+              <input id="chg-coach-rec-code" type="password" placeholder="Enter Coach Recovery Password" maxlength="30" autocomplete="off" style="width:100%;box-sizing:border-box;padding-right:36px;">
+              <button type="button" class="chg-eye-btn" data-t="chg-coach-rec-code" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--mute);padding:4px;" title="Show or hide password">👁️</button>
+            </div>
+          </label>
+          <p class="mute" style="margin:2px 0 0;font-size:0.78rem;">⚡ Instant reset without waiting for email. 100% private and secure.</p>
+        </div>
+        <div id="coach-chg-panel-otp" ${coachChgForgotMethod === "otp" ? "" : "hidden"} style="margin-top:6px;">
+          <p class="mute" style="margin:0 0 8px;font-size:0.8rem;">A 6-digit code will be sent to <code>kiran.chaudhary16@iitp.ac.in</code>. <i>(Note: Academic email may have greylisting delays. If delayed, use Option 1).</i></p>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+            <button type="button" class="pri btn-sm" id="btn-chg-send-otp">📧 Send OTP to Email</button>
+            <button type="button" class="sec btn-sm" id="btn-chg-paste-otp" style="display:none;">📋 Paste Code</button>
+          </div>
+          <div id="chg-otp-input-area" style="display:none; margin-top:8px;">
+            <label class="fl">
+              <span class="chg-lbl">Enter 6-digit Email OTP</span>
+              <input id="chg-otp-code" type="text" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit code" autocomplete="one-time-code" style="font-size:1.05rem; letter-spacing:2px; font-weight:600;">
+            </label>
+            <p id="chg-otp-status" class="ok" style="margin:4px 0 0; font-size:0.8rem;"></p>
+          </div>
+        </div>
+      </div>
+    `;
+    }
     return `
       <div class="card" style="margin:0 0 12px; padding:12px 14px; background:linear-gradient(135deg, rgba(15,74,168,0.06), transparent); border:1px solid rgba(15,74,168,0.25); border-radius:10px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
@@ -2590,6 +2726,9 @@ function openChangeCode(startForgot = false) {
 
   const btnLabel = (type) => {
     if (isForgot) {
+      if (isCoach && coachChgForgotMethod === "rec") {
+        return "Reset Password with Recovery Password";
+      }
       return type === "pattern"
         ? "Verify OTP & Set Pattern"
         : type === "numeric"
@@ -2714,6 +2853,20 @@ function openChangeCode(startForgot = false) {
       $("btn-toggle-normal").onclick = () => {
         clearInterval(chgOtpTimer);
         isForgot = false;
+        renderDialog();
+      };
+    }
+
+    if ($("btn-coach-chg-tab-rec")) {
+      $("btn-coach-chg-tab-rec").onclick = () => {
+        coachChgForgotMethod = "rec";
+        renderDialog();
+      };
+    }
+
+    if ($("btn-coach-chg-tab-otp")) {
+      $("btn-coach-chg-tab-otp").onclick = () => {
+        coachChgForgotMethod = "otp";
         renderDialog();
       };
     }
@@ -2869,9 +3022,17 @@ function openChangeCode(startForgot = false) {
         const otpVal = ($("chg-otp-code") ? $("chg-otp-code").value : "").trim();
 
         if (isForgot) {
-          if (!/^\d{6}$/.test(otpVal)) {
-            if (msg) msg.textContent = "Please send and enter the complete 6-digit verification code.";
-            return;
+          if (isCoach && coachChgForgotMethod === "rec") {
+            const recVal = ($("chg-coach-rec-code") ? $("chg-coach-rec-code").value : "").trim();
+            if (!recVal) {
+              if (msg) msg.textContent = "Please enter the Coach Recovery Password.";
+              return;
+            }
+          } else {
+            if (!/^\d{6}$/.test(otpVal)) {
+              if (msg) msg.textContent = "Please send and enter the complete 6-digit verification code.";
+              return;
+            }
           }
         } else {
           if (!cur) {
@@ -2927,10 +3088,19 @@ function openChangeCode(startForgot = false) {
         try {
           let res;
           if (isForgot) {
-            res = await api("/api/auth/reset-with-otp", {
-              method: "POST",
-              body: { otp: otpVal, newCode: nw, ctype: changeNewType },
-            });
+            if (isCoach && coachChgForgotMethod === "rec") {
+              const recVal = ($("chg-coach-rec-code") ? $("chg-coach-rec-code").value : "").trim();
+              res = await api("/api/coach/reset-with-recovery-code", {
+                method: "POST",
+                body: { recoveryCode: recVal, newCode: nw },
+              });
+              if (res.token) saveToken(res.token);
+            } else {
+              res = await api("/api/auth/reset-with-otp", {
+                method: "POST",
+                body: { otp: otpVal, newCode: nw, ctype: changeNewType },
+              });
+            }
           } else {
             res = await api("/api/auth/change-code", {
               method: "POST",
@@ -6411,7 +6581,7 @@ function vProfile() {
         coachLeaderBtns += '<button class="sec" id="pmkcap">🎖️ Appoint Captain</button><button class="sec" id="pmkvice">🥈 Appoint Vice-captain</button>';
       }
     }
-    h = `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
+    h = `${own ? "" : back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
     <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill blue">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "captain" && a.playerId === id) ? '<span class="pill blue">🎖️ Captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "vice" && a.playerId === id) ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "admin" && a.playerId === id) || (role === "admin" && MYPID === id) ? '<span class="pill purple">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
     ${canPh ? photoBtns(own, photoPath, p.photo, `<button class="pri" id="pedit">✏️ Edit profile</button>${own ? '<button class="sec" id="pcode">🔑 Change password</button>' : ""}`) : ""}
@@ -6615,7 +6785,7 @@ function vProfile() {
       }
 
       $("view").innerHTML =
-        `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+        `${own ? "" : back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
 
       if ($("aedit")) $("aedit").onclick = () => openEditCoach();
       if ($("aedit_top")) $("aedit_top").onclick = () => openEditCoach();
@@ -6704,7 +6874,7 @@ function vProfile() {
       adminActionBtns.push('<button class="sec" id="pcode">🔑 Change code</button>');
     }
     $("view").innerHTML =
-      `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+      `${own ? "" : back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
     if ($("pcode")) $("pcode").onclick = () => openChangeCode();
     if ($("aedit")) $("aedit").onclick = () => openEditCoach();
     if (k === "s") bindCover("s", id);

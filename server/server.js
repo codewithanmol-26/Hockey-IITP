@@ -259,6 +259,66 @@ async function retireCoach(oldId) {
   await db.collection("config").doc("custom_codes").set(codes);
 }
 
+// Synchronize leadership across staffNames, staff, and memory caches whenever Coach, Captain, or Vice-captain changes
+async function syncLeadership() {
+  try {
+    const snap = await db.collection("admins").get();
+    const activeAdmins = (snap.docs || [])
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((a) => !a.disabled);
+
+    const coachAdm = activeAdmins.find((a) => (a.post || a.kind) === "coach");
+    const captAdm = activeAdmins.find((a) => (a.post || a.kind) === "captain");
+    const viceAdm = activeAdmins.find((a) => (a.post || a.kind) === "vice");
+
+    const [namesDoc, staffDoc] = await Promise.all([
+      db.collection("config").doc("staffNames").get().catch(() => null),
+      db.collection("config").doc("staff").get().catch(() => null),
+    ]);
+
+    const names = (namesDoc && namesDoc.exists ? namesDoc.data() : {}) || {};
+    const staff = (staffDoc && staffDoc.exists ? staffDoc.data() : {}) || {};
+    names.links = names.links || {};
+
+    if (coachAdm) {
+      names.coach = coachAdm.name || COACH_NAME;
+      if (coachAdm.photo) staff.coach = coachAdm.photo;
+      if (coachAdm.email) staff.coachEmail = coachAdm.email;
+    } else {
+      names.coach = names.coach || COACH_NAME;
+    }
+
+    if (captAdm) {
+      names.captain = captAdm.name || "";
+      names.links.captain = captAdm.playerId || "";
+      if (captAdm.photo) staff.captain = captAdm.photo;
+    } else {
+      names.captain = "";
+      delete names.links.captain;
+      delete staff.captain;
+    }
+
+    if (viceAdm) {
+      names.vice = viceAdm.name || "";
+      names.links.vice = viceAdm.playerId || "";
+      if (viceAdm.photo) staff.vice = viceAdm.photo;
+    } else {
+      names.vice = "";
+      delete names.links.vice;
+      delete staff.vice;
+    }
+
+    await Promise.all([
+      db.collection("config").doc("staffNames").set(names),
+      db.collection("config").doc("staff").set(staff),
+    ]);
+
+    bust();
+  } catch (err) {
+    console.error("syncLeadership error:", err.message);
+  }
+}
+
 app.post(
   "/api/login",
   h(async (req, res) => {
@@ -1125,14 +1185,94 @@ app.post(
     await db.collection("config").doc("custom_codes").set(customCodes);
     await ref.delete();
     bust();
-    const token = staffToken({
+    const token = sign({
       role: "coach",
       id: coachDoc ? coachDoc.id : "coach",
       name: coachDoc ? coachDoc.data().name : COACH_NAME,
       email: (await coachIdentity()).email,
       post: "coach",
+      exp: Date.now() + 7 * 864e5,
     });
     res.json({ token, ok: true });
+  }),
+);
+
+// Coach Password Reset using secret Recovery Password (process.env.COACH_CODE)
+// Instant reset without waiting for academic email OTP delivery. Recovery password is never exposed.
+app.post(
+  "/api/coach/reset-with-recovery-code",
+  h(async (req, res) => {
+    if (limited("recip" + req.ip, 10, 3600e3)) {
+      return res
+        .status(429)
+        .json({ error: "Too many attempts. Please wait a while." });
+    }
+    const { recoveryCode, newCode } = req.body || {};
+    const rCode = String(recoveryCode || "").trim();
+    const nCode = String(newCode || "").trim();
+
+    const expectedRecovery = String(process.env.COACH_CODE || "1234").trim();
+    if (!rCode || !eq(rCode, expectedRecovery)) {
+      return res
+        .status(401)
+        .json({ error: "Invalid Coach Recovery Password. Please try again." });
+    }
+
+    if (nCode.length < 4 || nCode.length > 30) {
+      return res
+        .status(400)
+        .json({ error: "New password must be between 4 and 30 characters." });
+    }
+
+    const snap = await db.collection("admins").get();
+    const coachDoc = snap.docs.find(
+      (doc) =>
+        !doc.data().disabled &&
+        (doc.data().post === "coach" || doc.data().kind === "coach"),
+    );
+
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = crypto.scryptSync(nCode, salt, 32).toString("hex");
+
+    if (coachDoc) {
+      await db.collection("admins").doc(coachDoc.id).update({
+        salt,
+        hash,
+        type: "alnum",
+        playerId: null,
+      });
+    }
+
+    const customCodesDoc = await db
+      .collection("config")
+      .doc("custom_codes")
+      .get()
+      .catch(() => null);
+    const customCodes =
+      customCodesDoc && customCodesDoc.exists
+        ? customCodesDoc.data() || {}
+        : {};
+    customCodes.coach = { salt, hash, type: "alnum", at: Date.now() };
+    if (coachDoc) {
+      customCodes[coachDoc.id] = { salt, hash, type: "alnum", at: Date.now() };
+    }
+    await db.collection("config").doc("custom_codes").set(customCodes);
+
+    bust();
+    const ident = await coachIdentity();
+    const token = sign({
+      role: "coach",
+      id: coachDoc ? coachDoc.id : "coach",
+      name: coachDoc ? coachDoc.data().name : COACH_NAME,
+      email: ident.email,
+      post: "coach",
+      exp: Date.now() + 7 * 864e5,
+    });
+    res.json({
+      ok: true,
+      token,
+      message: "Coach password updated successfully using Recovery Password!",
+    });
   }),
 );
 
@@ -2918,6 +3058,7 @@ app.post(
       salt,
       hash: crypto.scryptSync(code, salt, 32).toString("hex"),
     });
+    await syncLeadership();
     done(res);
   }),
 );
@@ -3085,6 +3226,7 @@ app.put(
     }
 
     await ref.update(upd);
+    await syncLeadership();
     bust();
     done(res);
   }),
@@ -3111,6 +3253,7 @@ app.delete(
 
     // Rule: "coach can remove anyone" - non-coaches can remove general admins but cannot remove Coach
     await ref.delete();
+    await syncLeadership();
     done(res);
   }),
 );
@@ -3161,6 +3304,7 @@ app.post(
       });
       if (currentCoachDoc) await retireCoach(currentCoachDoc.id);
       await setCoachIdentity(targetDoc.data().name, newEmail, true);
+      await syncLeadership();
       bust();
       return done(res);
     }
@@ -3200,6 +3344,7 @@ app.post(
     // Only now remove the old Coach: her account, every code she had and her photo.
     if (currentCoachDoc) await retireCoach(currentCoachDoc.id);
     await setCoachIdentity(coachName, newEmail, true);
+    await syncLeadership();
     bust();
     done(res);
   }),
@@ -4520,6 +4665,7 @@ async function ensureDefaultCoach() {
       const hasName = nd && nd.exists && nd.data() && nd.data().coach;
       await setCoachIdentity(hasName ? "" : cd.data().name, undefined, false);
     }
+    await syncLeadership();
   } catch (err) {
     console.error("ensureDefaultCoach error:", err.message);
   }

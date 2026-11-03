@@ -209,6 +209,17 @@ function rowToDoc(col, row) {
       }),
     };
   }
+  if (col === "workouts") {
+    const d = row.data || {};
+    return {
+      id,
+      data: () => ({
+        ...d,
+        id,
+        at: d.at || row.created_at || Date.now(),
+      }),
+    };
+  }
   if (col === "announcements") {
     return {
       id,
@@ -394,13 +405,21 @@ function docToRow(col, id, data) {
       id,
       user_key: data.key || "",
       log_date: data.date || "2026-01-01",
-      steps: data.steps,
-      km: data.km,
-      sleep: data.sleep,
-      kcal: data.kcal,
-      height: data.height,
-      weight: data.weight,
+      steps: data.steps !== undefined ? data.steps : null,
+      km: data.km !== undefined ? data.km : null,
+      sleep: data.sleep !== undefined ? data.sleep : null,
+      kcal: data.kcal !== undefined ? data.kcal : null,
+      height: data.height !== undefined ? data.height : null,
+      weight: data.weight !== undefined ? data.weight : null,
       recorded_at: data.at || Date.now(),
+    };
+  }
+  if (col === "workouts") {
+    return {
+      id,
+      title: data.name || data.type || "Workout",
+      data: data,
+      created_at: typeof data.at === "number" ? data.at : Date.now(),
     };
   }
   if (col === "announcements") {
@@ -581,7 +600,15 @@ class CollectionReference {
           .from(this.mapping.table)
           .select("*", { count: "exact", head: true });
         for (const f of this.filters) {
-          if (f.op === "==") req = req.eq(f.field, f.val);
+          if (f.op === "==") {
+            if (this.col === "health" && f.field === "key") {
+              req = req.eq("user_key", f.val);
+            } else if (this.col === "workouts" && f.field === "key") {
+              req = req.filter("data->>key", "eq", f.val);
+            } else {
+              req = req.eq(f.field, f.val);
+            }
+          }
         }
         const { count, error } = await req;
         return { data: () => ({ count: count || 0 }) };
@@ -600,13 +627,19 @@ class CollectionReference {
     let req = supabase.from(this.mapping.table).select("*");
     for (const f of this.filters) {
       if (f.op === "==") {
-        const field =
-          f.field === "removed"
-            ? "removed"
-            : f.field === "uid"
-              ? "uid"
-              : f.field;
-        req = req.eq(field, f.val);
+        if (this.col === "health" && f.field === "key") {
+          req = req.eq("user_key", f.val);
+        } else if (this.col === "workouts" && f.field === "key") {
+          req = req.filter("data->>key", "eq", f.val);
+        } else {
+          const field =
+            f.field === "removed"
+              ? "removed"
+              : f.field === "uid"
+                ? "uid"
+                : f.field;
+          req = req.eq(field, f.val);
+        }
       }
     }
     for (const o of this.orders) {
@@ -839,22 +872,46 @@ async function readAllFromSupabase() {
   out.staff = configMap.staff || {};
   out.names = configMap.staffNames || {};
 
+  // Find active coach, captain, and vice from admins
+  const activeAdmins = (adminsRes.data || []).filter((a) => !a.disabled);
+  const dbCoach = activeAdmins.find((a) => (a.kind || a.post) === "coach");
+  const dbCapt = activeAdmins.find((a) => (a.kind || a.post) === "captain");
+  const dbVice = activeAdmins.find((a) => (a.kind || a.post) === "vice");
+
+  out.names.links = out.names.links || {};
+  if (dbCoach) out.names.coach = dbCoach.name || out.names.coach || "Kiran Chaudhary";
+  if (dbCapt) {
+    out.names.captain = dbCapt.name || out.names.captain || "";
+    if (dbCapt.player_id) out.names.links.captain = dbCapt.player_id;
+  }
+  if (dbVice) {
+    out.names.vice = dbVice.name || out.names.vice || "";
+    if (dbVice.player_id) out.names.links.vice = dbVice.player_id;
+  }
+
   // Team summary
   const nv = out.names,
     lk = nv.links || {},
     pl2 = (k) => out.players.find((x) => x.id === lk[k] && !x.removed) || null;
-  const one = (k) => {
+  const one = (k, dbAdmin) => {
     const q = pl2(k);
+    const admName = dbAdmin ? dbAdmin.name : "";
+    const admPhoto = dbAdmin ? (dbAdmin.photo || "") : "";
+    const admPid = dbAdmin ? (dbAdmin.player_id || "") : "";
     return {
-      name: nv[k] || (q ? q.name : ""),
-      photo: (q && q.photo) || out.staff[k] || "",
-      pid: q ? q.id : "",
+      name: admName || nv[k] || (q ? q.name : ""),
+      photo: (q && q.photo) || admPhoto || out.staff[k] || "",
+      pid: (q ? q.id : "") || admPid || lk[k] || "",
     };
   };
   out.team = {
-    captain: one("captain"),
-    vice: one("vice"),
-    coach: { name: nv.coach || "" },
+    captain: one("captain", dbCapt),
+    vice: one("vice", dbVice),
+    coach: {
+      name: (dbCoach && dbCoach.name) || nv.coach || "Kiran Chaudhary",
+      photo: (dbCoach && dbCoach.photo) || out.staff.coach || "",
+      email: out.staff.coachEmail || "kiran.chaudhary16@iitp.ac.in",
+    },
     about: nv.about || "",
   };
 
