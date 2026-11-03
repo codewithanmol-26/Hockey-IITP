@@ -966,8 +966,13 @@ document.addEventListener("keydown", (e) => {
 gid("xb").onclick = () => {
   gid("menu").hidden = true;
   if (typeof prof !== "undefined" && prof) {
+    const isOwn = prof.isMyProfile || (typeof role !== "undefined" && role === "coach" && (prof.k === "coach" || prof.id === "coach")) || (typeof MYPID !== "undefined" && MYPID && prof.id === MYPID) || (typeof role !== "undefined" && role === "player" && typeof me !== "undefined" && prof.id === me) || (typeof role !== "undefined" && role === "admin" && typeof ADMID !== "undefined" && prof.id === ADMID);
     prof = null;
-    if (typeof render === "function") render();
+    if (isOwn && typeof go === "function") {
+      go("me");
+    } else if (typeof render === "function") {
+      render();
+    }
   } else {
     go(
       typeof PRIMARY !== "undefined" &&

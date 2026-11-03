@@ -2319,8 +2319,13 @@ if ($("xb")) {
   $("xb").onclick = () => {
     if ($("menu")) $("menu").hidden = true;
     if (prof) {
+      const isOwn = prof.isMyProfile || (role === "coach" && (prof.k === "coach" || prof.id === "coach")) || (MYPID && prof.id === MYPID) || (role === "player" && prof.id === me) || (role === "admin" && prof.id === ADMID);
       prof = null;
-      render();
+      if (isOwn) {
+        go("me");
+      } else {
+        render();
+      }
     } else {
       go(PRIMARY.includes(prevTab) ? prevTab : "me");
     }
@@ -5014,6 +5019,7 @@ function openMyProfile() {
   else if (role === "coach") openProf("coach");
   else if (role === "admin") openProf("a", ADMID);
   else openProf("s", role);
+  if (prof) prof.isMyProfile = true;
 }
 function bindProfLinks() {
   document
@@ -5827,18 +5833,26 @@ function openEditAdmin(adminId) {
 // ---- profile detail page ----
 function vProfile() {
   const k = prof.k,
-    id = prof.id,
-    back = '<button class="back" id="pb">‹ Back</button>';
+    id = prof.id;
+  const isMyProf =
+    !!prof.isMyProfile ||
+    (k === "p" && ((role === "player" && id === me) || (MYPID && id === MYPID))) ||
+    ((k === "coach" || id === "coach" || (k === "s" && id === "coach")) && role === "coach") ||
+    (k === "a" && (role === "admin" || role === "coach") && id === ADMID) ||
+    (k === "s" && id === role);
+  const back = isMyProf
+    ? '<button class="back" id="pb">‹ Back to Home</button>'
+    : '<button class="back" id="pb">‹ Back</button>';
   let h = "",
     photoPath = "",
-    own = false;
+    own = isMyProf;
   if (k === "p") {
     const p = [...P, ...RM].find((x) => x.id === id);
     if (!p) {
       prof = null;
       return render();
     }
-    own = (role === "player" && p.id === me) || (MYPID && p.id === MYPID);
+    own = isMyProf || (role === "player" && p.id === me) || (MYPID && p.id === MYPID);
     const gone = !!p.removed,
       a = statsFor(p, "all"),
       canPh = admin || own;
@@ -5875,7 +5889,7 @@ function vProfile() {
         coachLeaderBtns += '<button class="sec" id="pmkcap">🎖️ Appoint Captain</button><button class="sec" id="pmkvice">🥈 Appoint Vice-captain</button>';
       }
     }
-    h = `${own ? "" : back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
+    h = `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(p.name, p.photo, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div>
     <h2 class="pname">${esc(p.name)}</h2><p class="mute pc2">${esc([p.roll, p.position || "Hockey player"].filter(Boolean).join(" · "))}</p>
     <div class="chips" style="justify-content:center;margin:6px 0 10px">${gone ? '<span class="pill r">Removed</span>' : '<span class="pill g">Team member</span>'}${ACC.includes(id) || own ? '<span class="pill g">Signed up</span>' : admin ? '<span class="pill">Not signed up</span>' : ""}${p.jerseyNo ? `<span class="pill">Jersey #${esc(p.jerseyNo)}</span>` : ""}${TEAM.captain && TEAM.captain.pid === id ? '<span class="pill blue">🎖️ Captain</span>' : ""}${TEAM.vice && TEAM.vice.pid === id ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "captain" && a.playerId === id) ? '<span class="pill blue">🎖️ Captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "vice" && a.playerId === id) ? '<span class="pill teal">🥈 Vice-captain</span>' : ""}${ADM.some((a) => getAdminPost(a) === "developer" && a.playerId === id) ? '<span class="pill purple">💻 Developer</span>' : ""}${ADM.some((a) => getAdminPost(a) === "admin" && a.playerId === id) || (role === "admin" && MYPID === id && !ADM.some((a) => getAdminPost(a) === "developer" && a.playerId === id)) ? '<span class="pill purple">🛡️ Admin</span>' : ""}${role !== "player" && MYPID === id ? '<span class="pill">This is you</span>' : ""}</div>
     ${canPh ? photoBtns(own, photoPath, p.photo, `<button class="pri" id="pedit">✏️ Edit profile</button>`) : ""}
@@ -6071,7 +6085,7 @@ function vProfile() {
       }
 
       $("view").innerHTML =
-        `${own ? "" : back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+        `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
 
       if ($("aedit")) $("aedit").onclick = () => openEditCoach();
       if ($("aedit_top")) $("aedit_top").onclick = () => openEditCoach();
@@ -6161,7 +6175,7 @@ function vProfile() {
       adminActionBtns.push('');
     }
     $("view").innerHTML =
-      `${own ? "" : back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
+      `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
     if ($("pcode")) $("pcode").onclick = () => openChangeCode();
     if ($("aedit")) $("aedit").onclick = () => openEditCoach();
     if (k === "s") bindCover("s", id);
@@ -6228,11 +6242,19 @@ function vProfile() {
           });
       };
   }
-  $("pb").onclick = () => {
-    prof = null;
-    render();
-    window.scrollTo(0, 0);
-  };
+  const pbBtn = $("pb");
+  if (pbBtn) {
+    pbBtn.onclick = () => {
+      const returnHome = isMyProf || own || (prof && prof.isMyProfile);
+      prof = null;
+      if (returnHome) {
+        go("me");
+      } else {
+        render();
+        window.scrollTo(0, 0);
+      }
+    };
+  }
   if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath, ph);
 }
 function openEdit(p, own) {
@@ -6964,11 +6986,7 @@ function vLeadershipDashboard() {
       <div class="wnext" style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:12px;padding:12px 14px;">
         <span class="wl">🏑 Practice &amp; Attendance Status</span>
         <div style="font-size:1.02rem;margin:4px 0 6px;">${todayStatusHtml}</div>
-        <small class="mute" style="display:block;margin-bottom:8px;">${nextTxt} (${nextSub})</small>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button type="button" class="pri btn-sm" data-go="take">✅ Take Attendance Now</button>
-          <button type="button" class="sec btn-sm" data-go="plan">📅 Set Playing Days</button>
-        </div>
+        <small class="mute" style="display:block;">${nextTxt} (${nextSub})</small>
       </div>
 
       <div class="stats wst" style="margin-top:12px;">
