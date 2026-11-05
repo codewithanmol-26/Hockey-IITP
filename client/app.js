@@ -536,17 +536,13 @@ function playerSessCount(p, m) {
   return leg + cur;
 }
 function statsFor(p, m) {
-  const t = playerSessCount(p, m);
+  const t = rsess(m);
   let pr = 0;
-  const pj = p && p.joined ? p.joined.slice(0, 10) : "";
-  for (const k in L)
-    if ((m === "all" || k === m) && (!pj || k >= pj.slice(0, 7)))
-      pr += L[k].att[p.id] || 0;
+  for (const k in L) if (m === "all" || k === m) pr += L[k].att[p.id] || 0;
   for (const d in SS)
     if (
       (m === "all" || d.startsWith(m)) &&
-      (!pj || d.slice(0, 10) >= pj) &&
-      SS[d][p.id]
+      (SS[d][p.id] === true || (p.roll && SS[d][p.roll] === true))
     )
       pr++;
   pr = Math.min(pr, t);
@@ -3756,7 +3752,7 @@ function vStats() {
   ${admin ? podium(st, medal) : tier ? `<div class="tier"><span>${tier[0]}</span><div><b>${tier[1]} level</b><br><span class="mute">Gold 90% or more · Silver 75% or more · Bronze 60% or more</span></div></div>` : ""}
   <table><tr><th>Player</th><th class="n">Present</th><th class="n">Sessions</th><th class="n">%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td class="n">${x.pct}%</td></tr>`).join("")}</table>
   <p class="mute">% = sessions present ÷ total sessions (${ns}). The total is the same for every player; a missed session counts as absent.</p>${L[m] ? '<p class="mute">Includes the imported register totals.</p>' : ""}
-  <div class="chips"><button id="shr">⤴ Share report</button>${admin ? '<button type="button" class="pri" id="btn-stats-exp">📑 Export (Excel / PDF)</button>' : ""}</div></div>
+  <div class="chips"><button id="shr">⤴ Share report</button></div></div>
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
   <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selBase}">${admin && sd ? '<button type="button" id="sdsh">⤴ Share this session</button>' : ""}</div>${sessPickerHtml}${day}
@@ -3787,7 +3783,6 @@ function vStats() {
         ? { sc: m === "all" ? "team" : "month", v: m }
         : { sc: "person", v: me },
     );
-  if ($("btn-stats-exp")) $("btn-stats-exp").onclick = () => openCustomExport();
   bindProfLinks();
   if ($("sdsh"))
     $("sdsh").onclick = () => openReport({ sc: "date", v: selDate });
@@ -3825,11 +3820,10 @@ const EXPORT_AVAILABLE_COLS = [
   { id: "name", label: "Full Name", default: true },
   { id: "joined", label: "Joined Date", default: true },
   { id: "position", label: "Position", default: false },
-  { id: "totalSessions", label: "Total Sessions (After Joined)", default: true },
+  { id: "totalSessions", label: "Total Sessions", default: true },
   { id: "present", label: "Sessions Present", default: true },
   { id: "absent", label: "Sessions Absent", default: false },
   { id: "pct", label: "Attendance %", default: true },
-  { id: "points", label: "Regularity Points (/10)", default: true },
   { id: "jerseyNo", label: "Jersey Number", default: false },
   { id: "jerseyName", label: "Jersey Name", default: false },
   { id: "size", label: "Jersey Size", default: false },
@@ -3855,7 +3849,8 @@ function openCustomExport() {
   let selectedCols = new Set(EXPORT_AVAILABLE_COLS.filter((c) => c.default).map((c) => c.id));
   let selectedMonths = new Set(recordedMonths);
   let squadScope = "active"; // 'active' or 'all'
-  let sortOrder = "pct_desc"; // 'pct_desc', 'points_desc', 'roll_asc', 'name_asc', 'joined_asc'
+  let pctFormula = "overall"; // 'overall' (earlier formula) or 'joined' (only after joined date)
+  let sortOrder = "pct_desc"; // 'pct_desc', 'roll_asc', 'name_asc', 'joined_asc'
   let includeSummaryCard = true;
 
   const renderModal = () => {
@@ -3934,10 +3929,16 @@ function openCustomExport() {
             </select>
           </label>
           <label class="exp-opt-label">
+            <b>Attendance % Formula</b>
+            <select class="exp-sel" id="exp-pct-formula">
+              <option value="overall" ${pctFormula === "overall" ? "selected" : ""}>Overall Sessions (${allRecordedDates.length} sessions - Earlier Formula)</option>
+              <option value="joined" ${pctFormula === "joined" ? "selected" : ""}>Eligible Sessions (Only on/after Joined Date)</option>
+            </select>
+          </label>
+          <label class="exp-opt-label">
             <b>Sort Order</b>
             <select class="exp-sel" id="exp-sort">
               <option value="pct_desc" ${sortOrder === "pct_desc" ? "selected" : ""}>Attendance % (High to Low)</option>
-              <option value="points_desc" ${sortOrder === "points_desc" ? "selected" : ""}>Regularity Points (High to Low)</option>
               <option value="roll_asc" ${sortOrder === "roll_asc" ? "selected" : ""}>Roll Number (Ascending)</option>
               <option value="name_asc" ${sortOrder === "name_asc" ? "selected" : ""}>Full Name (A to Z)</option>
               <option value="joined_asc" ${sortOrder === "joined_asc" ? "selected" : ""}>Joined Date (Earliest First)</option>
@@ -4030,6 +4031,7 @@ function openCustomExport() {
     }
 
     $("exp-scope").onchange = (e) => { squadScope = e.target.value; };
+    $("exp-pct-formula").onchange = (e) => { pctFormula = e.target.value; };
     $("exp-sort").onchange = (e) => { sortOrder = e.target.value; };
     $("exp-summary-toggle").onchange = (e) => { includeSummaryCard = e.target.checked; };
 
@@ -4057,15 +4059,16 @@ function openCustomExport() {
     if (isCols) {
       rows = targetPlayers.map((p) => {
         const pj = p && p.joined ? p.joined.slice(0, 10) : "";
-        const eligibleDates = allRecordedDates.filter((d) => !pj || d.slice(0, 10) >= pj);
-        const total = eligibleDates.length;
+        const datesToCount = pctFormula === "joined"
+          ? allRecordedDates.filter((d) => !pj || d.slice(0, 10) >= pj)
+          : allRecordedDates;
+        const total = datesToCount.length;
         let pr = 0;
-        eligibleDates.forEach((d) => {
+        datesToCount.forEach((d) => {
           if (SS[d] && (SS[d][p.id] === true || (p.roll && SS[d][p.roll] === true))) pr++;
         });
-        const ab = total - pr;
+        const ab = Math.max(0, total - pr);
         const pct = total ? Math.round((pr * 100) / total) : 0;
-        const pts = ((pct / 100) * 10).toFixed(1);
         return {
           id: p.id,
           roll: p.roll || p.id || "",
@@ -4077,8 +4080,6 @@ function openCustomExport() {
           absent: ab,
           pct: pct + "%",
           pctVal: pct,
-          points: pts + " / 10",
-          pointsVal: parseFloat(pts),
           jerseyNo: p.jerseyNo || p.jersey_no || "",
           jerseyName: p.jerseyName || p.jersey_name || "",
           size: p.size || "",
@@ -4096,7 +4097,9 @@ function openCustomExport() {
 
         targetMonthsList.forEach((m) => {
           const mDates = allRecordedDates.filter((d) => d.startsWith(m));
-          const el = mDates.filter((d) => !pj || d.slice(0, 10) >= pj);
+          const el = pctFormula === "joined"
+            ? mDates.filter((d) => !pj || d.slice(0, 10) >= pj)
+            : mDates;
           let pr = 0;
           el.forEach((d) => {
             if (SS[d] && (SS[d][p.id] === true || (p.roll && SS[d][p.roll] === true))) pr++;
@@ -4112,7 +4115,6 @@ function openCustomExport() {
         });
 
         const overallPct = overallEl ? Math.round((overallPr * 100) / overallEl) : 0;
-        const pts = ((overallPct / 100) * 10).toFixed(1);
         return {
           id: p.id,
           roll: p.roll || p.id || "",
@@ -4123,8 +4125,6 @@ function openCustomExport() {
           present: overallPr,
           pct: overallPct + "%",
           pctVal: overallPct,
-          points: pts + " / 10",
-          pointsVal: parseFloat(pts),
           removed: !!p.removed,
         };
       });
@@ -4133,8 +4133,6 @@ function openCustomExport() {
     // 2. Sort Rows
     if (sortOrder === "pct_desc") {
       rows.sort((a, b) => b.pctVal - a.pctVal || b.present - a.present || a.name.localeCompare(b.name));
-    } else if (sortOrder === "points_desc") {
-      rows.sort((a, b) => b.pointsVal - a.pointsVal || b.pctVal - a.pctVal || a.name.localeCompare(b.name));
     } else if (sortOrder === "roll_asc") {
       rows.sort((a, b) => String(a.roll).localeCompare(String(b.roll)));
     } else if (sortOrder === "name_asc") {
@@ -4189,7 +4187,7 @@ function openCustomExport() {
 
 function generateExcelExport(opt) {
   const { isCols, exportColsList, targetMonthsList, rows, minDate, maxDate, totalRecordedSessions, teamTurnoutPct, includeSummaryCard, title } = opt;
-  const colCount = isCols ? exportColsList.length : (3 + targetMonthsList.length + 4);
+  const colCount = isCols ? exportColsList.length : (3 + targetMonthsList.length + 3);
 
   let thead = "";
   if (isCols) {
@@ -4203,7 +4201,6 @@ function generateExcelExport(opt) {
       <th>Total Sessions</th>
       <th>Present</th>
       <th>Percentage</th>
-      <th>Regularity Points</th>
     </tr>`;
   }
 
@@ -4219,7 +4216,6 @@ function generateExcelExport(opt) {
         else if (c.id === "joined") cls = "center";
         else if (c.id === "totalSessions" || c.id === "present" || c.id === "absent" || c.id === "jerseyNo") cls = "num";
         else if (c.id === "pct") cls = "pct";
-        else if (c.id === "points") cls = "points";
         else if (c.id === "name") val = val + removedBadge;
         return `<td class="${cls}">${esc(String(val !== undefined && val !== null ? val : ""))}</td>`;
       }).join("");
@@ -4237,7 +4233,6 @@ function generateExcelExport(opt) {
         <td class="num">${r.totalSessions}</td>
         <td class="num">${r.present}</td>
         <td class="pct">${esc(r.pct)}</td>
-        <td class="points">${esc(r.points)}</td>
       </tr>`;
     }
   });
@@ -4353,7 +4348,6 @@ function generatePdfPrint(opt) {
       <th>Total</th>
       <th>Present</th>
       <th>%</th>
-      <th>Points (/10)</th>
     </tr>`;
   }
 
@@ -4367,7 +4361,6 @@ function generatePdfPrint(opt) {
         if (c.id === "roll" || c.id === "joined") cls = "center";
         else if (c.id === "totalSessions" || c.id === "present" || c.id === "absent" || c.id === "jerseyNo") cls = "num";
         else if (c.id === "pct") cls = "pct";
-        else if (c.id === "points") cls = "points";
         else if (c.id === "name") val = val + removedBadge;
         return `<td class="${cls}">${val}</td>`;
       }).join("");
@@ -4385,7 +4378,6 @@ function generatePdfPrint(opt) {
         <td class="num">${r.totalSessions}</td>
         <td class="num">${r.present}</td>
         <td class="pct">${esc(r.pct)}</td>
-        <td class="points">${esc(r.points)}</td>
       </tr>`;
     }
   });
@@ -7643,40 +7635,65 @@ function vCoachDashboard() {
 
   $("view").innerHTML = `
     <div class="card hero coach-hero" id="wel">
-      <div class="coach-badge-row">
-        <span class="role-pill coach-pill">👑 Head Coach</span>
-        <span class="mute" style="font-size:0.83rem;">${todayStr}</span>
-      </div>
-      <div class="wtop" id="wel-profile-btn" style="cursor:pointer;" title="View Coach Profile">
-        ${avatar(WHO, MYPH, 68)}
-        <div class="wtx">
-          <span class="wg">${greeting} 👋</span>
-          <h2>${first}</h2>
-          <span class="mute">Head Coach · IIT Patna Hockey Team</span>
+      <div class="hero-header-grid">
+        <div class="hero-left-section">
+          <div class="hero-badge-strip">
+            <span class="hero-role-pill">👑 Head Coach</span>
+            <span class="hero-date-pill">${todayStr}</span>
+          </div>
+          <div class="hero-user-row" id="wel-profile-btn" title="View Coach Profile" role="button" tabindex="0">
+            <div class="hero-avatar-wrap">
+              ${avatar(WHO, MYPH, 66)}
+            </div>
+            <div class="hero-user-info">
+              <span class="hero-greeting-tag">${greeting} 👋</span>
+              <h2 class="hero-user-heading">${first}</h2>
+              <span class="hero-role-sub">Head Coach · IIT Patna Hockey Team</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-right-section">
+          <div class="hero-practice-card">
+            <div>
+              <div class="practice-card-header">
+                <span class="practice-pulse-dot"></span>
+                <span class="practice-card-title">Practice &amp; Attendance Status</span>
+              </div>
+              <div class="practice-card-status">${todayStatusHtml}</div>
+              <small class="practice-card-sub">${nextTxt} (${nextSub})</small>
+            </div>
+            <div class="practice-action-row" style="margin-top:12px;">
+              <button type="button" class="btn-take-now" data-go="take">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="9 11 12 14 22 4"></polyline></svg>
+                <span>Take Attendance Now</span>
+              </button>
+              <button type="button" class="btn-set-days" data-go="plan">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span>Set Playing Days</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="wnext" style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:12px;padding:12px 14px;">
-        <span class="wl">🏑 Practice &amp; Attendance Status</span>
-        <div style="font-size:1.02rem;margin:4px 0 6px;">${todayStatusHtml}</div>
-        <small class="mute" style="display:block;">${nextTxt} (${nextSub})</small>
-        <div class="practice-action-row">
-          <button type="button" class="btn-take-now" data-go="take">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="9 11 12 14 22 4"></polyline></svg>
-            <span>Take Attendance Now</span>
-          </button>
-          <button type="button" class="btn-set-days" data-go="plan">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-            <span>Set Playing Days</span>
-          </button>
+      <div class="hero-kpi-grid">
+        <div class="kpi-card kpi-blue">
+          <span class="kpi-val">${P.length}</span>
+          <span class="kpi-lbl">Squad Players</span>
         </div>
-      </div>
-
-      <div class="stats wst coach-stats" style="margin-top:12px;">
-        <div><b>${P.length}</b>Squad Players</div>
-        <div><b>${totalSess}</b>Sessions Held</div>
-        <div><b>${teamTurnout}%</b>Squad Turnout</div>
-        <div><b>${activeStaffCount}</b>Staff &amp; Admins</div>
+        <div class="kpi-card kpi-emerald">
+          <span class="kpi-val">${totalSess}</span>
+          <span class="kpi-lbl">Sessions Held</span>
+        </div>
+        <div class="kpi-card kpi-indigo">
+          <span class="kpi-val">${teamTurnout}%</span>
+          <span class="kpi-lbl">Squad Turnout</span>
+        </div>
+        <div class="kpi-card kpi-amber">
+          <span class="kpi-val">${activeStaffCount}</span>
+          <span class="kpi-lbl">Staff &amp; Admins</span>
+        </div>
       </div>
     </div>
 
@@ -7739,7 +7756,6 @@ function vCoachDashboard() {
 
   bindHome();
   bindAnn();
-  heroCover();
 
   const cAnn = $("coach-quick-ann");
   if (cAnn) cAnn.onclick = () => {
@@ -7785,11 +7801,7 @@ function vLeadershipDashboard() {
   }
 
   const lp = MYPID && P.find((x) => x.id === MYPID);
-  let playerStatHtml = "";
-  if (lp) {
-    const a = statsFor(lp, "all");
-    playerStatHtml = `<div><b>${a.pct}%</b>My Attendance</div><div><b>${a.pr}/${a.t}</b>My Sessions</div>`;
-  }
+  const lpStats = lp ? statsFor(lp, "all") : null;
 
   const todayStr = new Date().toLocaleDateString("en-IN", {
     weekday: "long",
@@ -7800,39 +7812,76 @@ function vLeadershipDashboard() {
 
   $("view").innerHTML = `
     <div class="card hero leader-hero" id="wel">
-      <div class="coach-badge-row">
-        <span class="role-pill leader-pill">🏑 ${roleTitle} Console</span>
-        <span class="mute" style="font-size:0.83rem;">${todayStr}</span>
-      </div>
-      <div class="wtop" id="wel-profile-btn" style="cursor:pointer;" title="View Profile">
-        ${avatar(WHO, MYPH, 68)}
-        <div class="wtx">
-          <span class="wg">${greeting} 👋</span>
-          <h2>${first}</h2>
-          <span class="mute">${roleTitle} · IIT Patna Hockey</span>
+      <div class="hero-header-grid">
+        <div class="hero-left-section">
+          <div class="hero-badge-strip">
+            <span class="hero-role-pill">🏑 ${roleTitle} Console</span>
+            <span class="hero-date-pill">${todayStr}</span>
+          </div>
+          <div class="hero-user-row" id="wel-profile-btn" title="View Profile" role="button" tabindex="0">
+            <div class="hero-avatar-wrap">
+              ${avatar(WHO, MYPH, 66)}
+            </div>
+            <div class="hero-user-info">
+              <span class="hero-greeting-tag">${greeting} 👋</span>
+              <h2 class="hero-user-heading">${first}</h2>
+              <span class="hero-role-sub">${roleTitle} · IIT Patna Hockey Team</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-right-section">
+          <div class="hero-practice-card">
+            <div>
+              <div class="practice-card-header">
+                <span class="practice-pulse-dot"></span>
+                <span class="practice-card-title">Practice &amp; Attendance Status</span>
+              </div>
+              <div class="practice-card-status">${todayStatusHtml}</div>
+              <small class="practice-card-sub">${nextTxt} (${nextSub})</small>
+            </div>
+            <div class="practice-action-row" style="margin-top:12px;">
+              <button type="button" class="btn-take-now" data-go="take">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="9 11 12 14 22 4"></polyline></svg>
+                <span>Take Attendance Now</span>
+              </button>
+              <button type="button" class="btn-set-days" data-go="plan">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span>Set Playing Days</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="wnext" style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:12px;padding:12px 14px;">
-        <span class="wl">🏑 Practice &amp; Attendance Status</span>
-        <div style="font-size:1.02rem;margin:4px 0 6px;">${todayStatusHtml}</div>
-        <small class="mute" style="display:block;">${nextTxt} (${nextSub})</small>
-        <div class="practice-action-row">
-          <button type="button" class="btn-take-now" data-go="take">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="9 11 12 14 22 4"></polyline></svg>
-            <span>Take Attendance Now</span>
-          </button>
-          <button type="button" class="btn-set-days" data-go="plan">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-            <span>Set Playing Days</span>
-          </button>
+      <div class="hero-kpi-grid">
+        <div class="kpi-card kpi-blue">
+          <span class="kpi-val">${P.length}</span>
+          <span class="kpi-lbl">Squad Size</span>
         </div>
-      </div>
-
-      <div class="stats wst" style="margin-top:12px;">
-        <div><b>${P.length}</b>Squad Size</div>
-        <div><b>${teamTurnout}%</b>Team Turnout</div>
-        ${playerStatHtml}
+        <div class="kpi-card kpi-emerald">
+          <span class="kpi-val">${teamTurnout}%</span>
+          <span class="kpi-lbl">Team Turnout</span>
+        </div>
+        ${lp && lpStats ? `
+        <div class="kpi-card kpi-indigo">
+          <span class="kpi-val">${lpStats.pct}%</span>
+          <span class="kpi-lbl">My Attendance</span>
+        </div>
+        <div class="kpi-card kpi-amber">
+          <span class="kpi-val">${lpStats.pr}/${lpStats.t}</span>
+          <span class="kpi-lbl">My Sessions</span>
+        </div>
+        ` : `
+        <div class="kpi-card kpi-indigo">
+          <span class="kpi-val">${rsess("all")}</span>
+          <span class="kpi-lbl">Sessions Held</span>
+        </div>
+        <div class="kpi-card kpi-amber">
+          <span class="kpi-val">${ADM.filter((a) => !a.disabled).length}</span>
+          <span class="kpi-lbl">Staff &amp; Admins</span>
+        </div>
+        `}
       </div>
     </div>
 
@@ -7858,7 +7907,6 @@ function vLeadershipDashboard() {
 
   bindHome();
   bindAnn();
-  heroCover();
 
   const bTpl = $("btn-leader-tpl");
   if (bTpl) bTpl.onclick = () => {
@@ -7899,35 +7947,56 @@ function vPlayerDashboard() {
 
   $("view").innerHTML = `
     <div class="card hero player-hero" id="wel">
-      <div class="coach-badge-row">
-        <span class="role-pill player-pill">${posEmoji} ${esc(mine.position || "Squad Player")}</span>
-        <span class="mute" style="font-size:0.83rem;font-weight:600;">${esc(mine.roll || "")}</span>
-      </div>
-      <div class="wtop" id="wel-profile-btn" style="cursor:pointer;" title="View your profile">
-        ${avatar(WHO, MYPH, 68)}
-        <div class="wtx">
-          <span class="wg">${greeting} 👋</span>
-          <h2>${first}</h2>
-          <span class="mute">${esc(mine.position || "Hockey player")}${mine.jersey ? " · Jersey #" + esc(mine.jersey) : ""}</span>
+      <div class="hero-header-grid">
+        <div class="hero-left-section">
+          <div class="hero-badge-strip">
+            <span class="hero-role-pill">${posEmoji} ${esc(mine.position || "Squad Player")}</span>
+            <span class="hero-date-pill" style="font-weight:600;">${esc(mine.roll || "")}</span>
+          </div>
+          <div class="hero-user-row" id="wel-profile-btn" title="View your profile" role="button" tabindex="0">
+            <div class="hero-avatar-wrap">
+              ${avatar(WHO, MYPH, 66)}
+            </div>
+            <div class="hero-user-info">
+              <span class="hero-greeting-tag">${greeting} 👋</span>
+              <h2 class="hero-user-heading">${first}</h2>
+              <span class="hero-role-sub">${esc(mine.position || "Hockey Player")}${mine.jersey ? " · Jersey #" + esc(mine.jersey) : ""}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-right-section">
+          <div class="hero-practice-card">
+            <div>
+              <div class="practice-card-header">
+                <span class="practice-pulse-dot"></span>
+                <span class="practice-card-title">Next Practice</span>
+              </div>
+              <div class="practice-card-status">${nextTxt}</div>
+              <small class="practice-card-sub">${nextSub}</small>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Player Performance Metrics -->
-      <div class="stats wst" style="margin-top:12px;">
-        <div style="border-left:3px solid ${pctColor};padding-left:8px;">
-          <b style="color:${pctColor};">${a.pct}%</b>
-          Attendance
+      <div class="hero-kpi-grid">
+        <div class="kpi-card kpi-blue">
+          <span class="kpi-val" style="color:${pctColor};">${a.pct}%</span>
+          <span class="kpi-lbl">Attendance</span>
         </div>
-        <div><b>${a.pr}/${a.t}</b>Sessions Present</div>
-        <div><b>${st}</b>Day Streak 🔥</div>
-        <div><b>#${myRank}</b>Squad Rank 🏆</div>
-      </div>
-
-      <!-- Next Practice Alert -->
-      <div class="wnext" style="margin-top:12px;">
-        <span class="wl">🏑 Next Practice</span>
-        <div>${nextTxt}</div>
-        <small>${nextSub}</small>
+        <div class="kpi-card kpi-emerald">
+          <span class="kpi-val">${a.pr}/${a.t}</span>
+          <span class="kpi-lbl">Sessions Present</span>
+        </div>
+        <div class="kpi-card kpi-indigo">
+          <span class="kpi-val">${st}</span>
+          <span class="kpi-lbl">Day Streak 🔥</span>
+        </div>
+        <div class="kpi-card kpi-amber">
+          <span class="kpi-val">#${myRank}</span>
+          <span class="kpi-lbl">Squad Rank 🏆</span>
+        </div>
       </div>
     </div>
 
@@ -7951,7 +8020,6 @@ function vPlayerDashboard() {
 
   bindHome();
   bindAnn();
-  heroCover();
 
   if ($("mxe")) $("mxe").onclick = openMatches;
   if ($("nwr")) $("nwr").onclick = () => { newsAt = 0; NEWS = null; fetchNews(true); render(); };

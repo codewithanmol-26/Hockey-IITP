@@ -1562,15 +1562,8 @@ function welcomeHero() {
   <div class="stats wst">${stat}</div><p class="wq">“${QUOTES[day % QUOTES.length]}”</p></div>`;
 }
 async function heroCover() {
-  const [k, id] = ownCoverKey();
-  if (!id) return;
-  const img = await loadCover(k, id);
-  const el = gid("wel");
-  if (el && img) {
-    el.style.backgroundImage = `linear-gradient(135deg,#071a2ecc,#0f3f8f99),url(${img})`;
-    el.style.backgroundSize = "cover";
-    el.style.backgroundPosition = "center";
-  }
+  // Disabled selfie/photo background on hero card to keep the home interface sleek, professional, and clear
+  return;
 }
 
 // ---------------------------------------------------------------- push notifications: setup guide for the captain
