@@ -3249,7 +3249,7 @@ function vTake() {
       const num = sessionNum(k);
       const gIdx = sessionGlobalIndex(k);
       const sData = SS[k] || {};
-      const prCount = (typeof allPs !== "undefined" ? allPs : P).filter((p) => sData[p.id] === true).length;
+      const prCount = P.filter((p) => sData[p.id] === true || (p.roll && sData[p.roll] === true)).length;
       sessionPills.push({
         key: k,
         num,
@@ -3508,7 +3508,7 @@ function mSel(id, cur, all) {
 }
 
 function matrix(ds) {
-  const ps = P.filter((p) => ds.some((d) => SS[d][p.id] !== undefined)),
+  const ps = P.filter((p) => !p.joined || ds.some((d) => d.slice(0, 10) >= p.joined.slice(0, 10))),
     ms = [...new Set(ds.map((d) => d.slice(0, 7)))];
   return `<details class="card"><summary><b>Day-wise table</b> <span class="mute">${ps.length} players × ${ds.length} sessions</span></summary><div class="mxw"><table class="mx"><tr><th class="sc"></th>${ms.map((m) => `<th colspan="${ds.filter((d) => d.startsWith(m)).length}" class="mh">${mfmt(m).replace(/ (\d\d)(\d\d)$/, " ’$2")}</th>`).join("")}<th></th></tr>
   <tr><th class="sc">Player</th>${ds
@@ -3525,12 +3525,17 @@ function matrix(ds) {
   ${ps
     .map((p) => {
       let pr = 0;
-      const t = ds.length;
+      const pj = p && p.joined ? p.joined.slice(0, 10) : "";
+      const eligibleDates = ds.filter((d) => !pj || d.slice(0, 10) >= pj);
+      const t = eligibleDates.length;
       const c = ds
         .map((d) => {
-          const v = SS[d][p.id];
+          if (pj && d.slice(0, 10) < pj) {
+            return `<td class="o" title="${esc(p.name)} · Joined ${fmtDateOnly(pj)}">–</td>`;
+          }
+          const v = SS[d] && (SS[d][p.id] === true || (p.roll && SS[d][p.roll] === true));
           if (v) pr++;
-          return `<td class="${v === true ? "y" : v === false ? "x" : "o"}" title="${esc(p.name)} · ${fmt(d)}">${v === true ? "✔" : v === false ? "✘" : ""}</td>`;
+          return `<td class="${v ? "y" : "x"}" title="${esc(p.name)} · ${fmt(d)}">${v ? "✔" : "✘"}</td>`;
         })
         .join("");
       return `<tr><td class="sc"><button class="lnk" data-pf="${p.id}">${esc(p.name.split(" ")[0])}</button></td>${c}<td class="tt">${pr}/${t}</td></tr>`;
@@ -3565,7 +3570,7 @@ function vStats() {
     mine = st.find((x) => x.p.id === me),
     tier = !admin && mine ? tierMedal(mine.pct) : null;
   let pts, ttl;
-  const allPs = [...P, ...(typeof RM !== "undefined" && RM ? RM : [])];
+  const allPs = P;
   if (m === "all") {
     ttl = admin ? "Team turnout by month" : "My attendance by month";
     pts = months().map((k) => {
@@ -3584,18 +3589,18 @@ function vStats() {
       ? "Team turnout per session"
       : "My attendance per session";
     pts = live.map((d) => {
+      const dayBase = dateBase(d);
+      const squadOnDay = P.filter((p) => !p.joined || p.joined.slice(0, 10) <= dayBase);
       const v = admin
-          ? allPs.filter((p) => SS[d] && SS[d][p.id] !== undefined).map(
-              (p) => SS[d][p.id],
-            )
-          : [Boolean(SS[d] && SS[d][me])],
+          ? squadOnDay.map((p) => Boolean(SS[d] && (SS[d][p.id] === true || (p.roll && SS[d][p.roll] === true))))
+          : [Boolean(SS[d] && (SS[d][me] === true || (me && SS[d][me] === true)))],
         pr = v.filter(Boolean).length,
         pct = v.length ? (pr * 100) / v.length : 0;
       return {
         l: d.slice(5),
         pct,
         tip:
-          fmt(d) + ": " + (admin ? pr + " present" : pr ? "Present" : "Absent"),
+          fmt(d) + ": " + (admin ? pr + "/" + v.length + " present" : pr ? "Present" : "Absent"),
       };
     });
   }
@@ -3608,14 +3613,16 @@ function vStats() {
       ? `<div class="row"><span>${fmt(selDate)}</span><span class="tag ${sd[me] ? "p" : "a"}">${sd[me] ? "Present" : "Absent"}</span></div>`
       : '<p class="mute">No hockey recorded on this date.</p>';
   } else if (sd) {
-    const v = allPs.filter((p) => sd[p.id] !== undefined),
-      pr = v.filter((p) => sd[p.id]).length;
+    const v = P.filter((p) => !p.joined || p.joined.slice(0, 10) <= selBase);
+    const pr = v.filter((p) => sd[p.id] === true || (p.roll && sd[p.roll] === true)).length;
     day =
       `<div class="stats"><div><b>${pr}</b>Present</div><div><b>${v.length - pr}</b>Absent</div><div><b>${v.length ? Math.round((pr * 100) / v.length) : 0}%</b>Turnout</div></div>` +
       v
         .map(
-          (p) =>
-            `<div class="row"><span>${esc(p.name)}${p.removed ? ' <small class="mute">(Removed)</small>' : ""}</span><span class="tag ${sd[p.id] ? "p" : "a"}">${sd[p.id] ? "Present" : "Absent"}</span></div>`,
+          (p) => {
+            const isPr = sd[p.id] === true || (p.roll && sd[p.roll] === true);
+            return `<div class="row"><span>${esc(p.name)}</span><span class="tag ${isPr ? "p" : "a"}">${isPr ? "Present" : "Absent"}</span></div>`;
+          },
         )
         .join("");
   }
@@ -3636,10 +3643,9 @@ function vStats() {
                 const sNum = sessionNum(k);
                 const gIdx = sessionGlobalIndex(k);
                 const sData = SS[k] || {};
-                const prCount = allPs.filter((p) => sData[p.id] === true).length;
-                const totCount = allPs.filter(
-                  (p) => sData[p.id] !== undefined,
-                ).length;
+                const squadOnDay = P.filter((p) => !p.joined || p.joined.slice(0, 10) <= selBase);
+                const prCount = squadOnDay.filter((p) => sData[p.id] === true || (p.roll && sData[p.roll] === true)).length;
+                const totCount = squadOnDay.length;
                 const isAct = k === selDate;
                 const gText = gIdx ? `Session #${gIdx}` : `Session ${sNum}`;
                 const timeHint =
@@ -6879,6 +6885,27 @@ function vCoachDashboard() {
   const teamTurnout = t ? Math.round((q.reduce((a, x) => a + x.pr, 0) * 100) / t) : 0;
   const activeStaffCount = ADM.filter((a) => !a.disabled).length;
 
+  const nx = Object.keys(PL).sort().find((x) => planLive(x));
+  const pn = nx && PL[nx];
+  const r = nx && SCH.team[dayIdx(nx)];
+  const nextTxt = nx ? `<b>${dlabel(nx)}</b> · ${esc(dlong(nx))}` : "<b>No playing day fixed yet</b>";
+  const nextSub = nx ? [pn.time || (r && r[3]) || "Time to be announced", pn.venue ? "📍 " + pn.venue : ""].filter(Boolean).map(esc).join(" · ") : "Schedule practice in Playing Days.";
+
+  const todayKey = today();
+  const isTodaySession = !!PL[todayKey];
+  const isTodayMarked = !!(SS[todayKey] && Object.keys(SS[todayKey]).length > 0);
+  let todayStatusHtml = "";
+  if (isTodaySession) {
+    if (isTodayMarked) {
+      const presentCount = Object.values(SS[todayKey]).filter(Boolean).length;
+      todayStatusHtml = `<span style="color:#059669;font-weight:700;">✅ Today's Attendance Marked (${presentCount} present)</span>`;
+    } else {
+      todayStatusHtml = `<span style="color:#d97706;font-weight:700;">⚠️ Today's Practice Attendance Pending</span>`;
+    }
+  } else {
+    todayStatusHtml = `<span class="mute">No practice scheduled for today.</span>`;
+  }
+
   const todayStr = new Date().toLocaleDateString("en-IN", {
     weekday: "long",
     day: "numeric",
@@ -6900,7 +6927,24 @@ function vCoachDashboard() {
           <span class="mute">Head Coach · IIT Patna Hockey Team</span>
         </div>
       </div>
-      <div class="stats wst coach-stats">
+
+      <div class="wnext" style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:12px;padding:12px 14px;">
+        <span class="wl">🏑 Practice &amp; Attendance Status</span>
+        <div style="font-size:1.02rem;margin:4px 0 6px;">${todayStatusHtml}</div>
+        <small class="mute" style="display:block;">${nextTxt} (${nextSub})</small>
+        <div class="practice-action-row">
+          <button type="button" class="btn-take-now" data-go="take">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="9 11 12 14 22 4"></polyline></svg>
+            <span>Take Attendance Now</span>
+          </button>
+          <button type="button" class="btn-set-days" data-go="plan">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <span>Set Playing Days</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="stats wst coach-stats" style="margin-top:12px;">
         <div><b>${P.length}</b>Squad Players</div>
         <div><b>${totalSess}</b>Sessions Held</div>
         <div><b>${teamTurnout}%</b>Squad Turnout</div>
@@ -6923,7 +6967,7 @@ function vCoachDashboard() {
         <button type="button" class="coach-act-btn" data-go="take">
           <span class="act-ic">✅</span>
           <div class="act-tx">
-            <b>Take Attendance</b>
+            <b>Take Attendance Now</b>
             <small>Roll call &amp; session logging</small>
           </div>
         </button>
@@ -6937,7 +6981,7 @@ function vCoachDashboard() {
         <button type="button" class="coach-act-btn" data-go="plan">
           <span class="act-ic">📅</span>
           <div class="act-tx">
-            <b>Playing Days &amp; Timings</b>
+            <b>Set Playing Days</b>
             <small>Schedule practice sessions &amp; venue</small>
           </div>
         </button>
@@ -7045,6 +7089,16 @@ function vLeadershipDashboard() {
         <span class="wl">🏑 Practice &amp; Attendance Status</span>
         <div style="font-size:1.02rem;margin:4px 0 6px;">${todayStatusHtml}</div>
         <small class="mute" style="display:block;">${nextTxt} (${nextSub})</small>
+        <div class="practice-action-row">
+          <button type="button" class="btn-take-now" data-go="take">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="9 11 12 14 22 4"></polyline></svg>
+            <span>Take Attendance Now</span>
+          </button>
+          <button type="button" class="btn-set-days" data-go="plan">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <span>Set Playing Days</span>
+          </button>
+        </div>
       </div>
 
       <div class="stats wst" style="margin-top:12px;">
@@ -7058,8 +7112,8 @@ function vLeadershipDashboard() {
     <div class="card">
       <h2 style="margin:0 0 10px;">⚡ Team Leadership Tools</h2>
       <div class="fts fts2">
-        <button type="button" class="ft" data-go="take"><span class="ic">✅</span><b>Take Attendance</b></button>
-        <button type="button" class="ft" data-go="plan"><span class="ic">📅</span><b>Playing Days</b></button>
+        <button type="button" class="ft" data-go="take"><span class="ic">✅</span><b>Take Attendance Now</b></button>
+        <button type="button" class="ft" data-go="plan"><span class="ic">📅</span><b>Set Playing Days</b></button>
         <button type="button" class="ft" data-go="players"><span class="ic">👥</span><b>Manage Squad</b></button>
         <button type="button" class="ft" data-go="stats"><span class="ic">📊</span><b>Attendance Matrix</b></button>
         <button type="button" class="ft" data-go="leaderboard"><span class="ic">🏆</span><b>Leaderboard</b></button>
