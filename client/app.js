@@ -2580,9 +2580,10 @@ function planMsg(d) {
 }
 function attMsg(d) {
   const r = SS[d] || {},
-    ps = P.filter((p) => r[p.id] !== undefined),
-    pr = ps.filter((p) => r[p.id]),
-    ab = ps.filter((p) => !r[p.id]),
+    baseD = dateBase(d),
+    ps = P.filter((p) => !p.joined || p.joined.slice(0, 10) <= baseD),
+    pr = ps.filter((p) => r[p.id] === true || (p.roll && r[p.roll] === true)),
+    ab = ps.filter((p) => !(r[p.id] === true || (p.roll && r[p.roll] === true))),
     ls = (a) =>
       a.length ? a.map((p, i) => i + 1 + ". " + p.name).join("\n") : "-";
   return `🏑 *IITP Hockey: Attendance*\n📅 ${dlong(d)}\n\n✅ *Present (${pr.length})*\n${ls(pr)}\n\n❌ *Absent (${ab.length})*\n${ls(ab)}\n\nTurnout: ${ps.length ? Math.round((pr.length * 100) / ps.length) : 0}%`;
@@ -2615,8 +2616,21 @@ $("tsv").onclick = () =>
   });
 
 // ---- alerts: a notification 15 minutes before each fixed playing day (works while the app is open or in the background tab) ----
-if ("serviceWorker" in navigator)
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("sw.js")
+    .then((reg) => {
+      reg.update();
+    })
+    .catch(() => {});
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    if (e.data && e.data.type === "SW_UPDATED" && !window.__swReloaded) {
+      window.__swReloaded = true;
+      try { localStorage.removeItem("hk_cache"); } catch (x) {}
+      window.location.reload();
+    }
+  });
+}
 function span(t) {
   // "6:30–8:30 PM" -> start/end in minutes after midnight
   const k = [

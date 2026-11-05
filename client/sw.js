@@ -1,12 +1,12 @@
 // Makes the page installable and able to show alerts. Only the app files are cached; /api (the data) is never cached.
-const V = "hk-v97",
+const V = "hk-v98",
   SHELL = [
     "./",
     "index.html",
     "favicon.ico",
-    "style.css?v=97",
-    "app.js?v=97",
-    "public.js?v=97",
+    "style.css?v=98",
+    "app.js?v=98",
+    "public.js?v=98",
     "extras.js",
     "help.js",
     "icons.js?v=83",
@@ -35,7 +35,14 @@ self.addEventListener("activate", (e) =>
       .then((k) =>
         Promise.all(k.filter((x) => x !== V).map((x) => caches.delete(x))),
       )
-      .then(() => self.clients.claim()),
+      .then(() => self.clients.claim())
+      .then(() =>
+        self.clients.matchAll({ type: "window" }).then((clients) => {
+          clients.forEach((c) =>
+            c.postMessage({ type: "SW_UPDATED", version: V }),
+          );
+        }),
+      ),
   ),
 );
 self.addEventListener("fetch", (e) => {
@@ -48,7 +55,32 @@ self.addEventListener("fetch", (e) => {
   )
     return;
 
-  // Stale-while-revalidate: respond from cache immediately for near 0ms load speed, update cache in background
+  // Network first for HTML navigation requests so users always receive latest app shell
+  const isNav =
+    r.mode === "navigate" ||
+    r.destination === "document" ||
+    u.pathname === "/" ||
+    u.pathname.endsWith("/index.html");
+  if (isNav) {
+    e.respondWith(
+      fetch(r)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(V).then((h) => h.put(r, copy));
+          }
+          return res;
+        })
+        .catch(() =>
+          caches
+            .match(r)
+            .then((c) => c || caches.match("index.html") || caches.match("./")),
+        ),
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for versioned static assets
   e.respondWith(
     caches.match(r).then((cached) => {
       const net = fetch(r)
@@ -59,7 +91,7 @@ self.addEventListener("fetch", (e) => {
           }
           return x;
         })
-        .catch(() => cached || caches.match("index.html"));
+        .catch(() => cached);
 
       return cached || net;
     }),
