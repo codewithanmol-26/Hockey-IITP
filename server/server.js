@@ -4064,11 +4064,13 @@ app.get(
     const { month = "all", format = "excel" } = req.query;
 
     if (format === "xlsx" || month === "master") {
-      const xlsxPath = require("path").resolve(__dirname, "../client/downloads/IITP_Hockey_Monthwise_Attendance.xlsx");
-      if (require("fs").existsSync(xlsxPath)) {
+      const xlsxPath = require("path").resolve(__dirname, "../client/downloads/IITP_Hockey_Attendance.xlsx");
+      const fallbackPath = require("path").resolve(__dirname, "../client/downloads/IITP_Hockey_Monthwise_Attendance.xlsx");
+      const target = require("fs").existsSync(xlsxPath) ? xlsxPath : fallbackPath;
+      if (require("fs").existsSync(target)) {
         res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.setHeader("Content-Disposition", 'attachment; filename="IITP_Hockey_Monthwise_Attendance.xlsx"');
-        return res.sendFile(xlsxPath);
+        res.setHeader("Content-Disposition", 'attachment; filename="IITP_Hockey_Attendance.xlsx"');
+        return res.sendFile(target);
       }
     }
 
