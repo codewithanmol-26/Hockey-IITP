@@ -519,13 +519,36 @@ function reportText(sc, v) {
     dl
   );
 }
-// Percentage = sessions present / TOTAL SESSIONS. The total is the same for every player: a session the player
-// missed, or has no mark for, counts as absent. Present sessions never exceed the total.
+// Percentage = sessions present / eligible sessions. Total sessions only counts sessions on or after joined date.
+function playerSessCount(p, m) {
+  const pj = p && p.joined ? p.joined.slice(0, 10) : "";
+  const leg =
+    m === "all"
+      ? Object.keys(L)
+          .filter((k) => !pj || k >= pj.slice(0, 7))
+          .reduce((a, k) => a + L[k].days, 0)
+      : L[m] && (!pj || m >= pj.slice(0, 7))
+        ? L[m].days
+        : 0;
+  const cur = dates().filter(
+    (d) => inMonth(m)(d) && (!pj || d.slice(0, 10) >= pj),
+  ).length;
+  return leg + cur;
+}
 function statsFor(p, m) {
-  const t = rsess(m);
+  const t = playerSessCount(p, m);
   let pr = 0;
-  for (const k in L) if (m === "all" || k === m) pr += L[k].att[p.id] || 0;
-  for (const d in SS) if ((m === "all" || d.startsWith(m)) && SS[d][p.id]) pr++;
+  const pj = p && p.joined ? p.joined.slice(0, 10) : "";
+  for (const k in L)
+    if ((m === "all" || k === m) && (!pj || k >= pj.slice(0, 7)))
+      pr += L[k].att[p.id] || 0;
+  for (const d in SS)
+    if (
+      (m === "all" || d.startsWith(m)) &&
+      (!pj || d.slice(0, 10) >= pj) &&
+      SS[d][p.id]
+    )
+      pr++;
   pr = Math.min(pr, t);
   return { p, pr, t, pct: t ? Math.round((pr * 100) / t) : 0 };
 }
@@ -3440,9 +3463,17 @@ function vTake() {
     const r = {};
     el.forEach((p) => (r[p.id] = draft[p.id]));
     run(async () => {
+      const cleanR = {};
+      const merged = { ...ex, ...r };
+      for (const pid in merged) {
+        const pl = P.find((p) => p.id === pid || p.roll === pid);
+        if (!pl || !pl.joined || pl.joined.slice(0, 10) <= baseDate) {
+          cleanR[pid] = merged[pid];
+        }
+      }
       await api("/api/sessions/" + takeDate, {
         method: "PUT",
-        body: { r: { ...ex, ...r } },
+        body: { r: cleanR },
       });
       draftDate = null;
       await load();

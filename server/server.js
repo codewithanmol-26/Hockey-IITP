@@ -1485,9 +1485,25 @@ app.put(
   auth,
   dateOk,
   h(async (req, res) => {
+    const sessionDate = req.params.date.replace("_2", "");
+    const all = await readAll(false);
+    const playerMap = {};
+    (all.players || []).forEach((p) => {
+      playerMap[p.id] = p;
+      if (p.roll) playerMap[p.roll] = p;
+    });
+
     const r = {};
-    for (const [k, v] of Object.entries((req.body || {}).r || {}))
-      if (typeof v === "boolean") r[k] = v;
+    for (const [k, v] of Object.entries((req.body || {}).r || {})) {
+      if (typeof v === "boolean") {
+        const p = playerMap[k];
+        const joined = p && p.joined ? String(p.joined).slice(0, 10) : "";
+        // Only store attendance for sessions on or after the player's joined date
+        if (!joined || sessionDate >= joined) {
+          r[k] = v;
+        }
+      }
+    }
     await db.collection("sessions").doc(req.params.date).set({ r });
     done(res);
   }),
@@ -2018,6 +2034,25 @@ app.put(
       upd.email = pEmail;
     }
     await db.collection("players").doc(req.params.id).update(upd); // works for removed students too: their details are kept
+    if (upd.joined) {
+      try {
+        const pId = req.params.id;
+        const all = await readAll(false);
+        const pRoll = upd.roll;
+        const newJoined = upd.joined.slice(0, 10);
+        for (const [dateStr, sessR] of Object.entries(all.sessions || {})) {
+          const cleanDate = dateStr.replace("_2", "");
+          if (cleanDate < newJoined && (sessR[pId] !== undefined || (pRoll && sessR[pRoll] !== undefined))) {
+            const newR = { ...sessR };
+            delete newR[pId];
+            if (pRoll) delete newR[pRoll];
+            await db.collection("sessions").doc(dateStr).set({ r: newR });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to prune sessions for updated joined date:", err.message);
+      }
+    }
     done(res);
   }),
 );
@@ -3371,8 +3406,13 @@ app.get(
       stats[pid].points = points;
       stats[pid].monthHours = monthHours;
       stats[pid].monthPoints = monthPoints;
+      const pObj = (all.players || []).find((p) => p.id === pid || p.roll === pid);
+      const pJoined = pObj && pObj.joined ? String(pObj.joined).slice(0, 10) : "";
+      const eligibleSessionsCount = sessionKeys.filter((sk) => !pJoined || sk.replace("_2", "") >= pJoined).length;
+
+      stats[pid].eligibleSessions = eligibleSessionsCount;
       stats[pid].rate = Math.round(
-        (totalSessions / (sessionKeys.length || 1)) * 100,
+        (totalSessions / (eligibleSessionsCount || 1)) * 100,
       );
     }
 

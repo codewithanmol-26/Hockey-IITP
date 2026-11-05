@@ -56,10 +56,11 @@ function generateMonthCsv({ month, sessions, legacy, players }) {
   const headers = [
     "Roll Number",
     "Player Name",
+    "Joining Date",
     "Position",
     "Jersey No",
     ...dates,
-    "Total Sessions",
+    "Eligible Sessions",
     "Attended",
     "Absent",
     "Turnout (%)",
@@ -74,8 +75,16 @@ function generateMonthCsv({ month, sessions, legacy, players }) {
   // Player rows
   for (const p of players) {
     let attended = 0;
+    const pJoined = p.joined ? String(p.joined).slice(0, 10) : "";
+    let eligibleCount = 0;
+
     const dayCells = dates.map((d) => {
-      const isP = Boolean(sessions[d] && sessions[d][p.id]);
+      const cleanD = d.replace("_2", "");
+      if (pJoined && cleanD < pJoined) {
+        return "–";
+      }
+      eligibleCount++;
+      const isP = Boolean(sessions[d] && (sessions[d][p.id] || (p.roll && sessions[d][p.roll])));
       if (isP) {
         attended++;
         dayPresentCounts[d]++;
@@ -83,21 +92,25 @@ function generateMonthCsv({ month, sessions, legacy, players }) {
       return isP ? "P" : "A";
     });
 
-    if (legacy[month] && legacy[month].att && legacy[month].att[p.id]) {
-      attended += legacy[month].att[p.id];
+    if (legacy[month] && (!pJoined || month >= pJoined.slice(0, 7))) {
+      eligibleCount += legacy[month].days || 0;
+      if (legacy[month].att && legacy[month].att[p.id]) {
+        attended += legacy[month].att[p.id];
+      }
     }
     squadTotalAttended += attended;
 
-    const absent = Math.max(0, totalMonthSessions - attended);
-    const pct = totalMonthSessions > 0 ? ((attended / totalMonthSessions) * 100).toFixed(1) + "%" : "0.0%";
+    const absent = Math.max(0, eligibleCount - attended);
+    const pct = eligibleCount > 0 ? ((attended / eligibleCount) * 100).toFixed(1) + "%" : "–";
 
     const row = [
       p.roll || p.id,
       p.name,
+      pJoined || "–",
       p.position || "Field Player",
       p.jersey_no || p.jerseyNo || "–",
       ...dayCells,
-      totalMonthSessions,
+      eligibleCount,
       attended,
       absent,
       pct,
@@ -109,6 +122,7 @@ function generateMonthCsv({ month, sessions, legacy, players }) {
   csv += "\n";
   const turnoutCountRow = [
     "TURNOUT COUNT (PER SESSION):",
+    "",
     "",
     "",
     "",
@@ -125,13 +139,16 @@ function generateMonthCsv({ month, sessions, legacy, players }) {
     "",
     "",
     "",
-    ...dates.map((d) => (players.length ? ((dayPresentCounts[d] / players.length) * 100).toFixed(1) + "%" : "0.0%")),
+    "",
+    ...dates.map((d) => {
+      const cleanD = d.replace("_2", "");
+      const eligibleOnDay = players.filter((p) => !p.joined || cleanD >= String(p.joined).slice(0, 10)).length;
+      return eligibleOnDay ? ((dayPresentCounts[d] / eligibleOnDay) * 100).toFixed(1) + "%" : "0.0%";
+    }),
     "-",
     "-",
     "-",
-    players.length && totalMonthSessions
-      ? ((squadTotalAttended / (players.length * totalMonthSessions)) * 100).toFixed(1) + "%"
-      : "0.0%",
+    "-",
   ];
   csv += turnoutPctRow.map(escCsv).join(",") + "\n";
 
@@ -169,11 +186,12 @@ function generateAllMonthsCsv({ sessions, legacy, players }) {
   const headers = [
     "Roll Number",
     "Player Name",
+    "Joining Date",
     "Position",
     "Jersey No",
     ...monthHeaders,
     "Season Attended",
-    "Season Total",
+    "Eligible Total",
     "Season Turnout (%)",
   ];
   csv += headers.map(escCsv).join(",") + "\n";
@@ -181,30 +199,44 @@ function generateAllMonthsCsv({ sessions, legacy, players }) {
   // Player rows
   for (const p of players) {
     let playerOverallAtt = 0;
+    const pJoined = p.joined ? String(p.joined).slice(0, 10) : "";
+    let playerEligibleSeason = 0;
+
     const monthCells = months.map((m) => {
       let mAtt = 0;
+      let mEligible = 0;
       for (const d of dates) {
-        if (d.startsWith(m) && sessions[d] && sessions[d][p.id]) mAtt++;
+        const cleanD = d.replace("_2", "");
+        if (d.startsWith(m)) {
+          if (!pJoined || cleanD >= pJoined) {
+            mEligible++;
+            if (sessions[d] && (sessions[d][p.id] || (p.roll && sessions[d][p.roll]))) mAtt++;
+          }
+        }
       }
-      if (legacy[m] && legacy[m].att && legacy[m].att[p.id]) {
-        mAtt += legacy[m].att[p.id];
+      if (legacy[m] && (!pJoined || m >= pJoined.slice(0, 7))) {
+        mEligible += legacy[m].days || 0;
+        if (legacy[m].att && legacy[m].att[p.id]) {
+          mAtt += legacy[m].att[p.id];
+        }
       }
       playerOverallAtt += mAtt;
-      const mTot = monthMap[m];
-      const mPct = mTot > 0 ? ((mAtt / mTot) * 100).toFixed(0) : "0";
-      return `${mAtt}/${mTot} (${mPct}%)`;
+      playerEligibleSeason += mEligible;
+      const mPct = mEligible > 0 ? ((mAtt / mEligible) * 100).toFixed(0) : "0";
+      return mEligible > 0 ? `${mAtt}/${mEligible} (${mPct}%)` : "–";
     });
 
-    const overallPct = totalAllSessions > 0 ? ((playerOverallAtt / totalAllSessions) * 100).toFixed(1) + "%" : "0.0%";
+    const overallPct = playerEligibleSeason > 0 ? ((playerOverallAtt / playerEligibleSeason) * 100).toFixed(1) + "%" : "–";
 
     const row = [
       p.roll || p.id,
       p.name,
+      pJoined || "–",
       p.position || "Field Player",
       p.jersey_no || p.jerseyNo || "–",
       ...monthCells,
       playerOverallAtt,
-      totalAllSessions,
+      playerEligibleSeason,
       overallPct,
     ];
     csv += row.map(escCsv).join(",") + "\n";
@@ -242,21 +274,23 @@ function generateMonthExcelHtml({ month, sessions, legacy, players }) {
   td.roll { text-align: center; font-family: Consolas, monospace; }
   td.p { background-color: #dcfce7; color: #166534; font-weight: bold; }
   td.a { background-color: #fee2e2; color: #991b1b; }
+  td.na { background-color: #f1f5f9; color: #94a3b8; }
   tr.summary { background-color: #f1f5f9; font-weight: bold; }
 </style>
 </head>
 <body>
 <table>
-  <tr><td colspan="${dates.length + 8}" class="title">IIT PATNA FIELD HOCKEY - MONTHWISE ATTENDANCE REPORT</td></tr>
-  <tr><td colspan="${dates.length + 8}" class="meta"><b>Month:</b> ${monthLabel} &nbsp;|&nbsp; <b>Total Sessions:</b> ${totalMonthSessions} &nbsp;|&nbsp; <b>Athletes:</b> ${players.length} &nbsp;|&nbsp; <b>Generated:</b> ${nowStr}</td></tr>
-  <tr><td colspan="${dates.length + 8}"></td></tr>
+  <tr><td colspan="${dates.length + 9}" class="title">IIT PATNA FIELD HOCKEY - MONTHWISE ATTENDANCE REPORT</td></tr>
+  <tr><td colspan="${dates.length + 9}" class="meta"><b>Month:</b> ${monthLabel} &nbsp;|&nbsp; <b>Total Sessions:</b> ${totalMonthSessions} &nbsp;|&nbsp; <b>Generated:</b> ${nowStr}</td></tr>
+  <tr><td colspan="${dates.length + 9}"></td></tr>
   <tr>
     <th>Roll Number</th>
     <th>Player Name</th>
+    <th>Joining Date</th>
     <th>Position</th>
     <th>Jersey</th>
-    ${dates.map((d) => `<th>${d.slice(5)}</th>`).join("")}
-    <th>Total</th>
+    ${dates.map((d) => `<th>${d}</th>`).join("")}
+    <th>Eligible</th>
     <th>Attended</th>
     <th>Absent</th>
     <th>Turnout %</th>
@@ -265,28 +299,40 @@ function generateMonthExcelHtml({ month, sessions, legacy, players }) {
 
   for (const p of players) {
     let attended = 0;
+    const pJoined = p.joined ? String(p.joined).slice(0, 10) : "";
+    let eligibleCount = 0;
+
     const dayCells = dates
       .map((d) => {
-        const isP = Boolean(sessions[d] && sessions[d][p.id]);
+        const cleanD = d.replace("_2", "");
+        if (pJoined && cleanD < pJoined) {
+          return `<td class="na">–</td>`;
+        }
+        eligibleCount++;
+        const isP = Boolean(sessions[d] && (sessions[d][p.id] || (p.roll && sessions[d][p.roll])));
         if (isP) attended++;
         return `<td class="${isP ? "p" : "a"}">${isP ? "P" : "A"}</td>`;
       })
       .join("");
 
-    if (legacy[month] && legacy[month].att && legacy[month].att[p.id]) {
-      attended += legacy[month].att[p.id];
+    if (legacy[month] && (!pJoined || month >= pJoined.slice(0, 7))) {
+      eligibleCount += legacy[month].days || 0;
+      if (legacy[month].att && legacy[month].att[p.id]) {
+        attended += legacy[month].att[p.id];
+      }
     }
-    const absent = Math.max(0, totalMonthSessions - attended);
-    const pct = totalMonthSessions > 0 ? ((attended / totalMonthSessions) * 100).toFixed(1) + "%" : "0.0%";
+    const absent = Math.max(0, eligibleCount - attended);
+    const pct = eligibleCount > 0 ? ((attended / eligibleCount) * 100).toFixed(1) + "%" : "–";
 
     html += `
     <tr>
       <td class="roll">${p.roll || p.id}</td>
       <td class="name">${p.name}</td>
+      <td>${pJoined || "–"}</td>
       <td>${p.position || "Field Player"}</td>
       <td>${p.jersey_no || p.jerseyNo || "–"}</td>
       ${dayCells}
-      <td>${totalMonthSessions}</td>
+      <td>${eligibleCount}</td>
       <td><b>${attended}</b></td>
       <td>${absent}</td>
       <td><b>${pct}</b></td>
@@ -301,7 +347,7 @@ function generateMonthExcelHtml({ month, sessions, legacy, players }) {
 }
 
 /**
- * Generate rich styled HTML table (.xls) for all months in Microsoft Excel
+ * Generate styled Excel HTML (.xls) for full season matrix
  */
 function generateAllMonthsExcelHtml({ sessions, legacy, players }) {
   const dates = Object.keys(sessions).sort();
@@ -336,55 +382,72 @@ function generateAllMonthsExcelHtml({ sessions, legacy, players }) {
   td.high { background-color: #dcfce7; color: #166534; font-weight: bold; }
   td.mid { background-color: #fef9c3; color: #854d0e; }
   td.low { background-color: #fee2e2; color: #991b1b; }
+  td.na { background-color: #f1f5f9; color: #94a3b8; }
 </style>
 </head>
 <body>
 <table>
-  <tr><td colspan="${months.length + 7}" class="title">IIT PATNA FIELD HOCKEY - COMPREHENSIVE SEASON ATTENDANCE REPORT</td></tr>
-  <tr><td colspan="${months.length + 7}" class="meta"><b>Full Season Matrix</b> &nbsp;|&nbsp; <b>Total Sessions:</b> ${totalAllSessions} &nbsp;|&nbsp; <b>Athletes:</b> ${players.length} &nbsp;|&nbsp; <b>Generated:</b> ${nowStr}</td></tr>
-  <tr><td colspan="${months.length + 7}"></td></tr>
+  <tr><td colspan="${months.length + 8}" class="title">IIT PATNA FIELD HOCKEY - COMPREHENSIVE SEASON ATTENDANCE REPORT</td></tr>
+  <tr><td colspan="${months.length + 8}" class="meta"><b>Full Season Matrix</b> &nbsp;|&nbsp; <b>Total Sessions:</b> ${totalAllSessions} &nbsp;|&nbsp; <b>Athletes:</b> ${players.length} &nbsp;|&nbsp; <b>Generated:</b> ${nowStr}</td></tr>
+  <tr><td colspan="${months.length + 8}"></td></tr>
   <tr>
     <th>Roll Number</th>
     <th>Player Name</th>
+    <th>Joining Date</th>
     <th>Position</th>
     <th>Jersey</th>
     ${months.map((m) => `<th>${formatMonthLabel(m)}<br><small>(${monthMap[m]} sess)</small></th>`).join("")}
     <th>Attended</th>
-    <th>Total</th>
+    <th>Eligible</th>
     <th>Season %</th>
   </tr>
   `;
 
   for (const p of players) {
     let playerOverallAtt = 0;
+    const pJoined = p.joined ? String(p.joined).slice(0, 10) : "";
+    let playerEligibleSeason = 0;
+
     const monthCells = months
       .map((m) => {
         let mAtt = 0;
+        let mEligible = 0;
         for (const d of dates) {
-          if (d.startsWith(m) && sessions[d] && sessions[d][p.id]) mAtt++;
+          const cleanD = d.replace("_2", "");
+          if (d.startsWith(m)) {
+            if (!pJoined || cleanD >= pJoined) {
+              mEligible++;
+              if (sessions[d] && (sessions[d][p.id] || (p.roll && sessions[d][p.roll]))) mAtt++;
+            }
+          }
         }
-        if (legacy[m] && legacy[m].att && legacy[m].att[p.id]) {
-          mAtt += legacy[m].att[p.id];
+        if (legacy[m] && (!pJoined || m >= pJoined.slice(0, 7))) {
+          mEligible += legacy[m].days || 0;
+          if (legacy[m].att && legacy[m].att[p.id]) {
+            mAtt += legacy[m].att[p.id];
+          }
         }
         playerOverallAtt += mAtt;
-        const mTot = monthMap[m];
-        const mPct = mTot > 0 ? Math.round((mAtt / mTot) * 100) : 0;
+        playerEligibleSeason += mEligible;
+        if (mEligible === 0) return `<td class="na">–</td>`;
+        const mPct = Math.round((mAtt / mEligible) * 100);
         const cls = mPct >= 75 ? "high" : mPct >= 50 ? "mid" : "low";
-        return `<td class="${cls}">${mAtt}/${mTot} (${mPct}%)</td>`;
+        return `<td class="${cls}">${mAtt}/${mEligible} (${mPct}%)</td>`;
       })
       .join("");
 
-    const overallPct = totalAllSessions > 0 ? ((playerOverallAtt / totalAllSessions) * 100).toFixed(1) + "%" : "0.0%";
+    const overallPct = playerEligibleSeason > 0 ? ((playerOverallAtt / playerEligibleSeason) * 100).toFixed(1) + "%" : "–";
 
     html += `
     <tr>
       <td class="roll">${p.roll || p.id}</td>
       <td class="name">${p.name}</td>
+      <td>${pJoined || "–"}</td>
       <td>${p.position || "Field Player"}</td>
       <td>${p.jersey_no || p.jerseyNo || "–"}</td>
       ${monthCells}
       <td><b>${playerOverallAtt}</b></td>
-      <td>${totalAllSessions}</td>
+      <td>${playerEligibleSeason}</td>
       <td><b>${overallPct}</b></td>
     </tr>`;
   }
@@ -397,7 +460,6 @@ function generateAllMonthsExcelHtml({ sessions, legacy, players }) {
 }
 
 module.exports = {
-  formatMonthLabel,
   generateMonthCsv,
   generateAllMonthsCsv,
   generateMonthExcelHtml,
