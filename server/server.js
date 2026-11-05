@@ -611,7 +611,7 @@ app.post(
     const proto =
       req.headers["x-forwarded-proto"] || (req.secure ? "https" : "https");
     const appUrl = proto + "://" + host;
-    const autoFillUrl = appUrl + "/?identifier=" + encodeURIComponent(identifier) + "&otp=" + encodeURIComponent(code);
+    const autoFillUrl = appUrl + "/api/auth/magic-login?identifier=" + encodeURIComponent(identifier) + "&otp=" + encodeURIComponent(code);
 
     const escH = (s) =>
       String(s ?? "").replace(
@@ -626,9 +626,15 @@ app.post(
           })[ch],
       );
 
-    const emailSubject = code + " is your IIT Patna Hockey Login Code";
-    const emailText = "Hello " + user.name + ",\n\nYour 6-digit login verification code for IIT Patna Hockey is: " + code + "\n\nAuto-login link: " + autoFillUrl + "\n\nThis code is valid for 10 minutes.\n\nIIT Patna Field Hockey";
-    const emailHtml = '<!DOCTYPE html><html><body style="margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;background-color:#f1f5f9;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.06);border:1px solid #e2e8f0;"><tr><td style="background:linear-gradient(135deg, #071a2e 0%, #0b2a4a 55%, #0f4aa8 100%);padding:28px 24px;text-align:center;"><div style="font-size:12px;letter-spacing:2px;font-weight:800;color:#facc15;text-transform:uppercase;margin-bottom:4px;">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div><h1 style="margin:0;font-size:24px;color:#ffffff;font-weight:900;letter-spacing:-0.5px;">🏑 IITP Hockey Team</h1><div style="font-size:13px;color:#cbd5e1;margin-top:6px;">One-Time Login Verification</div></td></tr><tr><td style="padding:28px 24px 20px;"><h2 style="margin:0 0 10px;font-size:18px;color:#0b2a4a;font-weight:700;">Hello ' + escH(user.name) + ',</h2><p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#475569;">Use the 6-digit login code below to securely sign in to the official IIT Patna Hockey portal:</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px dashed #0f4aa8;border-radius:16px;margin:20px 0;"><tr><td style="padding:22px 16px;text-align:center;"><span style="display:block;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px;">Your 6-Digit Login Code</span><div style="font-family:\'Courier New\',Courier,monospace;font-size:42px;letter-spacing:12px;font-weight:900;color:#0b2a4a;padding:4px 0;user-select:all;-webkit-user-select:all;display:inline-block;">' + code + '</div></td></tr></table><div style="text-align:center;margin:24px 0 18px;"><a href="' + autoFillUrl + '" target="_blank" style="display:inline-block;background:#0f4aa8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 26px;border-radius:12px;box-shadow:0 4px 14px rgba(15,74,168,0.35);">🚀 Click Here to Log In Instantly</a></div><p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#64748b;text-align:center;">Or type the 6 digits into the login screen. Valid for <b>10 minutes</b>.</p></td></tr><tr><td style="padding:16px 24px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;"><p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.4;">Indian Institute of Technology Patna · Field Hockey Portal<br>If you did not request this code, you can safely ignore this message.</p></td></tr></table></body></html>';
+    const emailSubject = "IIT Patna Hockey - Login Verification Code";
+    const emailText =
+      "Hello " + user.name + ",\n\n" +
+      "Your 6-digit login verification code for IIT Patna Hockey is: " + code + "\n\n" +
+      "Or click here to log in instantly:\n" + autoFillUrl + "\n\n" +
+      "This code is valid for 10 minutes.\n\n" +
+      "IIT Patna Field Hockey";
+
+    const emailHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0;padding:20px 12px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:460px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.05);"><tr><td style="padding:24px 24px 16px;text-align:center;border-bottom:1px solid #f1f5f9;"><div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#0f4aa8;text-transform:uppercase;margin-bottom:4px;">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div><h1 style="margin:0;font-size:20px;color:#0b2a4a;font-weight:800;">🏑 Hockey Team Portal</h1></td></tr><tr><td style="padding:24px 24px 20px;"><p style="margin:0 0 10px;font-size:15px;color:#0b2a4a;font-weight:600;">Hello ' + escH(user.name) + ',</p><p style="margin:0 0 18px;font-size:14px;color:#475569;line-height:1.5;">Your one-time login verification code is:</p><div style="background:#f1f5f9;border-radius:12px;padding:16px;text-align:center;margin:0 0 20px;"><div style="font-family:\'Courier New\',Courier,monospace;font-size:36px;letter-spacing:8px;font-weight:900;color:#0b2a4a;user-select:all;-webkit-user-select:all;">' + code + '</div></div><div style="text-align:center;margin:0 0 20px;"><a href="' + autoFillUrl + '" target="_blank" style="display:inline-block;background:#0f4aa8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:13px 24px;border-radius:10px;box-shadow:0 4px 12px rgba(15,74,168,0.25);">🚀 Click Here to Log In Instantly</a></div><p style="margin:0;font-size:13px;color:#64748b;line-height:1.5;text-align:center;">Valid for <b>10 minutes</b>. If you did not request this, you can safely ignore this email.</p></td></tr><tr><td style="padding:12px 24px;background:#f8fafc;border-top:1px solid #f1f5f9;text-align:center;"><p style="margin:0;font-size:11px;color:#94a3b8;">Indian Institute of Technology Patna · Field Hockey</p></td></tr></table></body></html>';
 
     // Directly await email dispatch so Resend sends it immediately and serverless container never freezes
     try {
@@ -718,6 +724,136 @@ app.post(
         post: user.post || null,
       },
     });
+  }),
+);
+
+// Instant Magic Link Login: Directly verifies OTP from email link and opens home interface
+app.get(
+  "/api/auth/magic-login",
+  h(async (req, res) => {
+    const identifier = String(req.query.identifier || req.query.roll || req.query.email || "").trim();
+    const otp = String(req.query.otp || req.query.code || "").trim();
+
+    if (!identifier || !otp) {
+      return res.redirect("/?login_err=" + encodeURIComponent("Invalid login link. Please request a new code."));
+    }
+
+    const user = await resolveAuthUser(identifier);
+    if (!user) {
+      return res.redirect("/?login_err=" + encodeURIComponent("User account not found."));
+    }
+
+    const ref = db.collection("otps").doc(user.otpKey);
+    const otpDoc = await ref.get().catch(() => null);
+
+    if (!otpDoc || !otpDoc.exists) {
+      return res.redirect("/?login_err=" + encodeURIComponent("Login code already used or expired. Please request a new code."));
+    }
+
+    const d = otpDoc.data() || {};
+    if (d.exp < Date.now()) {
+      return res.redirect("/?login_err=" + encodeURIComponent("Login code has expired. Please request a new code."));
+    }
+
+    if (!/^\d{6}$/.test(otp) || !eq(otpHash(user.otpKey, (d.email || user.email).trim(), otp), d.h)) {
+      return res.redirect("/?login_err=" + encodeURIComponent("Incorrect verification code in login link."));
+    }
+
+    // Success! Delete OTP record to prevent reuse
+    await ref.delete().catch(() => {});
+
+    // Generate 30-day session token
+    const token = sign({
+      id: user.id,
+      role: user.role,
+      name: user.name,
+      email: user.email,
+      roll: user.roll || undefined,
+      post: user.post || undefined,
+      exp: Date.now() + 30 * 864e5,
+    });
+
+    try {
+      res.cookie("hk_token", token, {
+        maxAge: 30 * 864e5,
+        httpOnly: false,
+        secure: true,
+        sameSite: "Lax",
+        path: "/",
+      });
+    } catch (e) {}
+
+    const safeToken = JSON.stringify(token);
+    const safeName = String(user.name || "Player").replace(/[&<>"']/g, "");
+
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Logging in... · IIT Patna Hockey</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #071a2e;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 36px 28px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+    .spin {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: s 0.8s linear infinite;
+      margin: 0 auto 18px;
+    }
+    @keyframes s { to { transform: rotate(360deg); } }
+    h1 { font-size: 1.25rem; margin: 0 0 8px; font-weight: 800; color: #fff; }
+    p { font-size: 0.92rem; color: #94a3b8; margin: 0 0 16px; line-height: 1.5; }
+    .btn {
+      display: inline-block;
+      background: #2563eb;
+      color: #fff;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spin"></div>
+    <h1>Welcome, ${safeName}! 🏑</h1>
+    <p>Opening your home dashboard directly...</p>
+    <a href="/#tab=me" class="btn" id="go-btn">Click here if not redirected</a>
+  </div>
+  <script>
+    try {
+      localStorage.setItem("hk_token", ${safeToken});
+    } catch (e) {}
+    window.location.replace("/#tab=me");
+  </script>
+</body>
+</html>`);
   }),
 );
 
@@ -1112,8 +1248,8 @@ app.post(
       );
 
     const emailSubject = isReset
-      ? `Your Password Reset Code: ${code} - IITP Hockey`
-      : `Your Verification Code: ${code} - IITP Hockey`;
+      ? "IIT Patna Hockey - Password Reset Code"
+      : "IIT Patna Hockey - Account Verification Code";
     const emailText =
       `IIT Patna Hockey - ${isReset ? "Password Reset" : "Player Verification"}\n\n` +
       `Hello ${pl.name || "Player"},\n\n` +

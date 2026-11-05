@@ -1280,7 +1280,7 @@ function initUnifiedLogin() {
       });
       saveToken(r.token);
       closeLogin();
-      tab = (r.user?.role === "player") ? "me" : "att";
+      tab = "me";
       boot();
       toast("Welcome back, " + (r.user?.name || "Player") + "!");
     } catch (x) {
@@ -1463,43 +1463,91 @@ function handleUrlAuthParams() {
       ""
     ).trim().replace(/\D/g, "").slice(0, 6);
 
-    if (!identParam && !otp) return;
-
-    if (window.history && window.history.replaceState) {
-      const cleanUrl = window.location.pathname + window.location.hash;
-      window.history.replaceState({}, document.title, cleanUrl);
+    const loginErr = params.get("login_err");
+    if (loginErr) {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      showLogin();
+      const errEl = $("login-err");
+      if (errEl) errEl.textContent = loginErr;
+      return true;
     }
 
-    showLogin();
-    const activeId = identParam || "";
-    if (activeId) {
-      otpLoginTargetId = activeId;
+    if (!identParam && !otp) return false;
+
+    // Instant One-Click Auto-Login from Email link: Opens Home Interface directly!
+    if (identParam && otp && otp.length === 6) {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname + "#tab=me");
+      }
+      tab = "me";
+      // Show full-page loader preventing public page flash
+      const fatalEl = $("fatal");
+      if (fatalEl) {
+        fatalEl.hidden = false;
+        fatalEl.innerHTML = `
+          <div style="background:#071a2e;position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;text-align:center;padding:24px;z-index:999999;">
+            <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:36px 28px;max-width:380px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.5);">
+              <div style="width:44px;height:44px;border:4px solid rgba(255,255,255,0.2);border-top-color:#38bdf8;border-radius:50%;animation:s 0.8s linear infinite;margin:0 auto 18px;"></div>
+              <h2 style="margin:0 0 8px;font-size:1.25rem;font-weight:800;">Logging you in... 🚀</h2>
+              <p style="color:#94a3b8;font-size:0.92rem;margin:0;">Opening your home interface...</p>
+            </div>
+          </div>
+        `;
+      }
+      fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: identParam, otp }),
+      })
+        .then((res) => res.json())
+        .then((r) => {
+          if (r.ok && r.token) {
+            saveToken(r.token);
+            if (fatalEl) fatalEl.hidden = true;
+            closeLogin();
+            tab = "me";
+            showApp();
+            render();
+            load(true);
+            toast("Welcome back, " + (r.user?.name || "Player") + "!");
+          } else {
+            if (fatalEl) fatalEl.hidden = true;
+            showLogin();
+            const errEl = $("login-err");
+            if (errEl) errEl.textContent = r.error || "Invalid or expired verification code.";
+          }
+        })
+        .catch(() => {
+          if (fatalEl) fatalEl.hidden = true;
+          showLogin();
+          const errEl = $("login-err");
+          if (errEl) errEl.textContent = "Could not verify code. Please check connection.";
+        });
+      return true; // Auto-login in progress; prevent fallback to public page
+    }
+
+    if (identParam) {
+      if (window.history && window.history.replaceState) {
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+      showLogin();
+      otpLoginTargetId = identParam;
       const idInp = $("login-id");
-      if (idInp) idInp.value = activeId;
-    }
-
-    // Instant One-Click Auto-Login from Email link
-    if (activeId && otp && otp.length === 6) {
-      const otpInp = $("login-otp");
-      if (otpInp) otpInp.value = otp;
-      const destEl = $("login-otp-dest");
-      if (destEl) destEl.textContent = activeId;
-      const statusBox = $("login-status-box");
-      if (statusBox) statusBox.style.display = "block";
-      setTimeout(() => {
-        const verifyBtn = $("login-verify-btn");
-        if (verifyBtn) verifyBtn.click();
-      }, 150);
+      if (idInp) idInp.value = identParam;
     }
   } catch (err) {
     console.error("handleUrlAuthParams error:", err);
   }
+  return false;
 }
 
 function boot() {
   initUnifiedLogin();
   pushAuto();
-  handleUrlAuthParams();
+  if (handleUrlAuthParams()) return;
   if (!token) return showPublic();
   const c = cacheLoad();
   if (c) {
