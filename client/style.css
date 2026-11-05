@@ -8163,3 +8163,240 @@ img.sig,
   flex-shrink: 0;
   display: block;
 }
+
+/* ---------- Custom Export Dialog (Excel / PDF) ---------- */
+dialog.custom-export-dialog {
+  width: min(96vw, 640px) !important;
+  max-width: 640px !important;
+  max-height: 92vh !important;
+  overflow-y: auto !important;
+  padding: 22px !important;
+  border-radius: 20px !important;
+  background: var(--card) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--ink) !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45) !important;
+}
+.exp-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+.exp-seg-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+  background: var(--soft);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+.exp-seg-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.18s ease;
+}
+.exp-seg-btn b {
+  font-size: 0.94rem;
+  color: var(--ink);
+}
+.exp-seg-btn small {
+  font-size: 0.76rem;
+  margin-top: 2px;
+  color: var(--mute);
+}
+.exp-seg-btn.active {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  border-color: var(--line);
+}
+.exp-seg-btn.active b {
+  color: #3b82f6;
+}
+.exp-chip-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.btn-xs {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-xs:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.btn-xs.pri {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #3b82f6;
+}
+.exp-cols-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px;
+  background: var(--soft);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+.exp-ck-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+.exp-ck-label:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.exp-ck-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+.exp-months-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px;
+  background: var(--soft);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+.exp-options-card {
+  padding: 12px 14px;
+  background: var(--soft);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+.exp-opt-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 550px) {
+  .exp-opt-row {
+    grid-template-columns: 1fr;
+  }
+  .exp-seg-bar {
+    grid-template-columns: 1fr;
+  }
+}
+.exp-opt-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.84rem;
+}
+.exp-sel {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+.exp-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  cursor: pointer;
+  user-select: none;
+}
+.exp-toggle-label input {
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+}
+.exp-action-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 500px) {
+  .exp-action-footer {
+    grid-template-columns: 1fr;
+  }
+}
+.btn-exp {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+}
+.btn-exp b {
+  display: block;
+  font-size: 0.95rem;
+}
+.btn-exp small {
+  display: block;
+  font-size: 0.78rem;
+  opacity: 0.88;
+}
+.btn-exp-excel {
+  background: #107c41;
+  color: #ffffff !important;
+  border-color: #0b5e31;
+  box-shadow: 0 4px 14px rgba(16, 124, 65, 0.35);
+}
+.btn-exp-excel:hover {
+  background: #0f6e3a;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(16, 124, 65, 0.45);
+}
+.btn-exp-pdf {
+  background: #d9381e;
+  color: #ffffff !important;
+  border-color: #b32a13;
+  box-shadow: 0 4px 14px rgba(217, 56, 30, 0.35);
+}
+.btn-exp-pdf:hover {
+  background: #c22f18;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(217, 56, 30, 0.45);
+}
+.exp-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}

@@ -2271,6 +2271,7 @@ function drawMenu() {
   if (admin)
     h +=
       `<div class="ms">Admin section & tools</div>` +
+      mi("📑", "Export Attendance (Excel / PDF)", openCustomExport) +
       mi("➕", "Add students", openAdd) +
       mi("✉️", "Edit message template", openTpl) +
       mi("🔗", "Edit WhatsApp group link", openGroup) +
@@ -3056,6 +3057,10 @@ function drawSidebar() {
         admin
           ? `<div class="sb-nav-group">
               <div class="sb-group-title">ADMIN TOOLS</div>
+              <button type="button" class="sb-nav-tool" id="sb-tool-export">
+                <span class="sb-nav-icon">📑</span>
+                <span class="sb-nav-label">Export (Excel / PDF)</span>
+              </button>
               <button type="button" class="sb-nav-tool" id="sb-tool-add">
                 <span class="sb-nav-icon">➕</span>
                 <span class="sb-nav-label">Add Students</span>
@@ -3111,6 +3116,9 @@ function drawSidebar() {
 
   const cBtn = sb.querySelector("#sb-btn-code");
   if (cBtn) cBtn.onclick = () => openChangeCode();
+
+  const tExp = sb.querySelector("#sb-tool-export");
+  if (tExp) tExp.onclick = () => openCustomExport();
 
   const tAdd = sb.querySelector("#sb-tool-add");
   if (tAdd) tAdd.onclick = () => openAdd();
@@ -3700,7 +3708,7 @@ function vStats() {
   ${admin ? podium(st, medal) : tier ? `<div class="tier"><span>${tier[0]}</span><div><b>${tier[1]} level</b><br><span class="mute">Gold 90% or more · Silver 75% or more · Bronze 60% or more</span></div></div>` : ""}
   <table><tr><th>Player</th><th class="n">Present</th><th class="n">Sessions</th><th class="n">%</th></tr>${st.map((x) => `<tr><td>${(admin ? medal(x) : tier && tier[0]) || ""} ${admin ? `<button class="lnk" data-pf="${x.p.id}">${esc(x.p.name)}</button>` : esc(x.p.name)}</td><td class="n">${x.pr}</td><td class="n">${x.t}</td><td class="n">${x.pct}%</td></tr>`).join("")}</table>
   <p class="mute">% = sessions present ÷ total sessions (${ns}). The total is the same for every player; a missed session counts as absent.</p>${L[m] ? '<p class="mute">Includes the imported register totals.</p>' : ""}
-  <div class="chips"><button id="shr">⤴ Share report</button></div></div>
+  <div class="chips"><button id="shr">⤴ Share report</button>${admin ? '<button type="button" class="pri" id="btn-stats-exp">📑 Export (Excel / PDF)</button>' : ""}</div></div>
   ${chartBlocks(ttl, pts, st, tr, m, vis)}
   ${admin && live.length ? matrix(live) : ""}
   <div class="card"><h2>Day by day</h2><div class="ctl"><input type="date" id="sd" value="${selBase}">${admin && sd ? '<button type="button" id="sdsh">⤴ Share this session</button>' : ""}</div>${sessPickerHtml}${day}
@@ -3731,6 +3739,7 @@ function vStats() {
         ? { sc: m === "all" ? "team" : "month", v: m }
         : { sc: "person", v: me },
     );
+  if ($("btn-stats-exp")) $("btn-stats-exp").onclick = () => openCustomExport();
   bindProfLinks();
   if ($("sdsh"))
     $("sdsh").onclick = () => openReport({ sc: "date", v: selDate });
@@ -3760,6 +3769,663 @@ function vStats() {
         vStats();
       }),
   );
+}
+
+// ---------- Custom Attendance Export (Excel / PDF) ----------
+const EXPORT_AVAILABLE_COLS = [
+  { id: "roll", label: "Roll Number", default: true },
+  { id: "name", label: "Full Name", default: true },
+  { id: "joined", label: "Joined Date", default: true },
+  { id: "position", label: "Position", default: false },
+  { id: "totalSessions", label: "Total Sessions (After Joined)", default: true },
+  { id: "present", label: "Sessions Present", default: true },
+  { id: "absent", label: "Sessions Absent", default: false },
+  { id: "pct", label: "Attendance %", default: true },
+  { id: "points", label: "Regularity Points (/10)", default: true },
+  { id: "jerseyNo", label: "Jersey Number", default: false },
+  { id: "jerseyName", label: "Jersey Name", default: false },
+  { id: "size", label: "Jersey Size", default: false },
+  { id: "contact", label: "Contact Number", default: false },
+  { id: "email", label: "E-mail Address", default: false },
+];
+
+function openCustomExport() {
+  let dlg = $("custom-export-dlg");
+  if (!dlg) {
+    dlg = document.createElement("dialog");
+    dlg.id = "custom-export-dlg";
+    dlg.className = "custom-export-dialog";
+    document.body.appendChild(dlg);
+  }
+
+  const allRecordedDates = dates();
+  const minDate = allRecordedDates[0] || "";
+  const maxDate = allRecordedDates[allRecordedDates.length - 1] || "";
+  const recordedMonths = [...new Set(allRecordedDates.map((d) => d.slice(0, 7)))].sort();
+
+  let activeTab = "cols"; // 'cols' or 'monthwise'
+  let selectedCols = new Set(EXPORT_AVAILABLE_COLS.filter((c) => c.default).map((c) => c.id));
+  let selectedMonths = new Set(recordedMonths);
+  let squadScope = "active"; // 'active' or 'all'
+  let sortOrder = "pct_desc"; // 'pct_desc', 'points_desc', 'roll_asc', 'name_asc', 'joined_asc'
+  let includeSummaryCard = true;
+
+  const renderModal = () => {
+    const isCols = activeTab === "cols";
+    const totalActiveCount = P.length;
+    const totalAllCount = P.length + (typeof RM !== "undefined" && RM ? RM.length : 0);
+
+    dlg.innerHTML = `
+      <div class="exp-modal-head">
+        <div>
+          <h2 style="margin:0 0 4px;font-size:1.25rem;">📑 Export Attendance Register</h2>
+          <small class="mute">Custom columns, monthwise breakdown, Excel (.xls) &amp; printable PDF</small>
+        </div>
+        <button type="button" class="dx" id="exp-close" aria-label="Close dialog">✕</button>
+      </div>
+
+      <div class="exp-seg-bar">
+        <button type="button" class="exp-seg-btn ${isCols ? "active" : ""}" id="exp-tab-cols">
+          <b>Choice 1: Custom Columns</b>
+          <small>Select individual student &amp; attendance fields</small>
+        </button>
+        <button type="button" class="exp-seg-btn ${!isCols ? "active" : ""}" id="exp-tab-months">
+          <b>Choice 2: Monthwise Attendance</b>
+          <small>Monthly session counts with attendance %</small>
+        </button>
+      </div>
+
+      <!-- Choice 1: Columns Picker -->
+      <div id="exp-pane-cols" style="${isCols ? "" : "display:none;"}">
+        <div class="exp-chip-bar">
+          <span style="font-weight:700;font-size:0.85rem;margin-right:auto;">Select Columns:</span>
+          <button type="button" class="btn-xs pri" id="exp-cols-default">Default Register</button>
+          <button type="button" class="btn-xs" id="exp-cols-all">Select All</button>
+          <button type="button" class="btn-xs" id="exp-cols-clear">Clear</button>
+        </div>
+        <div class="exp-cols-grid">
+          ${EXPORT_AVAILABLE_COLS.map(
+            (c) => `
+            <label class="exp-ck-label">
+              <input type="checkbox" data-col="${c.id}" ${selectedCols.has(c.id) ? "checked" : ""}>
+              <span>${esc(c.label)}</span>
+            </label>
+          `,
+          ).join("")}
+        </div>
+      </div>
+
+      <!-- Choice 2: Monthwise Picker -->
+      <div id="exp-pane-months" style="${!isCols ? "" : "display:none;"}">
+        <div class="exp-chip-bar">
+          <span style="font-weight:700;font-size:0.85rem;margin-right:auto;">Select Recorded Months:</span>
+          <button type="button" class="btn-xs pri" id="exp-months-all">All Months</button>
+          <button type="button" class="btn-xs" id="exp-months-curr">2026 Months</button>
+          <button type="button" class="btn-xs" id="exp-months-clear">Clear</button>
+        </div>
+        <div class="exp-months-grid">
+          ${recordedMonths.map(
+            (m) => `
+            <label class="exp-ck-label">
+              <input type="checkbox" data-month="${m}" ${selectedMonths.has(m) ? "checked" : ""}>
+              <span><b>${mfmt(m)}</b> (${allRecordedDates.filter((d) => d.startsWith(m)).length} sess)</span>
+            </label>
+          `,
+          ).join("")}
+        </div>
+      </div>
+
+      <!-- Settings & Sort Options -->
+      <div class="exp-options-card">
+        <div class="exp-opt-row">
+          <label class="exp-opt-label">
+            <b>Squad Scope</b>
+            <select class="exp-sel" id="exp-scope">
+              <option value="active" ${squadScope === "active" ? "selected" : ""}>Active Squad Only (${totalActiveCount} players)</option>
+              <option value="all" ${squadScope === "all" ? "selected" : ""}>Include Removed Students (${totalAllCount} total)</option>
+            </select>
+          </label>
+          <label class="exp-opt-label">
+            <b>Sort Order</b>
+            <select class="exp-sel" id="exp-sort">
+              <option value="pct_desc" ${sortOrder === "pct_desc" ? "selected" : ""}>Attendance % (High to Low)</option>
+              <option value="points_desc" ${sortOrder === "points_desc" ? "selected" : ""}>Regularity Points (High to Low)</option>
+              <option value="roll_asc" ${sortOrder === "roll_asc" ? "selected" : ""}>Roll Number (Ascending)</option>
+              <option value="name_asc" ${sortOrder === "name_asc" ? "selected" : ""}>Full Name (A to Z)</option>
+              <option value="joined_asc" ${sortOrder === "joined_asc" ? "selected" : ""}>Joined Date (Earliest First)</option>
+            </select>
+          </label>
+        </div>
+        <div style="margin-top:10px;">
+          <label class="exp-toggle-label">
+            <input type="checkbox" id="exp-summary-toggle" ${includeSummaryCard ? "checked" : ""}>
+            <span>Include Start Date, End Date &amp; Total Sessions summary card below table</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Export Actions Footer -->
+      <div class="exp-action-footer">
+        <button type="button" class="btn-exp btn-exp-excel" id="btn-do-excel">
+          <span class="exp-icon">📊</span>
+          <div>
+            <b>Download Excel (.xls)</b>
+            <small>Formatted workbook with styling &amp; summary</small>
+          </div>
+        </button>
+        <button type="button" class="btn-exp btn-exp-pdf" id="btn-do-pdf">
+          <span class="exp-icon">📄</span>
+          <div>
+            <b>Generate PDF / Print</b>
+            <small>Official IIT Patna formatted sheet</small>
+          </div>
+        </button>
+      </div>
+    `;
+
+    bindEvents();
+  };
+
+  const bindEvents = () => {
+    $("exp-close").onclick = () => dlg.close();
+    $("exp-tab-cols").onclick = () => {
+      activeTab = "cols";
+      renderModal();
+    };
+    $("exp-tab-months").onclick = () => {
+      activeTab = "monthwise";
+      renderModal();
+    };
+
+    // Columns handlers
+    if ($("exp-cols-default")) {
+      $("exp-cols-default").onclick = () => {
+        selectedCols = new Set(EXPORT_AVAILABLE_COLS.filter((c) => c.default).map((c) => c.id));
+        renderModal();
+      };
+      $("exp-cols-all").onclick = () => {
+        selectedCols = new Set(EXPORT_AVAILABLE_COLS.map((c) => c.id));
+        renderModal();
+      };
+      $("exp-cols-clear").onclick = () => {
+        selectedCols = new Set(["name"]);
+        renderModal();
+      };
+      dlg.querySelectorAll("input[data-col]").forEach((ck) => {
+        ck.onchange = () => {
+          if (ck.checked) selectedCols.add(ck.dataset.col);
+          else selectedCols.delete(ck.dataset.col);
+        };
+      });
+    }
+
+    // Months handlers
+    if ($("exp-months-all")) {
+      $("exp-months-all").onclick = () => {
+        selectedMonths = new Set(recordedMonths);
+        renderModal();
+      };
+      $("exp-months-curr").onclick = () => {
+        selectedMonths = new Set(recordedMonths.filter((m) => m.startsWith("2026")));
+        renderModal();
+      };
+      $("exp-months-clear").onclick = () => {
+        selectedMonths = new Set([recordedMonths[recordedMonths.length - 1] || ""]);
+        renderModal();
+      };
+      dlg.querySelectorAll("input[data-month]").forEach((ck) => {
+        ck.onchange = () => {
+          if (ck.checked) selectedMonths.add(ck.dataset.month);
+          else selectedMonths.delete(ck.dataset.month);
+        };
+      });
+    }
+
+    $("exp-scope").onchange = (e) => { squadScope = e.target.value; };
+    $("exp-sort").onchange = (e) => { sortOrder = e.target.value; };
+    $("exp-summary-toggle").onchange = (e) => { includeSummaryCard = e.target.checked; };
+
+    $("btn-do-excel").onclick = () => executeExport("excel");
+    $("btn-do-pdf").onclick = () => executeExport("pdf");
+  };
+
+  const executeExport = (format) => {
+    if (activeTab === "cols" && selectedCols.size === 0) {
+      return alert("Please select at least one column to export.");
+    }
+    if (activeTab === "monthwise" && selectedMonths.size === 0) {
+      return alert("Please select at least one month to export.");
+    }
+
+    const targetPlayers = squadScope === "all"
+      ? [...P, ...(typeof RM !== "undefined" && RM ? RM : [])]
+      : [...P];
+
+    const targetMonthsList = recordedMonths.filter((m) => selectedMonths.has(m));
+    const isCols = activeTab === "cols";
+
+    // 1. Prepare Rows
+    let rows = [];
+    if (isCols) {
+      rows = targetPlayers.map((p) => {
+        const pj = p && p.joined ? p.joined.slice(0, 10) : "";
+        const eligibleDates = allRecordedDates.filter((d) => !pj || d.slice(0, 10) >= pj);
+        const total = eligibleDates.length;
+        let pr = 0;
+        eligibleDates.forEach((d) => {
+          if (SS[d] && (SS[d][p.id] === true || (p.roll && SS[d][p.roll] === true))) pr++;
+        });
+        const ab = total - pr;
+        const pct = total ? Math.round((pr * 100) / total) : 0;
+        const pts = ((pct / 100) * 10).toFixed(1);
+        return {
+          id: p.id,
+          roll: p.roll || p.id || "",
+          name: p.name || "",
+          joined: p.joined ? p.joined.slice(0, 10) : "",
+          position: p.position || "",
+          totalSessions: total,
+          present: pr,
+          absent: ab,
+          pct: pct + "%",
+          pctVal: pct,
+          points: pts + " / 10",
+          pointsVal: parseFloat(pts),
+          jerseyNo: p.jerseyNo || p.jersey_no || "",
+          jerseyName: p.jerseyName || p.jersey_name || "",
+          size: p.size || "",
+          contact: p.contact || "",
+          email: p.email || "",
+          removed: !!p.removed,
+        };
+      });
+    } else {
+      rows = targetPlayers.map((p) => {
+        const pj = p && p.joined ? p.joined.slice(0, 10) : "";
+        const mCols = {};
+        let overallEl = 0;
+        let overallPr = 0;
+
+        targetMonthsList.forEach((m) => {
+          const mDates = allRecordedDates.filter((d) => d.startsWith(m));
+          const el = mDates.filter((d) => !pj || d.slice(0, 10) >= pj);
+          let pr = 0;
+          el.forEach((d) => {
+            if (SS[d] && (SS[d][p.id] === true || (p.roll && SS[d][p.roll] === true))) pr++;
+          });
+          if (el.length === 0) {
+            mCols[m] = { text: "–", pr: 0, t: 0, pct: 0, eligible: false };
+          } else {
+            const pct = Math.round((pr * 100) / el.length);
+            mCols[m] = { text: `${pr}/${el.length} (${pct}%)`, pr, t: el.length, pct, eligible: true };
+            overallEl += el.length;
+            overallPr += pr;
+          }
+        });
+
+        const overallPct = overallEl ? Math.round((overallPr * 100) / overallEl) : 0;
+        const pts = ((overallPct / 100) * 10).toFixed(1);
+        return {
+          id: p.id,
+          roll: p.roll || p.id || "",
+          name: p.name || "",
+          joined: p.joined ? p.joined.slice(0, 10) : "",
+          mCols,
+          totalSessions: overallEl,
+          present: overallPr,
+          pct: overallPct + "%",
+          pctVal: overallPct,
+          points: pts + " / 10",
+          pointsVal: parseFloat(pts),
+          removed: !!p.removed,
+        };
+      });
+    }
+
+    // 2. Sort Rows
+    if (sortOrder === "pct_desc") {
+      rows.sort((a, b) => b.pctVal - a.pctVal || b.present - a.present || a.name.localeCompare(b.name));
+    } else if (sortOrder === "points_desc") {
+      rows.sort((a, b) => b.pointsVal - a.pointsVal || b.pctVal - a.pctVal || a.name.localeCompare(b.name));
+    } else if (sortOrder === "roll_asc") {
+      rows.sort((a, b) => String(a.roll).localeCompare(String(b.roll)));
+    } else if (sortOrder === "name_asc") {
+      rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    } else if (sortOrder === "joined_asc") {
+      rows.sort((a, b) => String(a.joined || "9999").localeCompare(String(b.joined || "9999")));
+    }
+
+    // 3. Overall Stats for Summary Card
+    const totalRecordedSessions = allRecordedDates.length;
+    const teamTurnoutPct = rows.length
+      ? Math.round(rows.reduce((acc, r) => acc + r.pctVal, 0) / rows.length)
+      : 0;
+
+    const exportColsList = EXPORT_AVAILABLE_COLS.filter((c) => selectedCols.has(c.id));
+    const title = isCols
+      ? "IIT Patna Hockey - Attendance Register"
+      : "IIT Patna Hockey - Monthwise Attendance Matrix";
+
+    if (format === "excel") {
+      generateExcelExport({
+        isCols,
+        exportColsList,
+        targetMonthsList,
+        rows,
+        minDate,
+        maxDate,
+        totalRecordedSessions,
+        teamTurnoutPct,
+        includeSummaryCard,
+        title,
+      });
+    } else {
+      generatePdfPrint({
+        isCols,
+        exportColsList,
+        targetMonthsList,
+        rows,
+        minDate,
+        maxDate,
+        totalRecordedSessions,
+        teamTurnoutPct,
+        includeSummaryCard,
+        title,
+      });
+    }
+  };
+
+  renderModal();
+  dlg.showModal();
+}
+
+function generateExcelExport(opt) {
+  const { isCols, exportColsList, targetMonthsList, rows, minDate, maxDate, totalRecordedSessions, teamTurnoutPct, includeSummaryCard, title } = opt;
+  const colCount = isCols ? exportColsList.length : (3 + targetMonthsList.length + 4);
+
+  let thead = "";
+  if (isCols) {
+    thead = `<tr>${exportColsList.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr>`;
+  } else {
+    thead = `<tr>
+      <th>Roll No</th>
+      <th>Full Name</th>
+      <th>Joined Date</th>
+      ${targetMonthsList.map((m) => `<th>${esc(mfmt(m))}</th>`).join("")}
+      <th>Total Sessions</th>
+      <th>Present</th>
+      <th>Percentage</th>
+      <th>Regularity Points</th>
+    </tr>`;
+  }
+
+  let tbody = "";
+  rows.forEach((r, idx) => {
+    const rowCls = idx % 2 === 0 ? "even" : "odd";
+    const removedBadge = r.removed ? " (Removed)" : "";
+    if (isCols) {
+      const tds = exportColsList.map((c) => {
+        let val = r[c.id];
+        let cls = "text";
+        if (c.id === "roll") cls = "text center";
+        else if (c.id === "joined") cls = "center";
+        else if (c.id === "totalSessions" || c.id === "present" || c.id === "absent" || c.id === "jerseyNo") cls = "num";
+        else if (c.id === "pct") cls = "pct";
+        else if (c.id === "points") cls = "points";
+        else if (c.id === "name") val = val + removedBadge;
+        return `<td class="${cls}">${esc(String(val !== undefined && val !== null ? val : ""))}</td>`;
+      }).join("");
+      tbody += `<tr class="${rowCls}">${tds}</tr>`;
+    } else {
+      const mCells = targetMonthsList.map((m) => {
+        const mc = r.mCols[m];
+        return `<td class="center">${esc(mc ? mc.text : "–")}</td>`;
+      }).join("");
+      tbody += `<tr class="${rowCls}">
+        <td class="text center">${esc(r.roll)}</td>
+        <td class="text">${esc(r.name + removedBadge)}</td>
+        <td class="center">${esc(r.joined)}</td>
+        ${mCells}
+        <td class="num">${r.totalSessions}</td>
+        <td class="num">${r.present}</td>
+        <td class="pct">${esc(r.pct)}</td>
+        <td class="points">${esc(r.points)}</td>
+      </tr>`;
+    }
+  });
+
+  let tfoot = "";
+  if (includeSummaryCard) {
+    tfoot = `
+      <tr><td colspan="${colCount}" style="height:14px;border:none;"></td></tr>
+      <tr class="summary-card">
+        <td colspan="${colCount}">
+          <div style="font-size:11pt;line-height:1.7;">
+            <b>📅 Session Timeline &amp; Attendance Summary</b><br>
+            • <b>Start Date:</b> ${minDate ? fmt(minDate) : "-"} &nbsp;&nbsp;|&nbsp;&nbsp;
+            • <b>End Date:</b> ${maxDate ? fmt(maxDate) : "-"} &nbsp;&nbsp;|&nbsp;&nbsp;
+            • <b>Total Sessions Recorded:</b> ${totalRecordedSessions} &nbsp;&nbsp;|&nbsp;&nbsp;
+            • <b>Players in Report:</b> ${rows.length} &nbsp;&nbsp;|&nbsp;&nbsp;
+            • <b>Average Team Turnout:</b> ${teamTurnoutPct}%
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  const tableHtml = `
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;">
+      <thead>
+        <tr>
+          <th colspan="${colCount}" class="hdr">INDIAN INSTITUTE OF TECHNOLOGY PATNA</th>
+        </tr>
+        <tr>
+          <th colspan="${colCount}" class="subhdr">${esc(title)} · Generated on ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</th>
+        </tr>
+        ${thead}
+      </thead>
+      <tbody>
+        ${tbody}
+      </tbody>
+      <tfoot>
+        ${tfoot}
+      </tfoot>
+    </table>
+  `;
+
+  const filename = isCols ? "IITP_Hockey_Attendance_Register.xls" : "IITP_Hockey_Monthwise_Attendance.xls";
+
+  const fullHtml = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office"
+          xmlns:x="urn:schemas-microsoft-com:office:excel"
+          xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta charset="utf-8">
+      <!--[if gte mso 9]>
+      <xml>
+        <x:ExcelWorkbook>
+          <x:ExcelWorksheets>
+            <x:ExcelWorksheet>
+              <x:Name>Attendance</x:Name>
+              <x:WorksheetOptions>
+                <x:DisplayGridlines/>
+              </x:WorksheetOptions>
+            </x:ExcelWorksheet>
+          </x:ExcelWorksheets>
+        </x:ExcelWorkbook>
+      </xml>
+      <![endif]-->
+      <style>
+        body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #1e293b; }
+        .hdr { background-color: #1e3a8a; color: #ffffff; font-weight: bold; text-align: center; font-size: 14pt; padding: 12px; }
+        .subhdr { background-color: #2563eb; color: #ffffff; text-align: center; font-size: 11pt; padding: 6px; }
+        th { background-color: #0f172a; color: #ffffff; font-weight: bold; border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center; }
+        td { border: 1px solid #cbd5e1; padding: 6px 10px; vertical-align: middle; }
+        .text { mso-number-format:"\\@"; text-align: left; }
+        .center { text-align: center; }
+        .num { text-align: right; }
+        .pct { font-weight: bold; color: #0284c7; text-align: center; }
+        .points { font-weight: bold; color: #059669; text-align: center; }
+        .even { background-color: #f8fafc; }
+        .odd { background-color: #ffffff; }
+        .summary-card { background-color: #f1f5f9; border: 2px solid #94a3b8; font-weight: bold; padding: 12px; }
+      </style>
+    </head>
+    <body>
+      ${tableHtml}
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob([fullHtml], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 300);
+}
+
+function generatePdfPrint(opt) {
+  const { isCols, exportColsList, targetMonthsList, rows, minDate, maxDate, totalRecordedSessions, teamTurnoutPct, includeSummaryCard, title } = opt;
+
+  let thead = "";
+  if (isCols) {
+    thead = `<tr>${exportColsList.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr>`;
+  } else {
+    thead = `<tr>
+      <th>Roll No</th>
+      <th>Full Name</th>
+      <th>Joined</th>
+      ${targetMonthsList.map((m) => `<th>${esc(mfmt(m))}</th>`).join("")}
+      <th>Total</th>
+      <th>Present</th>
+      <th>%</th>
+      <th>Points (/10)</th>
+    </tr>`;
+  }
+
+  let tbody = "";
+  rows.forEach((r, idx) => {
+    const removedBadge = r.removed ? ' <span style="color:#ef4444;font-size:0.75rem;">(Removed)</span>' : "";
+    if (isCols) {
+      const tds = exportColsList.map((c) => {
+        let val = esc(String(r[c.id] !== undefined && r[c.id] !== null ? r[c.id] : ""));
+        let cls = "";
+        if (c.id === "roll" || c.id === "joined") cls = "center";
+        else if (c.id === "totalSessions" || c.id === "present" || c.id === "absent" || c.id === "jerseyNo") cls = "num";
+        else if (c.id === "pct") cls = "pct";
+        else if (c.id === "points") cls = "points";
+        else if (c.id === "name") val = val + removedBadge;
+        return `<td class="${cls}">${val}</td>`;
+      }).join("");
+      tbody += `<tr>${tds}</tr>`;
+    } else {
+      const mCells = targetMonthsList.map((m) => {
+        const mc = r.mCols[m];
+        return `<td class="center">${esc(mc ? mc.text : "–")}</td>`;
+      }).join("");
+      tbody += `<tr>
+        <td class="center">${esc(r.roll)}</td>
+        <td>${esc(r.name)}${removedBadge}</td>
+        <td class="center">${esc(r.joined)}</td>
+        ${mCells}
+        <td class="num">${r.totalSessions}</td>
+        <td class="num">${r.present}</td>
+        <td class="pct">${esc(r.pct)}</td>
+        <td class="points">${esc(r.points)}</td>
+      </tr>`;
+    }
+  });
+
+  let summaryHtml = "";
+  if (includeSummaryCard) {
+    summaryHtml = `
+      <div class="summary-box">
+        <div style="font-weight:700;font-size:0.85rem;margin-bottom:8px;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;">📅 Session Timeline &amp; Attendance Summary</div>
+        <div class="summary-grid">
+          <div class="summary-item"><small>Start Date</small><b>${minDate ? fmt(minDate) : "-"}</b></div>
+          <div class="summary-item"><small>End Date</small><b>${maxDate ? fmt(maxDate) : "-"}</b></div>
+          <div class="summary-item"><small>Total Sessions</small><b>${totalRecordedSessions}</b></div>
+          <div class="summary-item"><small>Squad Size</small><b>${rows.length} players</b></div>
+          <div class="summary-item"><small>Average Turnout</small><b>${teamTurnoutPct}%</b></div>
+        </div>
+      </div>
+    `;
+  }
+
+  const printHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${esc(title)}</title>
+      <style>
+        @page { size: landscape A4; margin: 12mm 10mm; }
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 16px; color: #0f172a; background: #fff; }
+        .doc-header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+        .doc-inst { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.6px; color: #0f172a; margin: 0 0 2px; }
+        .doc-title { font-size: 1rem; font-weight: 700; color: #2563eb; margin: 0 0 4px; }
+        .doc-meta { font-size: 0.78rem; color: #64748b; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.76rem; margin-bottom: 14px; }
+        th { background: #0f172a; color: #fff; border: 1px solid #334155; padding: 6px 8px; text-align: center; font-weight: 700; }
+        td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left; }
+        tr:nth-child(even) { background: #f8fafc; }
+        .center { text-align: center; }
+        .num { text-align: right; }
+        .pct { font-weight: 700; color: #0284c7; text-align: center; }
+        .points { font-weight: 700; color: #059669; text-align: center; }
+        .summary-box { border: 1.5px solid #0f172a; border-radius: 8px; padding: 10px 14px; background: #f8fafc; margin-top: 14px; page-break-inside: avoid; }
+        .summary-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-around; }
+        .summary-item { text-align: center; }
+        .summary-item small { display: block; font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 2px; }
+        .summary-item b { font-size: 0.95rem; color: #0f172a; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="no-print" style="margin-bottom:12px;display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="window.print()" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;">🖨️ Print / Save as PDF</button>
+        <button onclick="window.close()" style="padding:8px 14px;background:#64748b;color:#fff;border:none;border-radius:6px;cursor:pointer;">✕ Close</button>
+      </div>
+      <div class="doc-header">
+        <div class="doc-inst">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div>
+        <div class="doc-title">${esc(title)}</div>
+        <div class="doc-meta">Generated on ${new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} · Official Team Attendance Report</div>
+      </div>
+      <table>
+        <thead>
+          ${thead}
+        </thead>
+        <tbody>
+          ${tbody}
+        </tbody>
+      </table>
+      ${summaryHtml}
+      <script>
+        window.addEventListener('load', () => {
+          setTimeout(() => { window.print(); }, 400);
+        });
+      <\/script>
+    </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank");
+  if (!win) {
+    alert("Please allow popups to open the printable PDF document.");
+    return;
+  }
+  win.document.write(printHtml);
+  win.document.close();
 }
 const DAB = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function nextDateOf(i) {
