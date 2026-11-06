@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Allow: /google78670953cdad02ae.html
+Disallow: /api/
+
+Sitemap: https://hockey-iitp.anmol.website/sitemap.xml
