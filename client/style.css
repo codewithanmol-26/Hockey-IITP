@@ -849,6 +849,11 @@ nav#nav[hidden] {
   border-color: var(--brand);
   color: var(--brand);
 }
+.sb-footer-btn.active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
 .sb-footer-btn-label {
   white-space: nowrap;
   overflow: hidden;

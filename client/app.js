@@ -3038,7 +3038,7 @@ function drawSidebar() {
   const allTabs = tabsFor();
   const mainKeys = ["me", "take", "plan", "stats", "schedule"];
   const mainTabs = allTabs.filter((t) => mainKeys.includes(t[0]));
-  const trainKeys = ["rules", "warmup", "interiit", "gallery", "train", "settings"];
+  const trainKeys = ["rules", "warmup", "interiit", "gallery", "train"];
   const trainTabs = allTabs.filter((t) => trainKeys.includes(t[0]));
   const mgmtKeys = ["players", "removed", "admins", "helpbox"];
   const mgmtTabs = allTabs.filter((t) => mgmtKeys.includes(t[0]));
@@ -3156,7 +3156,7 @@ function drawSidebar() {
           <span class="sb-nav-icon">📅</span>
           <span class="sb-footer-btn-label">Calendar</span>
         </button>
-        <button type="button" class="sb-footer-btn" id="sb-set" title="Settings &amp; Preferences">
+        <button type="button" class="sb-footer-btn ${tab === 'settings' ? 'active' : ''}" id="sb-set" title="Settings &amp; Preferences">
           <span class="sb-nav-icon">⚙️</span>
           <span class="sb-footer-btn-label">Settings</span>
         </button>
