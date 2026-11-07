@@ -7676,24 +7676,16 @@ function vCoachDashboard() {
         </div>
 
         <div class="hero-right-section">
-          <div class="hero-practice-card">
-            <div>
-              <div class="practice-card-header">
-                <span class="practice-pulse-dot"></span>
-                <span class="practice-card-title">Practice &amp; Attendance Status</span>
-              </div>
-              <div class="practice-card-status">${todayStatusHtml}</div>
-              <small class="practice-card-sub">${nextTxt} (${nextSub})</small>
+          <div class="hero-turf-card">
+            <div class="turf-card-header">
+              <span class="turf-pulse-dot ${isTodaySession ? (isTodayMarked ? 'green' : 'amber') : nx ? 'blue' : 'idle'}"></span>
+              <span class="turf-card-badge">${isTodaySession ? (isTodayMarked ? 'Practice Completed' : 'Session Today') : nx ? 'Next Practice' : 'Squad Schedule'}</span>
             </div>
-            <div class="practice-action-row" style="margin-top:12px;">
-              <button type="button" class="btn-take-now" data-go="take">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="9 11 12 14 22 4"></polyline></svg>
-                <span>Take Attendance Now</span>
-              </button>
-              <button type="button" class="btn-set-days" data-go="plan">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                <span>Set Playing Days</span>
-              </button>
+            <div class="turf-card-status">${isTodaySession ? todayStatusHtml : nx ? nextTxt : 'Rest &amp; Conditioning Day'}</div>
+            <small class="turf-card-sub">${nx ? '📍 ' + nextSub : '✨ Next practice fixture will be updated in Playing Days.'}</small>
+            <div class="turf-card-meta-row">
+              <span class="turf-meta-pill">🏑 IIT Patna Turf</span>
+              <span class="turf-meta-pill">Active Squad · ${P.length} Players</span>
             </div>
           </div>
         </div>
@@ -7853,24 +7845,16 @@ function vLeadershipDashboard() {
         </div>
 
         <div class="hero-right-section">
-          <div class="hero-practice-card">
-            <div>
-              <div class="practice-card-header">
-                <span class="practice-pulse-dot"></span>
-                <span class="practice-card-title">Practice &amp; Attendance Status</span>
-              </div>
-              <div class="practice-card-status">${todayStatusHtml}</div>
-              <small class="practice-card-sub">${nextTxt} (${nextSub})</small>
+          <div class="hero-turf-card">
+            <div class="turf-card-header">
+              <span class="turf-pulse-dot ${isTodaySession ? (isTodayMarked ? 'green' : 'amber') : nx ? 'blue' : 'idle'}"></span>
+              <span class="turf-card-badge">${isTodaySession ? (isTodayMarked ? 'Practice Completed' : 'Session Today') : nx ? 'Next Practice' : 'Squad Schedule'}</span>
             </div>
-            <div class="practice-action-row" style="margin-top:12px;">
-              <button type="button" class="btn-take-now" data-go="take">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="9 11 12 14 22 4"></polyline></svg>
-                <span>Take Attendance Now</span>
-              </button>
-              <button type="button" class="btn-set-days" data-go="plan">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                <span>Set Playing Days</span>
-              </button>
+            <div class="turf-card-status">${isTodaySession ? todayStatusHtml : nx ? nextTxt : 'Rest &amp; Conditioning Day'}</div>
+            <small class="turf-card-sub">${nx ? '📍 ' + nextSub : '✨ Next practice fixture will be updated in Playing Days.'}</small>
+            <div class="turf-card-meta-row">
+              <span class="turf-meta-pill">🏑 IIT Patna Turf</span>
+              <span class="turf-meta-pill">Active Squad · ${P.length} Players</span>
             </div>
           </div>
         </div>
@@ -7908,15 +7892,56 @@ function vLeadershipDashboard() {
     </div>
 
     <!-- Leadership Quick Tools -->
-    <div class="card">
-      <h2 style="margin:0 0 10px;">⚡ Team Leadership Tools</h2>
-      <div class="fts fts2">
-        <button type="button" class="ft" data-go="take"><span class="ic">✅</span><b>Take Attendance Now</b></button>
-        <button type="button" class="ft" data-go="plan"><span class="ic">📅</span><b>Set Playing Days</b></button>
-        <button type="button" class="ft" data-go="players"><span class="ic">👥</span><b>Manage Squad</b></button>
-        <button type="button" class="ft" data-go="stats"><span class="ic">📊</span><b>Attendance Matrix</b></button>
-        <button type="button" class="ft" data-go="leaderboard"><span class="ic">🏆</span><b>Leaderboard</b></button>
-        <button type="button" class="ft" id="btn-leader-tpl"><span class="ic">✉️</span><b>WhatsApp Message</b></button>
+    <div class="card leader-tools-card">
+      <div class="leader-tools-header">
+        <div>
+          <h2 style="margin:0 0 2px;">⚡ Team Leadership Tools</h2>
+          <span class="mute" style="font-size:0.84rem;">Fast-track actions for squad training, attendance, and reports</span>
+        </div>
+      </div>
+      <div class="leader-tools-grid">
+        <button type="button" class="tool-tile tool-take" data-go="take">
+          <span class="tool-ic">✅</span>
+          <div class="tool-info">
+            <b>Take Attendance</b>
+            <small>Roll call &amp; session logging</small>
+          </div>
+        </button>
+        <button type="button" class="tool-tile tool-plan" data-go="plan">
+          <span class="tool-ic">📅</span>
+          <div class="tool-info">
+            <b>Set Playing Days</b>
+            <small>Practice schedule &amp; venue</small>
+          </div>
+        </button>
+        <button type="button" class="tool-tile tool-players" data-go="players">
+          <span class="tool-ic">👥</span>
+          <div class="tool-info">
+            <b>Manage Squad</b>
+            <small>${P.length} squad players &amp; jerseys</small>
+          </div>
+        </button>
+        <button type="button" class="tool-tile tool-stats" data-go="stats">
+          <span class="tool-ic">📊</span>
+          <div class="tool-info">
+            <b>Attendance Sheets</b>
+            <small>Monthly totals &amp; export</small>
+          </div>
+        </button>
+        <button type="button" class="tool-tile tool-leaderboard" data-go="leaderboard">
+          <span class="tool-ic">🏆</span>
+          <div class="tool-info">
+            <b>Leaderboard</b>
+            <small>Podium &amp; XP rankings</small>
+          </div>
+        </button>
+        <button type="button" class="tool-tile tool-share" id="btn-leader-tpl">
+          <span class="tool-ic">✉️</span>
+          <div class="tool-info">
+            <b>Share Notice</b>
+            <small>WhatsApp template</small>
+          </div>
+        </button>
       </div>
     </div>
 
@@ -7988,14 +8013,16 @@ function vPlayerDashboard() {
         </div>
 
         <div class="hero-right-section">
-          <div class="hero-practice-card">
-            <div>
-              <div class="practice-card-header">
-                <span class="practice-pulse-dot"></span>
-                <span class="practice-card-title">Next Practice</span>
-              </div>
-              <div class="practice-card-status">${nextTxt}</div>
-              <small class="practice-card-sub">${nextSub}</small>
+          <div class="hero-turf-card">
+            <div class="turf-card-header">
+              <span class="turf-pulse-dot ${nx ? 'blue' : 'idle'}"></span>
+              <span class="turf-card-badge">${nx ? 'Next Practice' : 'Squad Schedule'}</span>
+            </div>
+            <div class="turf-card-status">${nx ? nextTxt : 'Rest &amp; Conditioning Day'}</div>
+            <small class="turf-card-sub">${nx ? '📍 ' + nextSub : '✨ Keep up daily fitness and recovery.'}</small>
+            <div class="turf-card-meta-row">
+              <span class="turf-meta-pill">🏑 IIT Patna Turf</span>
+              <span class="turf-meta-pill">Season 2026</span>
             </div>
           </div>
         </div>
