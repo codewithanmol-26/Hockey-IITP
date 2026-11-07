@@ -1106,6 +1106,7 @@ const HOCKEY_KNOCKOUT_MATCHES = [
 
 function studentFixtureCard(opts = {}) {
   const isPublic = !!(opts && opts.isPublic);
+  const isHub = !!(opts && opts.isHub);
   const currentView = fixtureHockeyView || "patna";
 
   const renderTabs = () => {
@@ -1437,7 +1438,19 @@ function studentFixtureCard(opts = {}) {
             </div>
           </div>
         `
-            : `
+            : isHub
+              ? `
+          <div class="fixture-card-header is-hub-header" style="padding:4px 0 8px;margin-bottom:8px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1rem;font-weight:800;color:var(--ink);">🏑 Men's Hockey Tournament Fixtures</span>
+              <span class="pill" style="font-size:0.7rem;padding:2px 8px;">Ground 1 Turf</span>
+            </div>
+            <button type="button" class="btn-fixture-scan" id="btn-fixtures-modal" title="Open Complete Men's Hockey Tournament Guide & Rules" style="padding:5px 12px;font-size:0.78rem;border-radius:8px;">
+              ${ico("scan")} <span>Tournament Guide</span>
+            </button>
+          </div>
+        `
+              : `
           <div class="fixture-card-header">
             <div class="fixture-title-group">
               <div class="fixture-kicker-strip">
@@ -1451,12 +1464,6 @@ function studentFixtureCard(opts = {}) {
               <button type="button" class="btn-fixture-scan" id="btn-fixtures-modal" title="Open Complete Men's Hockey Tournament Guide &amp; Rules">
                 ${ico("scan")} <span>Guide</span>
               </button>
-              <button type="button" class="btn-fixture-scan" data-open-interiit-hub title="Open Complete 59th Inter IIT Sports Meet Hub">
-                ${ico("award")} <span>Inter-IIT Hub</span>
-              </button>
-              <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" class="btn-fixture-settings" style="text-decoration:none;" title="Watch Live Streams on YouTube">
-                <span style="color:#ef4444;font-weight:900">▶</span> <span>Live</span>
-              </a>
               <button type="button" class="btn-fixture-settings" id="btn-fixtures-settings" title="Notification Preferences &amp; Match Alerts">
                 ${ico("settings")}
               </button>
@@ -2222,59 +2229,55 @@ function renderInterIITPage() {
   return `
     <div class="interiit-hub-page">
       <!-- Unified Compact Header Bar -->
-      <div class="interiit-top-bar" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div class="interiit-top-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
         <button type="button" class="btn-interiit-back" id="btn-interiit-back" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:0.84rem;font-weight:700;color:var(--ink);cursor:pointer;">
           ${ico("back")} <span>Back</span>
         </button>
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-          <span class="pill pri" style="font-size:0.72rem;font-weight:800;letter-spacing:0.04em">59th ANNUAL EDITION</span>
-          <span class="pill" style="font-size:0.72rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">Dec 15–21, 2026</span>
-          <span class="pill" style="font-size:0.72rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">EST. 1961</span>
-        </div>
+        <span class="pill pri" style="font-size:0.72rem;font-weight:800;letter-spacing:0.04em">59th ANNUAL EDITION</span>
+        <span class="pill" style="font-size:0.72rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">Dec 15–21, 2026</span>
+        <span class="pill" style="font-size:0.72rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">EST. 1961</span>
       </div>
 
       <!-- Compact Championship Hero Card -->
-      <div class="card interiit-hero-card" style="margin-bottom:12px;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg, rgba(11,42,74,0.96), rgba(7,26,46,0.98)), radial-gradient(circle at top right, rgba(56,189,248,0.22), transparent 70%);border:1px solid rgba(56,189,248,0.35);color:#fff;box-shadow:0 8px 24px rgba(0,0,0,0.3);position:relative;overflow:hidden;">
+      <div class="card interiit-hero-card" style="margin-bottom:8px;padding:10px 14px;border-radius:12px;background:linear-gradient(135deg, rgba(11,42,74,0.96), rgba(7,26,46,0.98)), radial-gradient(circle at top right, rgba(56,189,248,0.22), transparent 70%);border:1px solid rgba(56,189,248,0.35);color:#fff;box-shadow:0 6px 20px rgba(0,0,0,0.25);position:relative;overflow:hidden;">
         <div style="position:relative;z-index:2">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <span class="pill" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);font-weight:800;font-size:0.72rem">🏆 ALL 23 IITs CHAMPIONSHIP</span>
-              <span style="font-size:0.74rem;color:rgba(255,255,255,0.75)">General Championship (GC) Trophy</span>
-            </div>
-            <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;background:#ef4444;color:#fff;text-decoration:none;font-size:0.74rem;font-weight:800;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+            <span class="pill" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);font-weight:800;font-size:0.7rem">🏆 ALL 23 IITs CHAMPIONSHIP</span>
+            <span style="font-size:0.74rem;color:rgba(255,255,255,0.75)">General Championship (GC) Trophy</span>
+            <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:7px;background:#ef4444;color:#fff;text-decoration:none;font-size:0.72rem;font-weight:800;">
               <span style="width:6px;height:6px;border-radius:50%;background:#fff;animation:pulse-red 1.2s infinite"></span>
               Live Broadcasts ↗
             </a>
           </div>
 
-          <h1 style="margin:0 0 6px;font-size:clamp(1.3rem, 4vw, 1.75rem);font-family:var(--font-display);font-weight:900;letter-spacing:-0.02em;color:#fff;line-height:1.2;">
+          <h1 style="margin:0 0 4px;font-size:clamp(1.2rem, 3.5vw, 1.5rem);font-family:var(--font-display);font-weight:900;letter-spacing:-0.02em;color:#fff;line-height:1.2;">
             59th Inter IIT Sports Meet
           </h1>
-          <p style="margin:0 0 12px;font-size:0.84rem;line-height:1.45;color:rgba(255,255,255,0.85);max-width:760px;">
-            India's oldest and longest-running multi-sport inter-university athletic tournament (Est. 1961), contested annually by thousands of student-athletes across all 23 IITs.
+          <p style="margin:0 0 8px;font-size:0.82rem;line-height:1.4;color:rgba(255,255,255,0.85);max-width:760px;">
+            India's oldest and longest-running multi-sport inter-university athletic tournament (Est. 1961), contested annually across all 23 IITs.
           </p>
 
           <!-- Compact Quick-Links Strip -->
-          <div class="interiit-links-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;">
-            <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" class="interiit-link-btn yt" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:#ef4444;color:#fff;text-decoration:none;font-weight:700;transition:transform 0.15s ease;">
-              <span style="font-size:1.1rem;flex-shrink:0;">▶</span>
+          <div class="interiit-links-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:6px;">
+            <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" class="interiit-link-btn yt" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:#ef4444;color:#fff;text-decoration:none;font-weight:700;">
+              <span style="font-size:1rem;flex-shrink:0;">▶</span>
               <div style="overflow:hidden;">
-                <div style="font-size:0.8rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">YouTube Live Streams</div>
-                <div style="font-size:0.68rem;opacity:0.9;font-weight:500;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">@interiit_sportsmeet/streams ↗</div>
+                <div style="font-size:0.78rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">YouTube Streams</div>
+                <div style="font-size:0.65rem;opacity:0.9;font-weight:500;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">@interiit_sportsmeet ↗</div>
               </div>
             </a>
-            <a href="https://www.instagram.com/interiit_sportsmeet/" target="_blank" rel="noopener noreferrer" class="interiit-link-btn ig" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);color:#fff;text-decoration:none;font-weight:700;transition:transform 0.15s ease;">
-              <span style="font-size:1.1rem;flex-shrink:0;">📸</span>
+            <a href="https://www.instagram.com/interiit_sportsmeet/" target="_blank" rel="noopener noreferrer" class="interiit-link-btn ig" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);color:#fff;text-decoration:none;font-weight:700;">
+              <span style="font-size:1rem;flex-shrink:0;">📸</span>
               <div style="overflow:hidden;">
-                <div style="font-size:0.8rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">Official Instagram</div>
-                <div style="font-size:0.68rem;opacity:0.9;font-weight:500;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">@interiit_sportsmeet ↗</div>
+                <div style="font-size:0.78rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">Official Instagram</div>
+                <div style="font-size:0.65rem;opacity:0.9;font-weight:500;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">@interiit_sportsmeet ↗</div>
               </div>
             </a>
-            <a href="https://en.wikipedia.org/wiki/Inter_IIT_Sports_Meet" target="_blank" rel="noopener noreferrer" class="interiit-link-btn wiki" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:#1e293b;border:1px solid rgba(255,255,255,0.25);color:#fff;text-decoration:none;font-weight:700;transition:transform 0.15s ease;">
-              <span style="font-size:1.1rem;flex-shrink:0;">📖</span>
+            <a href="https://en.wikipedia.org/wiki/Inter_IIT_Sports_Meet" target="_blank" rel="noopener noreferrer" class="interiit-link-btn wiki" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:#1e293b;border:1px solid rgba(255,255,255,0.25);color:#fff;text-decoration:none;font-weight:700;">
+              <span style="font-size:1rem;flex-shrink:0;">📖</span>
               <div style="overflow:hidden;">
-                <div style="font-size:0.8rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">Wikipedia Archives</div>
-                <div style="font-size:0.68rem;opacity:0.9;font-weight:500;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">History &amp; GC Records ↗</div>
+                <div style="font-size:0.78rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">Wikipedia Archives</div>
+                <div style="font-size:0.65rem;opacity:0.9;font-weight:500;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">History &amp; Records ↗</div>
               </div>
             </a>
           </div>
@@ -2282,8 +2285,8 @@ function renderInterIITPage() {
       </div>
 
       <!-- Men's Hockey Tournament Fixtures Explorer (Student Fixtures) - Front and Center! -->
-      <div style="margin-bottom:12px;">
-        ${studentFixtureCard()}
+      <div style="margin-bottom:10px;">
+        ${studentFixtureCard({ isHub: true })}
       </div>
 
       <!-- Participating IITs Showcase -->
