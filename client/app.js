@@ -5576,6 +5576,8 @@ function vPlan() {
     const d = planMon + "-" + String(n).padStart(2, "0"),
       p = PL[d],
       hasAtt = Boolean(SS[d] || Object.keys(SS).some((k) => k.startsWith(d))),
+      acad = typeof getAcadEvent === "function" ? getAcadEvent(d) : {},
+      acadCls = acad.holiday ? "is-hol" : acad.exam ? "is-exam" : acad.break ? "is-brk" : acad.event ? "is-evt" : "",
       st = p
         ? p.status === "cancelled"
           ? "cx"
@@ -5585,11 +5587,24 @@ function vPlan() {
         : hasAtt
           ? "dn"
           : "";
+
+    let acadBadge = "";
+    if (acad.holiday) {
+      acadBadge = `<span class="cd-badge hol" title="Holiday: ${esc(acad.holiday.name)}">🎉</span>`;
+    } else if (acad.exam) {
+      acadBadge = `<span class="cd-badge exam" title="Exam: ${esc(acad.exam.short || acad.exam.name)}">📝</span>`;
+    } else if (acad.break) {
+      acadBadge = `<span class="cd-badge brk" title="Break: ${esc(acad.break.short || acad.break.name)}">🏖️</span>`;
+    } else if (acad.event) {
+      acadBadge = `<span class="cd-badge evt" title="${esc(acad.event.name)}">${acad.event.type === "sports" ? "🏆" : "🎪"}</span>`;
+    }
+
     cells.push(
-      `<button type="button" class="cd ${st} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}">${(SS[d] || hasAtt) && !p ? '<i class="dn"></i>' : ""}<b>${n}</b>${p ? "<i></i>" + (p.status !== "cancelled" && tagMine(p.tags) ? '<u class="tdot" title="You are tagged"></u>' : "") : !p && d >= td && SCH.team[dayIdx(d)][3] ? '<i class="wk"></i>' : ""}</button>`,
+      `<button type="button" class="cd ${st} ${acadCls} ${d === td ? "td" : ""} ${d === planSel ? "sel" : ""}" data-cd="${d}" aria-pressed="${d === planSel}" aria-label="${dlong(d)}${acad.holiday ? ", Holiday: " + acad.holiday.name : ""}${acad.exam ? ", Exam: " + acad.exam.name : ""}${p ? (p.status === "cancelled" ? ", cancelled" : ", playing day") : ""}">${(SS[d] || hasAtt) && !p ? '<i class="dn"></i>' : ""}<b>${n}</b>${acadBadge}${p ? "<i></i>" + (p.status !== "cancelled" && tagMine(p.tags) ? '<u class="tdot" title="You are tagged"></u>' : "") : !p && d >= td && SCH.team[dayIdx(d)][3] ? '<i class="wk"></i>' : ""}</button>`,
     );
   }
   const dayCard = (d) => {
+    const acadHtml = typeof acadBanner === "function" ? acadBanner(d) : "";
     const p = PL[d];
     const sKeys = sessionsForDate(d);
     const sNums = sKeys.map((k) => sessionGlobalIndex(k)).filter(Boolean);
@@ -5606,16 +5621,16 @@ function vPlan() {
           0,
         );
         const subTxt = sessText ? ` · ${sessText}` : "";
-        return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> <span class="pill g">Attendance recorded${subTxt}</span></p>
+        return `${acadHtml}<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> <span class="pill g">Attendance recorded${subTxt}</span></p>
         <p style="margin:6px 0 10px">🏑 <b>${sKeys.length} session${sKeys.length > 1 ? "s" : ""}</b> played${sessText ? ` (${sessText})` : ""} · <b>${totalPres}</b> attendance marks recorded.</p>
         ${admin ? `<div class="chips"><button data-a="take" data-d="${d}">View / Take attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button></div>` : ""}`;
       }
       const w = SCH.team[dayIdx(d)];
-      return `<p class="mute" style="margin:0 0 6px">No playing day is scheduled on ${dlong(d)}.</p>${w[3] ? `<p style="margin:0 0 10px">Weekly timetable: <b>${esc(w[1])}</b> · ⏰ ${esc(w[3])}</p>` : `<p class="mute" style="margin:0 0 10px">${esc(w[0])} is a rest day in the weekly timetable.</p>`}${admin ? `<div class="chips"><button class="pri" data-a="new">Schedule this day</button>${wkOpen().length ? `<button data-a="wk">Schedule the next 7 days</button>` : ""}</div>` : ""}`;
+      return `${acadHtml}<p class="mute" style="margin:0 0 6px">No playing day is scheduled on ${dlong(d)}.</p>${w[3] ? `<p style="margin:0 0 10px">Weekly timetable: <b>${esc(w[1])}</b> · ⏰ ${esc(w[3])}</p>` : `<p class="mute" style="margin:0 0 10px">${esc(w[0])} is a rest day in the weekly timetable.</p>`}${admin ? `<div class="chips"><button class="pri" data-a="new">Schedule this day</button>${wkOpen().length ? `<button data-a="wk">Schedule the next 7 days</button>` : ""}</div>` : ""}`;
     }
     const c = p.status === "cancelled",
       r = SCH.team[dayIdx(d)];
-    return `<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> ${c ? '<span class="pill r">Cancelled</span>' : planLive(d) ? `<span class="pill g">${dlabel(d)}</span>` : d === td && !sKeys.length ? '<span class="pill">Ended</span>' : ""} ${sKeys.length ? `<span class="pill g">Attendance recorded${sessText ? " · " + sessText : ""}</span>` : ""}</p>
+    return `${acadHtml}<p style="margin:0"><b style="font-size:1.1rem">${dlong(d)}</b> ${c ? '<span class="pill r">Cancelled</span>' : planLive(d) ? `<span class="pill g">${dlabel(d)}</span>` : d === td && !sKeys.length ? '<span class="pill">Ended</span>' : ""} ${sKeys.length ? `<span class="pill g">Attendance recorded${sessText ? " · " + sessText : ""}</span>` : ""}</p>
     <p style="margin:4px 0 0">⏰ ${esc(p.time || r[3] || "Time to be announced")}</p>${p.venue ? `<p style="margin:2px 0 0">📍 ${esc(p.venue)}</p>` : ""}<p style="margin:2px 0 0">🎯 ${esc(r[1])}</p>${p.note ? `<p style="margin:2px 0 0">📝 ${esc(p.note)}</p>` : ""}${(p.tags || []).length ? `<p style="margin:6px 0 0">🏷️ ${tagChips(p.tags)}</p>` : ""}${tagMine(p.tags) && !c ? `<p class="note" style="margin:8px 0">📌 You are tagged for this playing day.</p>` : ""}
     ${planLive(d) && !c ? availBlock(d) : ""}
     ${admin ? `<div class="chips"><button data-a="ed" data-d="${d}">✏️ Edit</button><button data-a="take" data-d="${d}">Attendance</button><button data-a="wa" data-d="${d}">⤴ Share</button><button data-a="cx" data-d="${d}">${c ? "Restore" : "Cancel"}</button><button class="dng" data-a="rm" data-d="${d}">Delete</button></div>` : ""}`;
@@ -5623,11 +5638,26 @@ function vPlan() {
   const fd = PL[planSel] ? td : planSel;
   $("view").innerHTML =
     `${admin ? `<div class="card"><h2>Schedule a playing day</h2><div class="ctl"><input type="date" id="pd" value="${fd}"><input id="pt" placeholder="Time" size="14" value="${esc(SCH.team[dayIdx(fd)][3])}"></div><div class="ctl"><input id="pv" placeholder="Venue" maxlength="80" value="${esc(lastVenue())}" style="flex:1"></div><div class="ctl"><button type="button" id="pltg">🏷️ Tag people</button><span id="pltgs" class="tgsel"></span></div><div class="ctl"><input id="pn" name="hk-plan-note" autocomplete="off" autocorrect="off" placeholder="Note (optional), e.g. practice match" maxlength="80" style="flex:1"><button class="pri" id="pladd">Add</button></div></div>` : ""}
-  <div class="card"><h2>Playing days</h2>
-  <div class="calh"><button type="button" data-mn="-1" aria-label="Previous month">‹</button><b>${mfmt(planMon)}</b><button type="button" data-mn="1" aria-label="Next month">›</button><button type="button" data-tdy="1">Today</button></div>
-  <div class="cal"><span class="cw">M</span><span class="cw">T</span><span class="cw">W</span><span class="cw">T</span><span class="cw">F</span><span class="cw">S</span><span class="cw">S</span>${cells.join("")}</div>
-  <p class="mute calk"><span class="k pl"></span>Playing <span class="k dn"></span>Attendance taken <span class="k cx"></span>Cancelled <span class="k wk"></span>Weekly timetable, not scheduled yet</p>
-  <div class="daysel">${dayCard(planSel)}</div></div>`;
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <h2 style="margin:0">Playing days &amp; Calendar</h2>
+      <a href="#acad-ref-card" class="lnk" style="font-size:0.85rem;font-weight:700">🏛️ Holidays &amp; Exams list ↓</a>
+    </div>
+    <div class="calh"><button type="button" data-mn="-1" aria-label="Previous month">‹</button><b>${mfmt(planMon)}</b><button type="button" data-mn="1" aria-label="Next month">›</button><button type="button" data-tdy="1">Today</button></div>
+    <div class="cal"><span class="cw">M</span><span class="cw">T</span><span class="cw">W</span><span class="cw">T</span><span class="cw">F</span><span class="cw">S</span><span class="cw">S</span>${cells.join("")}</div>
+    <p class="mute calk">
+      <span class="k pl"></span>Practice
+      <span class="k dn"></span>Attended
+      <span class="k cx"></span>Cancelled
+      <span class="k-acad k-exam">📝</span>Exam
+      <span class="k-acad k-hol">🎉</span>Holiday
+      <span class="k-acad k-brk">🏖️</span>Break
+      <span class="k-acad k-evt">🏆</span>Fest
+    </p>
+    <div class="daysel">${dayCard(planSel)}</div>
+  </div>
+  ${typeof acadReferenceCard === "function" ? acadReferenceCard() : ""}`;
+  if (typeof bindAcadCard === "function") bindAcadCard();
   document.querySelectorAll("[data-cd]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -7616,6 +7646,16 @@ function vMe() {
   }
 }
 
+function turfAcadPill(d) {
+  if (typeof getAcadEvent !== "function") return "";
+  const a = getAcadEvent(d || today());
+  if (a.holiday) return `<span class="turf-meta-pill" style="background:rgba(239,68,68,0.2);color:#fca5a5;border-color:rgba(239,68,68,0.45)">🎉 Holiday: ${esc(a.holiday.name)}</span>`;
+  if (a.exam) return `<span class="turf-meta-pill" style="background:rgba(245,158,11,0.2);color:#fde047;border-color:rgba(245,158,11,0.45)">📝 Exam: ${esc(a.exam.short || a.exam.name)}</span>`;
+  if (a.break) return `<span class="turf-meta-pill" style="background:rgba(139,92,246,0.2);color:#d8b4fe;border-color:rgba(139,92,246,0.45)">🏖️ ${esc(a.break.short || a.break.name)}</span>`;
+  if (a.event) return `<span class="turf-meta-pill" style="background:rgba(14,165,233,0.2);color:#7dd3fc;border-color:rgba(14,165,233,0.45)">🏆 ${esc(a.event.name)}</span>`;
+  return "";
+}
+
 function vCoachDashboard() {
   const hr = new Date().getHours();
   const greeting = hr < 5 ? "Late night" : hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
@@ -7686,6 +7726,7 @@ function vCoachDashboard() {
             <div class="turf-card-meta-row">
               <span class="turf-meta-pill">🏑 IIT Patna Turf</span>
               <span class="turf-meta-pill">Active Squad · ${P.length} Players</span>
+              ${turfAcadPill(today())}
             </div>
           </div>
         </div>
@@ -7855,6 +7896,7 @@ function vLeadershipDashboard() {
             <div class="turf-card-meta-row">
               <span class="turf-meta-pill">🏑 IIT Patna Turf</span>
               <span class="turf-meta-pill">Active Squad · ${P.length} Players</span>
+              ${turfAcadPill(today())}
             </div>
           </div>
         </div>
@@ -8023,6 +8065,7 @@ function vPlayerDashboard() {
             <div class="turf-card-meta-row">
               <span class="turf-meta-pill">🏑 IIT Patna Turf</span>
               <span class="turf-meta-pill">Season 2026</span>
+              ${turfAcadPill(today())}
             </div>
           </div>
         </div>

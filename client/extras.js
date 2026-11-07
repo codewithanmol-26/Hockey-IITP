@@ -523,3 +523,386 @@ function bindHealth() {
       render();
     };
 }
+
+// ----------------------------------------------------------------
+// 5. IIT Patna Academic Calendar & Institute Holidays 2026-27
+// ----------------------------------------------------------------
+const IITP_ACAD = {
+  holidays: [
+    { d: "2026-01-26", name: "Republic Day", day: "Monday" },
+    { d: "2026-03-04", name: "Holi", day: "Wednesday" },
+    { d: "2026-03-21", name: "Idul Fitr*", day: "Saturday", note: "Subject to moon visibility" },
+    { d: "2026-03-31", name: "Mahavir Jayanti", day: "Tuesday" },
+    { d: "2026-04-03", name: "Good Friday", day: "Friday" },
+    { d: "2026-05-01", name: "Buddha Purnima", day: "Friday" },
+    { d: "2026-05-27", name: "Idul Zuha (Bakrid)*", day: "Wednesday", note: "Subject to moon visibility" },
+    { d: "2026-06-26", name: "Muharram*", day: "Friday", note: "Subject to moon visibility" },
+    { d: "2026-08-15", name: "Independence Day", day: "Saturday" },
+    { d: "2026-08-26", name: "Prophet Mohammad's Birthday (Id-E-Milad)*", day: "Wednesday", note: "Subject to moon visibility" },
+    { d: "2026-10-02", name: "Mahatma Gandhi's Birthday", day: "Friday" },
+    { d: "2026-10-19", name: "Dussehra (Mahasthami)", day: "Monday" },
+    { d: "2026-10-20", name: "Dussehra (Mahanavmi / Vijay Dashmi)", day: "Tuesday" },
+    { d: "2026-11-08", name: "Diwali (Deepavali)", day: "Sunday" },
+    { d: "2026-11-16", name: "Chhath Puja (Pratihar / Surya Saptami)", day: "Monday" },
+    { d: "2026-11-24", name: "Guru Nanak's Birthday", day: "Tuesday" },
+    { d: "2026-12-25", name: "Christmas Day", day: "Friday" },
+  ],
+  exams: [
+    {
+      id: "mse",
+      name: "Mid Semester Examination (MSE)",
+      short: "Mid-Sem Exam",
+      start: "2026-09-20",
+      end: "2026-09-28",
+      type: "exam",
+      desc: "Mid Semester Exams for B.Tech 2nd yr onwards, M.Tech, M.Sc & PhD"
+    },
+    {
+      id: "mse-makeup",
+      name: "Make-up Exam (Mid Sem)",
+      short: "MSE Make-up",
+      start: "2026-10-04",
+      end: "2026-10-05",
+      type: "exam",
+      desc: "Make-up examinations for approved missed Mid Sem papers"
+    },
+    {
+      id: "ese",
+      name: "End Semester Examination (ESE)",
+      short: "End-Sem Exam",
+      start: "2026-11-21",
+      end: "2026-11-30",
+      type: "exam",
+      desc: "End Semester Exams for B.Tech, M.Tech, M.Sc & PhD"
+    },
+    {
+      id: "ese-makeup",
+      name: "Make-up Exam (End Sem)",
+      short: "ESE Make-up",
+      start: "2026-12-05",
+      end: "2026-12-06",
+      type: "exam",
+      desc: "Make-up examinations for approved missed End Sem papers"
+    },
+    {
+      id: "phd-written",
+      name: "PhD Admissions Written Test & Interview",
+      short: "PhD Admissions",
+      start: "2026-12-01",
+      end: "2026-12-08",
+      type: "exam",
+      desc: "Written test and interviews by departments for Ph.D. admissions"
+    },
+    {
+      id: "phd-comp",
+      name: "Comprehensive Exam for PhD Students",
+      short: "PhD Comprehensive",
+      start: "2026-12-15",
+      end: "2027-01-08",
+      type: "exam",
+      desc: "Comprehensive examination window for PhD research scholars"
+    }
+  ],
+  breaks: [
+    {
+      id: "mid-break",
+      name: "Mid-Sem Autumn Break",
+      short: "Mid-Sem Break",
+      start: "2026-09-29",
+      end: "2026-10-03",
+      type: "break",
+      desc: "Official Mid-Semester recess (Tuesday – Saturday)"
+    },
+    {
+      id: "ug-vacation",
+      name: "Winter Vacation / Semester Break (UG)",
+      short: "Winter Vacation",
+      start: "2026-12-01",
+      end: "2027-01-01",
+      type: "break",
+      desc: "Official Winter Vacation / Semester Break for all Undergraduate students"
+    },
+    {
+      id: "fac-vacation",
+      name: "Vacation Period (Faculty members)",
+      short: "Faculty Vacation",
+      start: "2026-12-13",
+      end: "2026-12-31",
+      type: "break",
+      desc: "Official annual vacation period for faculty members"
+    }
+  ],
+  events: [
+    {
+      d: "2026-08-06",
+      name: "Foundation Day & Convocation",
+      type: "event",
+      tentative: true,
+      desc: "IIT Patna Foundation Day and Annual Convocation"
+    },
+    {
+      start: "2026-08-29",
+      end: "2026-08-30",
+      name: "Nebula 2026 (Fresher's Welcome)",
+      type: "event",
+      tentative: true,
+      desc: "Annual Fresher's Welcome Festival"
+    },
+    {
+      start: "2026-09-12",
+      end: "2026-09-13",
+      name: "TedX IIT Patna",
+      type: "event",
+      tentative: true,
+      desc: "TedX IIT Patna Annual Conference"
+    },
+    {
+      start: "2026-10-09",
+      end: "2026-10-11",
+      name: "Infinito 2026 (Annual Sports Fest)",
+      short: "Infinito 2026 🏆",
+      type: "sports",
+      tentative: true,
+      desc: "IIT Patna's Flagship Annual Inter-Collegiate Sports Fest (Infinito)"
+    },
+    {
+      start: "2026-10-30",
+      end: "2026-11-01",
+      name: "Celesta 2026 (Techno-Management Fest)",
+      short: "Celesta 2026 🚀",
+      type: "event",
+      tentative: true,
+      desc: "IIT Patna Annual Techno-Management Festival"
+    },
+    {
+      d: "2026-11-08",
+      name: "Reverberance (Diwali Cultural Celebration)",
+      type: "event",
+      desc: "IIT Patna Diwali Cultural Celebration"
+    },
+    {
+      d: "2026-11-21",
+      name: "Last Day of Instructions / Classes",
+      type: "acad",
+      desc: "Last teaching day for Autumn Semester 2026"
+    },
+    {
+      d: "2026-12-14",
+      name: "Declaration of End Semester Exam Results",
+      type: "acad",
+      desc: "Official announcement of End Semester results on Grade portal"
+    },
+    {
+      d: "2027-01-04",
+      name: "Registration for Spring Semester 2026-27",
+      type: "acad",
+      desc: "Registration opens for Spring Semester 2026-27"
+    }
+  ]
+};
+
+let acadTab = "holidays";
+
+function getAcadEvent(d) {
+  if (!d) return {};
+  const holiday = IITP_ACAD.holidays.find((h) => h.d === d);
+  const exam = IITP_ACAD.exams.find((e) => d >= e.start && d <= e.end);
+  const brk = IITP_ACAD.breaks.find((b) => d >= b.start && d <= b.end);
+  const evt = IITP_ACAD.events.find(
+    (ev) => (ev.d && ev.d === d) || (ev.start && d >= ev.start && d <= ev.end)
+  );
+  return { holiday, exam, break: brk, event: evt };
+}
+
+function acadBanner(d) {
+  const acad = getAcadEvent(d);
+  if (!acad.holiday && !acad.exam && !acad.break && !acad.event) return "";
+  const parts = [];
+  if (acad.holiday) {
+    parts.push(`
+      <div class="acad-banner holiday">
+        <span class="ab-ic">🎉</span>
+        <div class="ab-tx">
+          <b>Institute Holiday · ${esc(acad.holiday.name)}</b>
+          <small>Official IIT Patna Holiday (${acad.holiday.day}${acad.holiday.note ? " · " + esc(acad.holiday.note) : ""}) · No regular classes</small>
+        </div>
+      </div>
+    `);
+  }
+  if (acad.exam) {
+    parts.push(`
+      <div class="acad-banner exam">
+        <span class="ab-ic">📝</span>
+        <div class="ab-tx">
+          <b>Academic Examination · ${esc(acad.exam.name)}</b>
+          <small>${esc(acad.exam.desc)} · Window: ${fmt(acad.exam.start)} to ${fmt(acad.exam.end)}</small>
+        </div>
+      </div>
+    `);
+  }
+  if (acad.break) {
+    parts.push(`
+      <div class="acad-banner break">
+        <span class="ab-ic">🏖️</span>
+        <div class="ab-tx">
+          <b>Academic Break · ${esc(acad.break.name)}</b>
+          <small>${esc(acad.break.desc)} · Period: ${fmt(acad.break.start)} to ${fmt(acad.break.end)}</small>
+        </div>
+      </div>
+    `);
+  }
+  if (acad.event) {
+    parts.push(`
+      <div class="acad-banner event">
+        <span class="ab-ic">${acad.event.type === "sports" ? "🏆" : "🎪"}</span>
+        <div class="ab-tx">
+          <b>Campus Event · ${esc(acad.event.name)}</b>
+          <small>${esc(acad.event.desc)}${acad.event.tentative ? " (Tentative)" : ""}</small>
+        </div>
+      </div>
+    `);
+  }
+  return `<div class="acad-banners-wrap">${parts.join("")}</div>`;
+}
+
+function acadReferenceCard() {
+  const td = typeof today === "function" ? today() : new Date().toISOString().slice(0, 10);
+  
+  const renderTabContent = () => {
+    if (acadTab === "holidays") {
+      return `
+        <div class="acad-list-grid">
+          ${IITP_ACAD.holidays
+            .map((h) => {
+              const dt = new Date(h.d + "T00:00");
+              const isPast = h.d < td;
+              const isToday = h.d === td;
+              const pillClass = isToday ? "g" : isPast ? "" : "blue";
+              const pillText = isToday ? "Today" : isPast ? "Passed" : "Upcoming";
+              return `
+                <div class="acad-item-card ${isToday ? 'is-today' : ''}" data-goto-date="${h.d}" title="Click to view on calendar">
+                  <div class="acad-item-date">
+                    <b>${dt.getDate()}</b>
+                    <span>${dt.toLocaleDateString("en-IN", { month: "short" })}</span>
+                  </div>
+                  <div class="acad-item-info">
+                    <div class="acad-item-title">${esc(h.name)}</div>
+                    <div class="acad-item-sub">📅 ${h.day}${h.note ? " · " + esc(h.note) : ""}</div>
+                  </div>
+                  <span class="pill ${pillClass}">${pillText}</span>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+      `;
+    }
+
+    if (acadTab === "exams") {
+      return `
+        <div class="acad-list-grid">
+          ${[...IITP_ACAD.exams, ...IITP_ACAD.breaks]
+            .sort((a, b) => a.start.localeCompare(b.start))
+            .map((e) => {
+              const dtS = new Date(e.start + "T00:00");
+              const dtE = new Date(e.end + "T00:00");
+              const isActive = td >= e.start && td <= e.end;
+              const isPast = td > e.end;
+              const pillClass = isActive ? "g" : isPast ? "" : "gold";
+              const pillText = isActive ? "Active Now" : isPast ? "Completed" : "Scheduled";
+              const ic = e.type === "break" ? "🏖️" : "📝";
+              return `
+                <div class="acad-item-card ${isActive ? 'is-today' : ''}" data-goto-date="${e.start}" title="Click to view start date on calendar">
+                  <div class="acad-item-date">
+                    <b>${dtS.getDate()}</b>
+                    <span>${dtS.toLocaleDateString("en-IN", { month: "short" })}</span>
+                  </div>
+                  <div class="acad-item-info">
+                    <div class="acad-item-title">${ic} ${esc(e.name)}</div>
+                    <div class="acad-item-sub">⏱️ ${fmt(e.start)} to ${fmt(e.end)}</div>
+                  </div>
+                  <span class="pill ${pillClass}">${pillText}</span>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+      `;
+    }
+
+    // events tab
+    return `
+      <div class="acad-list-grid">
+        ${IITP_ACAD.events
+          .map((ev) => {
+            const startD = ev.d || ev.start;
+            const dt = new Date(startD + "T00:00");
+            const isPast = (ev.end || startD) < td;
+            const isToday = td >= startD && td <= (ev.end || startD);
+            const pillClass = isToday ? "g" : isPast ? "" : "teal";
+            const pillText = isToday ? "Happening Now" : isPast ? "Completed" : "Upcoming";
+            const ic = ev.type === "sports" ? "🏆" : ev.type === "acad" ? "🎓" : "🎪";
+            return `
+              <div class="acad-item-card ${isToday ? 'is-today' : ''}" data-goto-date="${startD}" title="Click to view on calendar">
+                <div class="acad-item-date">
+                  <b>${dt.getDate()}</b>
+                  <span>${dt.toLocaleDateString("en-IN", { month: "short" })}</span>
+                </div>
+                <div class="acad-item-info">
+                  <div class="acad-item-title">${ic} ${esc(ev.name)}</div>
+                  <div class="acad-item-sub">${ev.end ? fmt(ev.start) + " – " + fmt(ev.end) : fmt(ev.d)}${ev.tentative ? " · Tentative" : ""}</div>
+                </div>
+                <span class="pill ${pillClass}">${pillText}</span>
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  };
+
+  return `
+    <div class="card acad-ref-card" id="acad-ref-card">
+      <div class="acad-ref-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.6rem">🏛️</span>
+          <div>
+            <h2 style="margin:0;font-size:1.12rem">IIT Patna Academic Calendar &amp; Holidays</h2>
+            <p class="mute" style="margin:2px 0 0;font-size:0.82rem">Official 2026 Institute Holidays, Autumn 2026-27 Exams &amp; Breaks</p>
+          </div>
+        </div>
+        <div class="acad-tab-pills" role="tablist">
+          <button type="button" class="acad-tab-btn ${acadTab === 'holidays' ? 'active' : ''}" data-atab="holidays">🎉 Holidays (${IITP_ACAD.holidays.length})</button>
+          <button type="button" class="acad-tab-btn ${acadTab === 'exams' ? 'active' : ''}" data-atab="exams">📝 Exams &amp; Breaks</button>
+          <button type="button" class="acad-tab-btn ${acadTab === 'events' ? 'active' : ''}" data-atab="events">🏆 Campus Fests</button>
+        </div>
+      </div>
+      <div class="acad-ref-body">
+        ${renderTabContent()}
+      </div>
+      <p class="mute" style="font-size:0.75rem;margin:12px 0 0;text-align:right">💡 Tap any holiday or exam to jump the calendar straight to that date.</p>
+    </div>
+  `;
+}
+
+function bindAcadCard() {
+  document.querySelectorAll("[data-atab]").forEach((b) => {
+    b.onclick = () => {
+      acadTab = b.dataset.atab;
+      if (typeof vPlan === "function") vPlan();
+    };
+  });
+  document.querySelectorAll("[data-goto-date]").forEach((b) => {
+    b.onclick = () => {
+      const targetDate = b.dataset.gotoDate;
+      if (!targetDate) return;
+      if (typeof planSel !== "undefined") planSel = targetDate;
+      if (typeof planMon !== "undefined") planMon = targetDate.slice(0, 7);
+      if (typeof vPlan === "function") {
+        vPlan();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+  });
+}
+

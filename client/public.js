@@ -324,7 +324,10 @@ function drawPublic() {
 
       <div class="hero-cta-group">
         <a href="#pub-schedule" class="btn-hero-primary">
-          <span>📅 View Practice Schedule</span>
+          <span>📅 Practice Schedule</span>
+        </a>
+        <a href="#pub-academic" class="btn-hero-secondary">
+          <span>🏛️ Academic &amp; Holidays</span>
         </a>
         <a href="#pub-progress" class="btn-hero-secondary">
           <span>📊 Check My Progress</span>
@@ -459,6 +462,18 @@ function drawPublic() {
             </div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- 3b. Academic Calendar & Holidays Section -->
+    <section class="pub-sec" id="pub-academic">
+      <div class="sec-header">
+        <span class="sec-kicker">IIT PATNA ACADEMIC AFFAIRS</span>
+        <h2 class="sec-title">Academic Calendar &amp; Institute Holidays 2026</h2>
+        <p class="sec-lead">Autumn Semester 2026-27 schedule: examinations, breaks, institute holidays, and campus fests.</p>
+      </div>
+      <div id="pub-acad-container">
+        ${typeof acadReferenceCard === "function" ? acadReferenceCard() : ""}
       </div>
     </section>
 
@@ -789,6 +804,9 @@ function bindPublic() {
       }
     };
   }
+
+  // Academic Calendar tabs and date jump clicks
+  if (typeof bindAcadCard === "function") bindAcadCard();
 }
 
 async function checkPublicProgress() {
