@@ -3431,7 +3431,7 @@ function vTake() {
     '<p class="mute">No players yet. Add students from the ⋮ menu.</p>'
   }<p id="tkn" class="mute" hidden>No players match.</p></div>
   ${SS[takeDate] ? `<div class="chips"><button id="wat">⤴ Share</button><button class="dng" id="del">${delLabel}</button></div>` : ""}</div>
-  <div class="tksv"><div class="tks"><div class="tkc"><b id="tkp" class="gp">0</b><small>Present</small></div><div class="tkc"><b id="tka" class="ga">0</b><small>Absent</small></div><div class="tkc"><b id="tkm">0</b><small>Left</small></div></div><div class="tkprog"><i id="tkpb"></i></div><button class="pri big" id="sv">Save Session ${curSessNum} attendance</button></div>`;
+  <div class="tksv"><div class="tks"><div class="tkc"><b id="tkp" class="gp">0</b><small>Present</small></div><div class="tkc"><b id="tka" class="ga">0</b><small>Absent</small></div><div class="tkc"><b id="tkm">0</b><small>Left</small></div></div><div class="tkprog"><i id="tkpb"></i></div><button class="pri big" id="sv">Save Session ${curSessNum} attendance</button><p class="mute" style="margin:6px 0 0;font-size:0.8rem;text-align:center;">🔔 Saves record and sends instant confirmation to players (Present/Absent).</p></div>`;
   const upd = () => {
     const p = el.filter((x) => draft[x.id] === true).length,
       a = el.filter((x) => draft[x.id] === false).length;
@@ -3559,13 +3559,17 @@ function vTake() {
           cleanR[pid] = merged[pid];
         }
       }
-      await api("/api/sessions/" + takeDate, {
+      const resp = await api("/api/sessions/" + takeDate, {
         method: "PUT",
         body: { r: cleanR },
       });
       draftDate = null;
       await load();
-      toast("Attendance saved for " + fmt(takeDate) + ".");
+      const notifInfo =
+        resp && resp.notif && resp.notif.totalNotified
+          ? ` · ${resp.notif.totalNotified} player${resp.notif.totalNotified > 1 ? "s" : ""} notified (${resp.notif.presentNotified} present, ${resp.notif.absentNotified} absent) 📲`
+          : "";
+      toast("Attendance saved for " + fmt(takeDate) + notifInfo + ".");
     });
   };
   if ($("wat")) $("wat").onclick = () => wa(attMsg(takeDate));

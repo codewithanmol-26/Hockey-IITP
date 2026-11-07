@@ -1650,6 +1650,167 @@ const done = (res) => {
   res.json({ ok: true });
 };
 
+// ---- Attendance notifications: send push & email confirmation to players when attendance is saved ----
+async function notifyAttendance(sessionKey, newR, prevR, playerMap) {
+  try {
+    const escH = (s) =>
+      String(s ?? "").replace(
+        /[&<>"']/g,
+        (ch) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[ch],
+      );
+
+    const baseDate = sessionKey.replace(/_\d+$/, "");
+    const isSecondSess = sessionKey.includes("_2");
+    const dObj = new Date(baseDate + "T12:00:00Z");
+    const dateFormatted = !isNaN(dObj.getTime())
+      ? dObj.toLocaleDateString("en-IN", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : baseDate;
+    const sessLabel = isSecondSess
+      ? `${dateFormatted} (Session 2)`
+      : dateFormatted;
+
+    const presentPlayers = [];
+    const absentPlayers = [];
+    const playersToEmail = [];
+
+    for (const [pid, isPresent] of Object.entries(newR)) {
+      if (typeof isPresent !== "boolean") continue;
+      const isNew = !prevR || prevR[pid] === undefined;
+      const hasChanged = prevR && prevR[pid] !== isPresent;
+      if (isNew || hasChanged) {
+        const p = playerMap[pid] || { id: pid, name: "Player" };
+        const record = {
+          id: p.id || pid,
+          roll: p.roll || "",
+          name: p.name || "Player",
+          email: p.email || "",
+          isPresent,
+          isUpdate: !isNew && hasChanged,
+        };
+        if (isPresent) {
+          presentPlayers.push(record);
+        } else {
+          absentPlayers.push(record);
+        }
+        if (record.email) {
+          playersToEmail.push(record);
+        }
+      }
+    }
+
+    const tasks = [];
+
+    // 1. Web Push to Present Players
+    if (presentPlayers.length) {
+      const presentIds = new Set(
+        presentPlayers.flatMap((p) => [p.id, p.roll]).filter(Boolean),
+      );
+      tasks.push(
+        pushAll(
+          {
+            title: "🏑 Attendance: Present ✅",
+            body: `Your attendance is confirmed as PRESENT for practice on ${sessLabel}. Keep it up!`,
+            tag: `hk-att-${sessionKey}-p`,
+            url: "./#tab=me",
+            data: { url: "./#tab=me" },
+          },
+          presentIds,
+        ).catch((e) => {
+          console.error("push present error:", e.message);
+          return null;
+        }),
+      );
+    }
+
+    // 2. Web Push to Absent Players
+    if (absentPlayers.length) {
+      const absentIds = new Set(
+        absentPlayers.flatMap((p) => [p.id, p.roll]).filter(Boolean),
+      );
+      tasks.push(
+        pushAll(
+          {
+            title: "🏑 Attendance: Absent ❌",
+            body: `Your attendance was recorded as ABSENT for practice on ${sessLabel}.`,
+            tag: `hk-att-${sessionKey}-a`,
+            url: "./#tab=me",
+            data: { url: "./#tab=me" },
+          },
+          absentIds,
+        ).catch((e) => {
+          console.error("push absent error:", e.message);
+          return null;
+        }),
+      );
+    }
+
+    // 3. Email notifications (if RESEND_API_KEY configured)
+    if (process.env.RESEND_API_KEY && playersToEmail.length) {
+      for (const p of playersToEmail) {
+        const statusWord = p.isPresent ? "Present" : "Absent";
+        const statusEmoji = p.isPresent ? "✅" : "❌";
+        const emailSubject = `🏑 Practice Attendance: ${statusWord} ${statusEmoji} (${sessLabel})`;
+        const emailHtml = `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;color:#0f172a;">
+            <div style="text-align:center;margin-bottom:20px;">
+              <span style="display:inline-block;background:#0369a1;color:#ffffff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;">IIT Patna Hockey</span>
+              <h2 style="margin:12px 0 4px;font-size:22px;color:#0f172a;">Practice Attendance Logged</h2>
+              <p style="margin:0;color:#64748b;font-size:14px;">${sessLabel}</p>
+            </div>
+            <div style="background:${p.isPresent ? "#ecfdf5" : "#fff1f2"};border:1px solid ${p.isPresent ? "#a7f3d0" : "#fecdd3"};border-radius:12px;padding:18px;margin-bottom:20px;text-align:center;">
+              <div style="font-size:32px;margin-bottom:6px;">${statusEmoji}</div>
+              <div style="font-size:18px;font-weight:800;color:${p.isPresent ? "#065f46" : "#9f1239"};">${statusWord.toUpperCase()}</div>
+              <p style="margin:6px 0 0;font-size:14px;color:${p.isPresent ? "#047857" : "#be123c"};">
+                ${p.isPresent ? "Your attendance was confirmed for this practice session." : "You were recorded as absent for this practice session."}
+              </p>
+            </div>
+            <p style="font-size:15px;line-height:1.5;color:#334155;margin:0 0 16px;">
+              Hello <b>${escH(p.name)}</b>, your attendance status for the practice fixture on <b>${sessLabel}</b> has been recorded by team leadership.
+            </p>
+            ${!p.isPresent ? '<p style="font-size:13px;color:#64748b;margin:0 0 16px;">If you were present at this session or have an approved leave, please notify your team captain or coach.</p>' : ""}
+            <div style="text-align:center;margin-top:24px;">
+              <a href="https://hockey-iitp.anmol.website/#tab=me" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;">View My Turnout &amp; Stats</a>
+            </div>
+            <hr style="border:0;border-top:1px solid #e2e8f0;margin:24px 0 16px;">
+            <p style="font-size:12px;color:#94a3b8;text-align:center;margin:0;">
+              Indian Institute of Technology Patna · Field Hockey Team Portal
+            </p>
+          </div>
+        `;
+        const emailText = `IIT Patna Hockey - Attendance Confirmation\n\nHello ${p.name},\nYour attendance for practice on ${sessLabel} is recorded as: ${statusWord} ${statusEmoji}.\n\nView details: https://hockey-iitp.anmol.website/#tab=me`;
+        tasks.push(
+          sendEmail(p.email, emailSubject, emailText, emailHtml).catch((e) => {
+            console.error("attendance email error for", p.email, e.message);
+            return null;
+          }),
+        );
+      }
+    }
+
+    await Promise.allSettled(tasks);
+    return {
+      presentNotified: presentPlayers.length,
+      absentNotified: absentPlayers.length,
+      totalNotified: presentPlayers.length + absentPlayers.length,
+    };
+  } catch (err) {
+    console.error("notifyAttendance error:", err.message);
+    return null;
+  }
+}
+
 app.put(
   "/api/sessions/:date",
   auth,
@@ -1663,6 +1824,13 @@ app.put(
       if (p.roll) playerMap[p.roll] = p;
     });
 
+    const prevDoc = await db
+      .collection("sessions")
+      .doc(req.params.date)
+      .get()
+      .catch(() => null);
+    const prevR = prevDoc && prevDoc.exists ? (prevDoc.data() || {}).r : null;
+
     const r = {};
     for (const [k, v] of Object.entries((req.body || {}).r || {})) {
       if (typeof v === "boolean") {
@@ -1675,7 +1843,19 @@ app.put(
       }
     }
     await db.collection("sessions").doc(req.params.date).set({ r });
-    done(res);
+
+    let notif = null;
+    try {
+      notif = await Promise.race([
+        notifyAttendance(req.params.date, r, prevR, playerMap),
+        new Promise((resolve) => setTimeout(() => resolve(null), 4500)),
+      ]);
+    } catch (e) {
+      console.error("Attendance notify error:", e.message);
+    }
+
+    bust();
+    res.json({ ok: true, notif });
   }),
 );
 app.delete(
