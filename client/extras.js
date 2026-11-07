@@ -1658,7 +1658,7 @@ function renderSettingsPage() {
             ${ico("back")} <span>Back</span>
           </button>
           <span class="pill pri" style="font-size:0.75rem;font-weight:800;letter-spacing:0.04em">⚙️ SYSTEM SETTINGS</span>
-          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v125 · Widescreen Ready</span>
+          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v126 · Mobile &amp; Desktop Optimized</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <button type="button" class="btn-sec" id="btn-settings-refresh-cache-top" style="padding:6px 14px;font-size:0.82rem;font-weight:700;">
@@ -1804,7 +1804,7 @@ function renderSettingsPage() {
               <b style="display:block;font-size:0.88rem;color:var(--ink)">Production Version</b>
               <span class="mute" style="font-size:0.78rem">Active service worker shell</span>
             </div>
-            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v125</span>
+            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v126</span>
           </div>
 
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
@@ -2082,26 +2082,34 @@ function parseYouTubeId(input) {
 }
 
 function skillsVideoCard(opts = {}) {
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 861;
+  const isFolderOpen = typeof window !== "undefined" && (window._hskFolderOpen !== undefined ? window._hskFolderOpen : isDesktop);
+
   const curVid = HOCKEY_SKILL_VIDEOS.find((v) => v.id === currentSkillVideoId) || HOCKEY_SKILL_VIDEOS[0];
   const list = skillVideoCategory === "all"
     ? HOCKEY_SKILL_VIDEOS
     : HOCKEY_SKILL_VIDEOS.filter((v) => v.category === skillVideoCategory);
 
   const categories = [
-    ["all", "All Drills"],
-    ["warmup", "Warm-Up & Stretches 🔥"],
-    ["hitting", "Hitting & Basics"],
-    ["dodging", "Dodging & Control"],
-    ["passing", "Passing & Reception"],
-    ["3d", "Aerial & 3D Skills"],
-    ["tactics", "Attacking Tactics"],
+    ["all", "📁 All Drills", HOCKEY_SKILL_VIDEOS.length],
+    ["warmup", "🔥 Warm-Up", HOCKEY_SKILL_VIDEOS.filter((v) => v.category === "warmup").length],
+    ["hitting", "🏑 Hitting", HOCKEY_SKILL_VIDEOS.filter((v) => v.category === "hitting").length],
+    ["dodging", "⚡ Dodging", HOCKEY_SKILL_VIDEOS.filter((v) => v.category === "dodging").length],
+    ["passing", "🎯 Passing", HOCKEY_SKILL_VIDEOS.filter((v) => v.category === "passing").length],
+    ["3d", "✨ Aerial 3D", HOCKEY_SKILL_VIDEOS.filter((v) => v.category === "3d").length],
+    ["tactics", "🛡️ Tactics", HOCKEY_SKILL_VIDEOS.filter((v) => v.category === "tactics").length],
   ];
+
+  const activeCategoryObj = categories.find(([k]) => k === skillVideoCategory) || categories[0];
+  const activeCategoryLabel = activeCategoryObj[1];
 
   const renderCategoryChips = () => {
     return categories
       .map(
-        ([k, lbl]) =>
-          `<button type="button" class="hsk-cat-pill ${skillVideoCategory === k ? "active" : ""}" data-vcat="${k}">${lbl}</button>`,
+        ([k, lbl, count]) =>
+          `<button type="button" class="hsk-cat-pill ${skillVideoCategory === k ? "active" : ""}" data-vcat="${k}">
+            <span>${lbl}</span> <span class="hsk-cat-count" style="font-size:0.72rem;opacity:0.85;margin-left:3px;font-weight:700;">(${count})</span>
+          </button>`,
       )
       .join("");
   };
@@ -2115,7 +2123,7 @@ function skillsVideoCard(opts = {}) {
             <div class="hsk-thumb-wrap">
               <img src="${esc(v.thumb)}" alt="${esc(v.title)}" loading="lazy" decoding="async">
               <div class="hsk-play-overlay">
-                <span class="hsk-play-badge">${isCurrent ? "▶" : "▶"}</span>
+                <span class="hsk-play-badge">▶</span>
               </div>
               <span class="hsk-duration-tag">${esc(v.duration || "Shorts")}</span>
               ${isCurrent ? '<span class="hsk-now-playing-pill">Now Playing</span>' : ""}
@@ -2198,12 +2206,12 @@ function skillsVideoCard(opts = {}) {
             ` : '<div class="hsk-coaching-points" id="hsk-coaching-list" style="display:none"></div>'}
 
             <div class="hsk-controls-row">
-              ${prevVid ? `<button type="button" class="btn-drill-nav" data-play-video="${esc(prevVid.id)}">⏮ Previous Drill</button>` : ""}
-              <button type="button" class="btn-drill-nav pri" data-play-video="${esc(nextVid.id)}">Next Skill Drill ⏭</button>
+              ${prevVid ? `<button type="button" class="btn-drill-nav" data-play-video="${esc(prevVid.id)}">⏮ Previous</button>` : ""}
+              <button type="button" class="btn-drill-nav pri" data-play-video="${esc(nextVid.id)}">Next Drill ⏭</button>
               <a href="https://youtube.com/shorts/${currentSkillVideoId}" target="_blank" rel="noopener noreferrer" class="btn-drill-nav" id="hsk-yt-link">Watch on YouTube ↗</a>
             </div>
 
-            <!-- Custom YouTube URL Input -->
+            <!-- Custom YouTube URL Input (Hidden on mobile) -->
             <div class="hsk-custom-input-bar">
               <input type="text" id="input-custom-yt" placeholder="Paste any YouTube Video / Short URL (e.g. https://youtube.com/shorts/...)" class="hsk-yt-input">
               <button type="button" class="pri" id="btn-play-custom-yt">Direct Play ▶</button>
@@ -2212,23 +2220,50 @@ function skillsVideoCard(opts = {}) {
           </div>
         </div>
 
-        <!-- Categories & Video List -->
-        <div class="hsk-filter-strip" role="tablist">
-          ${renderCategoryChips()}
-        </div>
+        <!-- Drill Video Folders Drawer & Mobile-Optimized Library -->
+        <details class="hsk-folders-drawer" id="hsk-folders-drawer" ${isFolderOpen ? "open" : ""}>
+          <summary class="hsk-folder-summary">
+            <div class="hsk-folder-summary-left">
+              <span class="hsk-folder-icon">📁</span>
+              <div>
+                <b class="hsk-folder-title">Hockey Drill Video Folders</b>
+                <span class="mute hsk-folder-sub">${HOCKEY_SKILL_VIDEOS.length} drills organized in 6 skill folders · ${esc(activeCategoryLabel)}</span>
+              </div>
+            </div>
+            <div class="hsk-folder-summary-right">
+              <span class="pill pri hsk-folder-pill">📁 Folders (${list.length}) ▾</span>
+            </div>
+          </summary>
 
-        <div class="hsk-gallery-grid">
-          ${renderDrillCards()}
-        </div>
+          <div class="hsk-folder-contents">
+            <!-- Folder Selection Tabs / Chips -->
+            <div class="hsk-filter-strip" role="tablist" aria-label="Drill Video Folders">
+              ${renderCategoryChips()}
+            </div>
+
+            <!-- Video Cards in Active Folder -->
+            <div class="hsk-gallery-grid">
+              ${renderDrillCards()}
+            </div>
+          </div>
+        </details>
       </div>
     </div>
   `;
 }
 
 function bindSkillsVideoCard() {
+  const fDrawer = document.getElementById("hsk-folders-drawer");
+  if (fDrawer) {
+    fDrawer.ontoggle = () => {
+      window._hskFolderOpen = fDrawer.open;
+    };
+  }
+
   document.querySelectorAll("[data-vcat]").forEach((btn) => {
     btn.onclick = () => {
       skillVideoCategory = btn.dataset.vcat;
+      window._hskFolderOpen = true; // keep folder open when switching folders
       document.querySelectorAll(".skills-video-container").forEach((el) => {
         el.outerHTML = skillsVideoCard();
       });

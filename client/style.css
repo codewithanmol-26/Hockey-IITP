@@ -10198,6 +10198,68 @@ dialog.custom-export-dialog {
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
 }
 
+/* Drill Video Folders Drawer & Mobile-Optimized Library */
+.hsk-folders-drawer {
+  margin-top: 14px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+.hsk-folder-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  gap: 10px;
+  user-select: none;
+  background: var(--soft);
+  transition: background 0.15s ease;
+}
+.hsk-folder-summary::-webkit-details-marker {
+  display: none;
+}
+.hsk-folder-summary:hover {
+  background: var(--card);
+}
+.hsk-folder-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.hsk-folder-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.hsk-folder-title {
+  font-size: 0.92rem;
+  color: var(--ink);
+  display: block;
+}
+.hsk-folder-sub {
+  font-size: 0.76rem;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hsk-folder-pill {
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hsk-folder-contents {
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
 /* Video Gallery Grid */
 .hsk-gallery-grid {
   display: grid;
@@ -10474,16 +10536,81 @@ dialog.custom-export-dialog {
     justify-content: center !important;
   }
 
-  /* Hockey Skill Practice Video Card */
+  /* Hockey Skill Practice Video Card - Ultra-Compact Mobile View */
   #hockey-skills-player-card,
   .hsk-card {
-    padding: 12px 10px !important;
+    padding: 10px 10px !important;
     border-radius: 14px !important;
     margin-bottom: 12px !important;
   }
+  .hsk-header {
+    margin-bottom: 6px !important;
+  }
+  .hsk-kicker-strip {
+    margin-bottom: 2px !important;
+  }
+  .hsk-channel-badge,
+  .btn-channel-link,
+  .hsk-subhead {
+    display: none !important;
+  }
+  .hsk-heading {
+    font-size: 0.98rem !important;
+    margin: 0 !important;
+  }
+  .hsk-main-showcase {
+    gap: 8px !important;
+    margin-bottom: 8px !important;
+  }
   .hsk-player-wrap {
-    max-height: 440px !important;
-    border-radius: 12px !important;
+    aspect-ratio: 16 / 9 !important;
+    max-height: 195px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+  }
+  .hsk-poster-play-btn {
+    width: 48px !important;
+    height: 48px !important;
+    font-size: 1.15rem !important;
+  }
+  .hsk-poster-hint {
+    display: none !important;
+  }
+  .hsk-info-box {
+    gap: 5px !important;
+  }
+  .hsk-active-title {
+    font-size: 0.92rem !important;
+    line-height: 1.25 !important;
+  }
+  .hsk-active-desc {
+    font-size: 0.78rem !important;
+    line-height: 1.35 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+  .hsk-coaching-points {
+    display: none !important;
+  }
+  .hsk-custom-input-bar,
+  #hsk-custom-err {
+    display: none !important;
+  }
+  .hsk-controls-row {
+    margin-top: 2px !important;
+    gap: 6px !important;
+  }
+  .btn-drill-nav {
+    padding: 5px 9px !important;
+    font-size: 0.74rem !important;
+    border-radius: 6px !important;
+  }
+  .warmup-video-card iframe,
+  .warmup-video-card > div:has(iframe) {
+    max-height: 200px !important;
   }
   .hsk-shelf-grid {
     grid-template-columns: 1fr !important;
