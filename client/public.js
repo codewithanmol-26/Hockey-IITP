@@ -476,12 +476,12 @@ function drawPublic() {
       </div>
     </section>
 
-    <!-- 3b. Inter-IIT Student Fixtures Section -->
+    <!-- 3b. Inter-IIT Student Fixtures Section (Men's Hockey Only) -->
     <section class="pub-sec" id="pub-fixtures">
       <div class="sec-header">
-        <span class="sec-kicker">INTER-IIT SPORTS MEET 2026</span>
-        <h2 class="sec-title">Official Student Fixtures &amp; Match Schedule</h2>
-        <p class="sec-lead">Live draws, pool pairings, pitches, and match timings for IIT Patna student contingents.</p>
+        <span class="sec-kicker">57th INTER-IIT SPORTS MEET · HOCKEY MEN</span>
+        <h2 class="sec-title">Inter-IIT Men's Hockey Championship Fixtures</h2>
+        <p class="sec-lead">Official preliminary league draw, pitch allocations, match timings, and knockout roadmap for IIT Patna Men's Hockey Team.</p>
       </div>
       <div id="pub-fixtures-container">
         ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}

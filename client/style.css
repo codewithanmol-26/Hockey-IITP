@@ -9438,6 +9438,24 @@ dialog.custom-export-dialog {
   border-color: var(--brand);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
+.fixture-match-card.is-patna-card {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: linear-gradient(135deg, var(--soft) 0%, rgba(37, 99, 235, 0.06) 100%);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12);
+}
+.fixture-match-card.is-final-match-card {
+  border-color: rgba(234, 179, 8, 0.55);
+  background: linear-gradient(135deg, var(--soft) 0%, rgba(234, 179, 8, 0.08) 100%);
+  box-shadow: 0 4px 18px rgba(234, 179, 8, 0.18);
+}
+.fmc-team.is-right {
+  justify-content: flex-end;
+}
+.iit-crest-svg, .iit-crest-img, .iit-logo-badge {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
 .fmc-header {
   display: flex;
   align-items: center;
