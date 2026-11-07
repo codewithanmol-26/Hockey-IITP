@@ -934,7 +934,7 @@ const TABS = [
   ["schedule", "⏰", "Schedule", "", "Schedule"],
   ["rules", "📖", "Rules", "", ""],
   ["warmup", "🔥", "Warm-up", "", ""],
-  ["interiit", "🏆", "Inter IIT Sports Meet", "", "Inter-IIT"],
+  ["interiit", "🏆", "59th Inter IIT Sports Meet", "", "Inter-IIT"],
   ["gallery", "🖼️", "Gallery", "", ""],
   ["train", "⌚", "Training & health", "", ""],
   ["players", "👥", "Players", "s", ""],

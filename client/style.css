@@ -10517,8 +10517,66 @@ dialog.custom-export-dialog {
 }
 
 /* ==========================================================================
-   Inter IIT Sports Meet Hub Styling
+   Inter IIT Sports Meet Hub Styling (59th Edition - Compact & Responsive)
    ========================================================================== */
+.interiit-hub-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding-bottom: 24px;
+}
+.interiit-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.btn-interiit-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-interiit-back:hover {
+  background: var(--soft) !important;
+  border-color: var(--brand) !important;
+}
+.interiit-hero-card {
+  margin-bottom: 10px !important;
+  padding: 12px 14px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, rgba(11, 42, 74, 0.96), rgba(7, 26, 46, 0.98)), radial-gradient(circle at top right, rgba(56, 189, 248, 0.22), transparent 70%);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+.interiit-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.interiit-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 700;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
 .interiit-link-btn:hover {
   transform: translateY(-2px);
   filter: brightness(1.08);
@@ -10536,31 +10594,34 @@ dialog.custom-export-dialog {
     transform: scale(1.25);
   }
 }
-.btn-interiit-back:hover {
-  background: var(--soft) !important;
-  border-color: var(--brand) !important;
-}
 dialog#interiitdlg {
-  width: min(96vw, 920px);
+  width: min(94vw, 880px);
   max-height: 90vh;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 16px;
   background: var(--bg);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
 }
 dialog#interiitdlg .lightbox-header {
   background: var(--card);
   border-bottom: 1px solid var(--line);
-  padding: 14px 20px;
+  padding: 10px 16px;
 }
 dialog#interiitdlg .lightbox-content {
-  padding: 20px;
+  padding: 12px 14px;
   background: var(--bg);
-  max-height: calc(90vh - 70px);
+  max-height: calc(90vh - 54px);
   overflow-y: auto;
 }
 @media (max-width: 600px) {
+  .interiit-hero-card {
+    padding: 10px 12px !important;
+  }
+  .interiit-links-grid {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
   dialog#interiitdlg {
     width: 100vw !important;
     height: 100vh !important;
@@ -10569,8 +10630,8 @@ dialog#interiitdlg .lightbox-content {
     border: none !important;
   }
   dialog#interiitdlg .lightbox-content {
-    padding: 12px 10px !important;
-    max-height: calc(100vh - 60px) !important;
+    padding: 8px 6px !important;
+    max-height: calc(100vh - 50px) !important;
   }
 }
 

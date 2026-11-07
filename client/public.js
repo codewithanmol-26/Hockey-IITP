@@ -476,15 +476,10 @@ function drawPublic() {
       </div>
     </section>
 
-    <!-- 3b. Inter-IIT Student Fixtures Section (Men's Hockey Only) -->
+    <!-- 3b. Student Fixtures Section (Men's Hockey) -->
     <section class="pub-sec" id="pub-fixtures">
-      <div class="sec-header">
-        <span class="sec-kicker">57th INTER-IIT SPORTS MEET · HOCKEY MEN</span>
-        <h2 class="sec-title">Inter-IIT Men's Hockey Championship Fixtures</h2>
-        <p class="sec-lead">Official preliminary league draw, pitch allocations, match timings, and knockout roadmap for IIT Patna Men's Hockey Team.</p>
-      </div>
       <div id="pub-fixtures-container">
-        ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
+        ${typeof studentFixtureCard === "function" ? studentFixtureCard({ isPublic: true }) : ""}
       </div>
     </section>
 
@@ -959,7 +954,7 @@ function pubMenu() {
     return `<button class="mi" data-k="${menuActs.length - 1}"><span class="i">${ic}</span><span class="t">${label}</span></button>`;
   };
   let h = menuHead("Menu");
-  h += mi("🏆", "Inter IIT Sports Meet", () => {
+  h += mi("🏆", "59th Inter IIT Sports Meet", () => {
     if (typeof showInterIITMeetInfo === "function") showInterIITMeetInfo();
   });
   if (!standalone()) h += mi("📲", "Open in app / install", openInApp);
