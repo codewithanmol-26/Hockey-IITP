@@ -937,6 +937,7 @@ const TABS = [
   ["interiit", "🏆", "59th Inter IIT Sports Meet", "", "Inter-IIT"],
   ["gallery", "🖼️", "Gallery", "", ""],
   ["train", "⌚", "Training & health", "", ""],
+  ["settings", "⚙️", "Settings", "", "Settings"],
   ["players", "👥", "Players", "s", ""],
   ["removed", "🗑️", "Removed students", "a", ""],
   ["admins", "🛡️", "Admins", "o", ""],
@@ -3045,7 +3046,7 @@ function drawSidebar() {
   const allTabs = tabsFor();
   const mainKeys = ["me", "take", "plan", "stats", "schedule"];
   const mainTabs = allTabs.filter((t) => mainKeys.includes(t[0]));
-  const trainKeys = ["rules", "warmup", "interiit", "gallery", "train"];
+  const trainKeys = ["rules", "warmup", "interiit", "gallery", "train", "settings"];
   const trainTabs = allTabs.filter((t) => trainKeys.includes(t[0]));
   const mgmtKeys = ["players", "removed", "admins", "helpbox"];
   const mgmtTabs = allTabs.filter((t) => mgmtKeys.includes(t[0]));
@@ -3163,6 +3164,10 @@ function drawSidebar() {
           <span class="sb-nav-icon">📅</span>
           <span class="sb-footer-btn-label">Calendar</span>
         </button>
+        <button type="button" class="sb-footer-btn" id="sb-set" title="Settings &amp; Preferences">
+          <span class="sb-nav-icon">⚙️</span>
+          <span class="sb-footer-btn-label">Settings</span>
+        </button>
       </div>
       <button type="button" class="sb-logout-btn" id="sb-logout">
         <span>🚪</span>
@@ -3211,6 +3216,9 @@ function drawSidebar() {
 
   const calBtn = sb.querySelector("#sb-cal");
   if (calBtn) calBtn.onclick = () => icsDownload();
+
+  const setBtn = sb.querySelector("#sb-set");
+  if (setBtn) setBtn.onclick = () => go("settings");
 
   const lgBtn = sb.querySelector("#sb-logout");
   if (lgBtn) lgBtn.onclick = () => doLogout();
@@ -3296,6 +3304,7 @@ function render() {
       rules: vRules,
       warmup: vWarm,
       interiit: typeof vInterIIT === "function" ? vInterIIT : () => {},
+      settings: typeof vSettings === "function" ? vSettings : () => (typeof openSettingsModal === "function" ? openSettingsModal() : {}),
       players: vPlayers,
       removed: vRemoved,
       admins: vAdmins,

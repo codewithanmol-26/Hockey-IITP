@@ -1464,9 +1464,6 @@ function studentFixtureCard(opts = {}) {
               <button type="button" class="btn-fixture-scan" id="btn-fixtures-modal" title="Open Complete Men's Hockey Tournament Guide &amp; Rules">
                 ${ico("scan")} <span>Guide</span>
               </button>
-              <button type="button" class="btn-fixture-settings" id="btn-fixtures-settings" title="Notification Preferences &amp; Match Alerts">
-                ${ico("settings")}
-              </button>
             </div>
           </div>
         `
@@ -1701,6 +1698,184 @@ function openSettingsModal() {
       openSettingsModal();
     };
   }
+}
+
+function renderSettingsPage() {
+  const isDk = typeof isDark === "function" ? isDark() : false;
+  const currentVol = typeof volume === "function" ? Math.round(volume() * 100) : 70;
+  const isAlert = typeof alertOn !== "undefined" ? alertOn : false;
+
+  return `
+    <div class="settings-page" style="max-width:860px;margin:0 auto;padding-bottom:24px;">
+      <!-- Top Return Bar -->
+      <div class="settings-top-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <button type="button" class="btn-settings-back" id="btn-settings-back" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:0.84rem;font-weight:700;color:var(--ink);cursor:pointer;">
+          ${ico("back")} <span>Back</span>
+        </button>
+        <span class="pill pri" style="font-size:0.75rem;font-weight:800;letter-spacing:0.04em">⚙️ SETTINGS</span>
+        <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">Preferences &amp; System Configuration</span>
+      </div>
+
+      <!-- Settings Header Card -->
+      <div class="card settings-hero-card" style="margin-bottom:14px;padding:16px 18px;border-radius:14px;background:linear-gradient(135deg, rgba(11,42,74,0.96), rgba(7,26,46,0.98)), radial-gradient(circle at top right, rgba(56,189,248,0.22), transparent 70%);border:1px solid rgba(56,189,248,0.35);color:#fff;box-shadow:0 6px 20px rgba(0,0,0,0.25);">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:12px;background:rgba(56,189,248,0.18);color:#38bdf8;font-size:1.5rem;flex-shrink:0;">⚙️</span>
+          <div>
+            <h1 style="margin:0 0 3px;font-size:clamp(1.15rem, 3.5vw, 1.4rem);font-family:var(--font-display);font-weight:900;letter-spacing:-0.02em;color:#fff;">
+              App Preferences &amp; Settings
+            </h1>
+            <p style="margin:0;font-size:0.82rem;line-height:1.4;color:rgba(255,255,255,0.85);max-width:620px;">
+              Manage visual appearance, practice &amp; match notifications, whistle sound effects volume, and offline cache storage.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Options -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <!-- 1. Visual Theme -->
+        <div class="card" style="margin:0;padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <div style="max-width:520px;">
+            <b style="display:block;font-size:0.95rem;color:var(--ink)">Appearance Theme</b>
+            <span class="mute" style="font-size:0.82rem">Switch between Day (Light) and Night (Dark) mode for optimal viewing comfort on the field or indoors.</span>
+          </div>
+          <button type="button" class="pill" id="btn-page-set-theme" style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;font-size:0.85rem;font-weight:700;cursor:pointer;background:var(--soft);color:var(--ink);border:1px solid var(--line);">
+            ${ico(isDk ? "sun" : "moon")} <span>${isDk ? "Night Mode Active 🌙" : "Day Mode Active ☀️"}</span>
+          </button>
+        </div>
+
+        <!-- 2. Notifications -->
+        <div class="card" style="margin:0;padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);">
+          <b style="display:block;font-size:0.95rem;color:var(--ink);margin-bottom:12px;">🔔 Notification Preferences</b>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);flex-wrap:wrap;gap:8px;">
+              <div style="max-width:480px;">
+                <b style="display:block;font-size:0.88rem;color:var(--ink)">Practice Reminders (15 min prior)</b>
+                <span class="mute" style="font-size:0.78rem">Automated morning reminder and pre-practice alerts so you never miss training</span>
+              </div>
+              <button type="button" class="pill ${isAlert ? "g" : ""}" id="btn-page-set-alert" style="font-weight:700;cursor:pointer;">
+                ${isAlert ? "Active 🔔" : "Enable 🔕"}
+              </button>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);flex-wrap:wrap;gap:8px;">
+              <div style="max-width:480px;">
+                <b style="display:block;font-size:0.88rem;color:var(--ink)">Attendance Confirmations</b>
+                <span class="mute" style="font-size:0.78rem">Instant notification sent to player when attendance is marked Present or Absent</span>
+              </div>
+              <span class="pill g" style="font-weight:700">Active ✅</span>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);flex-wrap:wrap;gap:8px;">
+              <div style="max-width:480px;">
+                <b style="display:block;font-size:0.88rem;color:var(--ink)">59th Inter-IIT Match Alerts</b>
+                <span class="mute" style="font-size:0.78rem">Live countdown and match day push notifications for IIT Patna Men's Hockey Pool A games</span>
+              </div>
+              <span class="pill teal" style="font-weight:700">Enabled 🏑</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Whistle & Timer Sound -->
+        <div class="card" style="margin:0;padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <div>
+            <b style="display:block;font-size:0.95rem;color:var(--ink)">Umpire Whistle &amp; Drill Timer Audio</b>
+            <span class="mute" style="font-size:0.82rem">Volume level for whistle blasts and countdown beeps</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="range" id="settings-vol-slider" min="0" max="1" step="0.05" value="${typeof volume === "function" ? volume() : 0.7}" style="width:130px;accent-color:var(--brand);cursor:pointer;">
+            <span id="settings-vol-val" style="font-size:0.82rem;font-weight:700;color:var(--ink);min-width:38px;">${currentVol}%</span>
+            <button type="button" class="btn-sec" id="btn-test-audio" style="padding:6px 12px;font-size:0.82rem;font-weight:700;">
+              📢 Test Audio
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. Offline Storage & Cache -->
+        <div class="card" style="margin:0;padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <div>
+            <b style="display:block;font-size:0.95rem;color:var(--ink)">Offline Cache &amp; Storage</b>
+            <span class="mute" style="font-size:0.82rem">App Build hk-v120 · Cached offline shell for instant page loads</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button type="button" class="btn-sec" id="btn-settings-refresh-cache" style="padding:6px 12px;font-size:0.82rem;font-weight:700;">
+              🔄 Refresh Cache
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindSettingsPage() {
+  const bBack = document.getElementById("btn-settings-back");
+  if (bBack) {
+    bBack.onclick = () => {
+      if (typeof go === "function") go(prevTab || "me");
+    };
+  }
+
+  const bThm = document.getElementById("btn-page-set-theme");
+  if (bThm) {
+    bThm.onclick = () => {
+      if (typeof toggleTheme === "function") toggleTheme();
+      vSettings();
+    };
+  }
+
+  const bAlert = document.getElementById("btn-page-set-alert");
+  if (bAlert) {
+    bAlert.onclick = async () => {
+      if (typeof setAlert === "function" && typeof alertOn !== "undefined") {
+        await setAlert(!alertOn);
+        vSettings();
+      }
+    };
+  }
+
+  const volSlider = document.getElementById("settings-vol-slider");
+  const volVal = document.getElementById("settings-vol-val");
+  if (volSlider && volVal) {
+    volSlider.oninput = () => {
+      const v = +volSlider.value;
+      if (typeof setVol === "function") setVol(v);
+      volVal.textContent = Math.round(v * 100) + "%";
+    };
+  }
+
+  const bAudio = document.getElementById("btn-test-audio");
+  if (bAudio) {
+    bAudio.onclick = () => {
+      if (typeof playWhistle === "function") {
+        playWhistle("short");
+      } else if (typeof playClick === "function") {
+        playClick();
+      }
+    };
+  }
+
+  const bRef = document.getElementById("btn-settings-refresh-cache");
+  if (bRef) {
+    bRef.onclick = async () => {
+      try {
+        if (window.caches) {
+          const ks = await caches.keys();
+          await Promise.all(ks.map((k) => caches.delete(k)));
+        }
+        localStorage.removeItem("hk_cache");
+      } catch (e) {}
+      location.reload();
+    };
+  }
+}
+
+function vSettings() {
+  const v = document.getElementById("view");
+  if (!v) return;
+  v.innerHTML = renderSettingsPage();
+  bindSettingsPage();
+  window.scrollTo(0, 0);
 }
 
 // ---------------------------------------------------------------- 8. Hockey Skill Practice Video Player
@@ -2458,6 +2633,10 @@ window.bindInterIITPage = bindInterIITPage;
 window.vInterIIT = vInterIIT;
 window.openInterIITModal = openInterIITModal;
 window.showInterIITMeetInfo = showInterIITMeetInfo;
+window.renderSettingsPage = renderSettingsPage;
+window.bindSettingsPage = bindSettingsPage;
+window.vSettings = vSettings;
+window.openSettingsModal = openSettingsModal;
 
 
 

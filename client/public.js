@@ -831,6 +831,15 @@ function bindPublic() {
         pmb.setAttribute("aria-expanded", "false");
       };
     });
+    const pdlSet = gid("pdl-settings");
+    if (pdlSet) {
+      pdlSet.onclick = (e) => {
+        e.preventDefault();
+        pdr.hidden = true;
+        pmb.setAttribute("aria-expanded", "false");
+        if (typeof openSettingsModal === "function") openSettingsModal();
+      };
+    }
     document.addEventListener("click", (e) => {
       if (!pdr.hidden && !pdr.contains(e.target) && e.target !== pmb) {
         pdr.hidden = true;
