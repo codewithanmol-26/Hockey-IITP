@@ -604,13 +604,10 @@ app.post(
       sends: sends + 1,
     });
 
-    const host =
-      req.headers["x-forwarded-host"] ||
-      req.headers.host ||
-      "hockey-iitp.anmol.website";
-    const proto =
-      req.headers["x-forwarded-proto"] || (req.secure ? "https" : "https");
-    const appUrl = proto + "://" + host;
+    const rawHost = String(req.headers["x-forwarded-host"] || req.headers.host || "hockey-iitp.anmol.website").split(",")[0].trim();
+    const appUrl = rawHost.includes("localhost")
+      ? "http://" + rawHost
+      : "https://hockey-iitp.anmol.website";
 
     // Cryptographically signed tamper-proof magic login token (15-min TTL)
     // Immune to automated email crawlers / anti-virus pre-fetchers that consume single-use DB codes!
@@ -628,11 +625,7 @@ app.post(
     const autoFillUrl =
       appUrl +
       "/api/auth/magic-login?token=" +
-      encodeURIComponent(magicToken) +
-      "&identifier=" +
-      encodeURIComponent(identifier) +
-      "&otp=" +
-      encodeURIComponent(code);
+      encodeURIComponent(magicToken);
 
     const escH = (s) =>
       String(s ?? "").replace(
