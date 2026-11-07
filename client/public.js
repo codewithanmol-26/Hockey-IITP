@@ -331,8 +331,8 @@ function drawPublic() {
         <a href="#pub-schedule" class="btn-hero-primary">
           <span>📅 Practice Schedule</span>
         </a>
-        <a href="#pub-fixtures" class="btn-hero-secondary">
-          <span>🏆 Student Fixtures</span>
+        <a href="javascript:void(0)" class="btn-hero-secondary" id="btn-hero-interiit">
+          <span>🏆 59th Inter IIT</span>
         </a>
         <a href="#pub-skills" class="btn-hero-secondary">
           <span>🏑 Skill Videos</span>
@@ -845,6 +845,13 @@ function bindPublic() {
     const pnlInt = gid("pnl-interiit");
     if (pnlInt) {
       pnlInt.onclick = (e) => {
+        e.preventDefault();
+        if (typeof showInterIITMeetInfo === "function") showInterIITMeetInfo();
+      };
+    }
+    const bHeroInt = gid("btn-hero-interiit");
+    if (bHeroInt) {
+      bHeroInt.onclick = (e) => {
         e.preventDefault();
         if (typeof showInterIITMeetInfo === "function") showInterIITMeetInfo();
       };
