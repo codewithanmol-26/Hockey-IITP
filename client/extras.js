@@ -1390,6 +1390,12 @@ function studentFixtureCard() {
             <button type="button" class="btn-fixture-scan" id="btn-fixtures-modal" title="Open Complete Men's Hockey Tournament Guide &amp; Rules">
               ${ico("scan")} <span>Tournament Guide</span>
             </button>
+            <button type="button" class="btn-fixture-scan" data-open-interiit-hub title="Open Complete Inter IIT Sports Meet Hub">
+              ${ico("award")} <span>Inter-IIT Hub</span>
+            </button>
+            <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" class="btn-fixture-settings" style="text-decoration:none;" title="Watch Live Streams on YouTube">
+              <span style="color:#ef4444;font-weight:900">▶</span> <span>Live Streams</span>
+            </a>
             <button type="button" class="btn-fixture-settings" id="btn-fixtures-settings" title="Notification Preferences &amp; Match Alerts">
               ${ico("settings")} <span>Settings</span>
             </button>
@@ -1437,6 +1443,12 @@ function bindStudentFixtureCard() {
   document.querySelectorAll(".btn-fixture-scan, [data-open-fixture-modal]").forEach((b) => {
     b.onclick = () => {
       openFixtureModal("hockey");
+    };
+  });
+
+  document.querySelectorAll("[data-open-interiit-hub]").forEach((b) => {
+    b.onclick = () => {
+      showInterIITMeetInfo();
     };
   });
 
@@ -2138,6 +2150,232 @@ function bindSkillsVideoCard() {
     window._hskVideoObserver.observe(pWrap);
   }
 }
+
+// =====================================================================================
+// 9. INTER IIT SPORTS MEET — COMPLETE TOURNAMENT, LIVE STREAMS & HERITAGE HUB
+// =====================================================================================
+
+function renderInterIITPage() {
+  return `
+    <div class="interiit-hub-page" style="max-width:980px;margin:0 auto;padding-bottom:32px;">
+      <!-- Top Return Bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="btn-interiit-back" id="btn-interiit-back" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:0.86rem;font-weight:700;color:var(--ink);cursor:pointer;">
+          ${ico("back")} <span>Back</span>
+        </button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="pill pri" style="font-size:0.75rem;font-weight:800;letter-spacing:0.05em">57th ANNUAL EDITION</span>
+          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">EST. 1961</span>
+        </div>
+      </div>
+
+      <!-- Hero Championship Banner -->
+      <div class="card interiit-hero-card" style="margin-bottom:16px;padding:24px 20px;border-radius:20px;background:linear-gradient(135deg, rgba(11,42,74,0.96), rgba(7,26,46,0.98)), radial-gradient(circle at top right, rgba(56,189,248,0.25), transparent 70%);border:1px solid rgba(56,189,248,0.35);color:#fff;box-shadow:0 12px 36px rgba(0,0,0,0.35);position:relative;overflow:hidden;">
+        <div style="position:relative;z-index:2">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+            <span class="pill" style="background:rgba(245,158,11,0.22);color:#fbbf24;border:1px solid rgba(245,158,11,0.45);font-weight:800;font-size:0.75rem">🏆 ALL 23 IITs ATHLETIC CHAMPIONSHIP</span>
+            <span class="pill" style="background:rgba(56,189,248,0.18);color:#7dd3fc;border:1px solid rgba(56,189,248,0.35);font-size:0.75rem">Dec 15–21, 2026</span>
+          </div>
+          <h1 style="margin:0 0 8px;font-size:clamp(1.5rem, 5.5vw, 2.25rem);font-family:var(--font-display);font-weight:900;letter-spacing:-0.02em;color:#fff;">
+            Inter IIT Sports Meet
+          </h1>
+          <p style="margin:0 0 16px;font-size:0.92rem;line-height:1.55;color:rgba(255,255,255,0.85);max-width:780px;">
+            India's oldest and longest-running multi-sport inter-university athletic tournament, established in 1961. Contested annually by thousands of student-athletes across all 23 IITs for the ultimate General Championship (GC) Trophy.
+          </p>
+
+          <!-- Official Links Hub -->
+          <div class="interiit-links-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px;margin-top:14px;">
+            <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" class="interiit-link-btn yt" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:#ef4444;color:#fff;text-decoration:none;box-shadow:0 4px 14px rgba(239,68,68,0.4);font-weight:700;transition:transform 0.15s ease;">
+              <span style="font-size:1.3rem">▶</span>
+              <div>
+                <div style="font-size:0.86rem;line-height:1.15">YouTube Live Streams</div>
+                <div style="font-size:0.72rem;opacity:0.9;font-weight:500">@interiit_sportsmeet/streams ↗</div>
+              </div>
+            </a>
+            <a href="https://www.instagram.com/interiit_sportsmeet/" target="_blank" rel="noopener noreferrer" class="interiit-link-btn ig" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);color:#fff;text-decoration:none;box-shadow:0 4px 14px rgba(220,39,67,0.35);font-weight:700;transition:transform 0.15s ease;">
+              <span style="font-size:1.3rem">📸</span>
+              <div>
+                <div style="font-size:0.86rem;line-height:1.15">Official Instagram</div>
+                <div style="font-size:0.72rem;opacity:0.9;font-weight:500">@interiit_sportsmeet ↗</div>
+              </div>
+            </a>
+            <a href="https://en.wikipedia.org/wiki/Inter_IIT_Sports_Meet" target="_blank" rel="noopener noreferrer" class="interiit-link-btn wiki" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:#1e293b;border:1px solid rgba(255,255,255,0.25);color:#fff;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,0.3);font-weight:700;transition:transform 0.15s ease;">
+              <span style="font-size:1.3rem">📖</span>
+              <div>
+                <div style="font-size:0.86rem;line-height:1.15">Wikipedia Archives</div>
+                <div style="font-size:0.72rem;opacity:0.9;font-weight:500">History &amp; GC Records ↗</div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Broadcast Streaming Showcase -->
+      <div class="card interiit-broadcast-card" style="margin-bottom:16px;padding:18px;border-radius:16px;background:var(--soft);border:1px solid var(--line);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+          <div>
+            <span class="pill" style="background:#ef4444;color:#fff;font-weight:800;font-size:0.72rem;display:inline-flex;align-items:center;gap:6px;margin-bottom:6px">
+              <span style="width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse-red 1.2s infinite"></span> OFFICIAL LIVE STREAM HUB
+            </span>
+            <h2 style="margin:0;font-size:1.25rem;color:var(--ink);">Live Match Broadcasts &amp; Coverage</h2>
+            <p class="mute" style="margin:4px 0 0;font-size:0.85rem;">
+              Follow official live video streams, multi-camera turf broadcasts, daily match highlights, and trophy presentations.
+            </p>
+          </div>
+          <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" class="pill pri" style="display:inline-flex;align-items:center;gap:8px;font-weight:800;padding:8px 16px;font-size:0.84rem;">
+            <span>Watch Streams on YouTube ↗</span>
+          </a>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;">
+          <div style="padding:12px;background:var(--card);border-radius:10px;border:1px solid var(--line)">
+            <b style="display:block;font-size:0.9rem;color:var(--ink);margin-bottom:4px">🏑 Astroturf Ground 1 Matches</b>
+            <p class="mute" style="margin:0;font-size:0.8rem;line-height:1.45">Every preliminary league clash, quarter-final, semi-final, and gold medal match broadcast live.</p>
+          </div>
+          <div style="padding:12px;background:var(--card);border-radius:10px;border:1px solid var(--line)">
+            <b style="display:block;font-size:0.9rem;color:var(--ink);margin-bottom:4px">📸 Ceremony &amp; Post-Match Feeds</b>
+            <p class="mute" style="margin:0;font-size:0.8rem;line-height:1.45">Daily ceremonies, player interviews, medal podiums, and photo updates on @interiit_sportsmeet.</p>
+          </div>
+          <div style="padding:12px;background:var(--card);border-radius:10px;border:1px solid var(--line)">
+            <b style="display:block;font-size:0.9rem;color:var(--ink);margin-bottom:4px">⏱️ Instant Score Updates</b>
+            <p class="mute" style="margin:0;font-size:0.8rem;line-height:1.45">Official Technical Table timing, quarter breakdowns, and penalty shoot-out coverage.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- History, Heritage & General Championship (from Wikipedia) -->
+      <div class="card interiit-history-card" style="margin-bottom:16px;padding:18px;border-radius:16px;background:var(--card);border:1px solid var(--line);">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;background:var(--brand-soft);color:var(--brand);font-size:1.2rem">🏛️</span>
+          <div>
+            <h2 style="margin:0;font-size:1.25rem;color:var(--ink);">History &amp; General Championship (GC)</h2>
+            <p class="mute" style="margin:2px 0 0;font-size:0.82rem">Official records from the Inter IIT Sports Meet Wikipedia Archives</p>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px;font-size:0.86rem;line-height:1.55;color:var(--ink);">
+          <div style="padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
+            <b style="color:var(--brand);display:block;margin-bottom:4px">Inception &amp; Legacy (Est. 1961)</b>
+            The Inter IIT Sports Meet was founded in 1961, with its inaugural edition hosted at <b>IIT Bombay</b>. Only five original campuses competed: IIT Bombay, IIT Madras, IIT Kharagpur, IIT Kanpur, and IIT Delhi. Today, it unites all 23 IIT campuses and thousands of student-athletes in December every year.
+          </div>
+          <div style="padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
+            <b style="color:var(--brand);display:block;margin-bottom:4px">The General Championship Trophy</b>
+            The coveted <b>General Championship (GC) Trophy</b> is the pinnacle of collegiate athletics in India. Awarded based on the cumulative weighted points scored by an institute's contingent across sports. Historically, powerhouses like <b>IIT Madras</b> (24+ titles), <b>IIT Bombay</b>, and <b>IIT Kharagpur</b> have led the all-time standings.
+          </div>
+          <div style="padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
+            <b style="color:var(--brand);display:block;margin-bottom:4px">Field Hockey's Critical Weight</b>
+            Men's Field Hockey is one of the founding marquee team events of the Inter-IIT Meet. Because team sports award substantial GC points, the tournament draw is fiercely contested among traditional rivals and rising powerhouse contingents.
+          </div>
+          <div style="padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
+            <b style="color:var(--brand);display:block;margin-bottom:4px">Host Campus Rotation &amp; Aquatics</b>
+            While the main multi-sport meet is hosted every December on rotation by member IITs, the <b>Aquatics Championship</b> (Swimming and Water Polo) is hosted separately in October prior to the main games.
+          </div>
+        </div>
+      </div>
+
+      <!-- Men's Hockey Tournament Fixtures Explorer (Student Fixtures) -->
+      <div style="margin-bottom:16px;">
+        ${studentFixtureCard()}
+      </div>
+
+      <!-- Participating IITs Showcase -->
+      <div class="card interiit-campuses-card" style="padding:18px;border-radius:16px;background:var(--card);border:1px solid var(--line);">
+        <h3 style="margin:0 0 4px;font-size:1.1rem;color:var(--ink);">Participating IIT Campuses (Men's Hockey 2026)</h3>
+        <p class="mute" style="margin:0 0 14px;font-size:0.82rem">15 competing contingents drawn into Pools A, B, C, and D</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:10px;">
+          ${[
+            ["PAT", "IIT Patna", "Pool A", "#0ea5e9"],
+            ["KAN", "IIT Kanpur", "Pool A", "#dc2626"],
+            ["MAN", "IIT Mandi", "Pool A", "#7c3aed"],
+            ["DEL", "IIT Delhi", "Pool B", "#ea580c"],
+            ["BOM", "IIT Bombay", "Pool B", "#0284c7"],
+            ["ROO", "IIT Roorkee", "Pool B", "#16a34a"],
+            ["MAD", "IIT Madras", "Pool C", "#9333ea"],
+            ["KGP", "IIT Kharagpur", "Pool C", "#ca8a04"],
+            ["GUW", "IIT Guwahati", "Pool C", "#059669"],
+            ["BHU", "IIT BHU", "Pool C", "#b91c1c"],
+            ["IND", "IIT Indore", "Pool D", "#2563eb"],
+            ["ROP", "IIT Ropar", "Pool D", "#d97706"],
+            ["JOD", "IIT Jodhpur", "Pool D", "#0d9488"],
+            ["GN", "IIT Gandhinagar", "Pool D", "#6366f1"],
+            ["TIR", "IIT Tirupati", "Pool D", "#e11d48"],
+          ].map(([code, name, pool, col]) => `
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--soft);border:1px solid var(--line);">
+              ${renderIitLogo(code, name, 28)}
+              <div style="overflow:hidden">
+                <b style="display:block;font-size:0.8rem;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--ink)">${name}</b>
+                <span style="font-size:0.68rem;font-weight:700;color:${col}">${pool}</span>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindInterIITPage() {
+  bindStudentFixtureCard();
+  const bBack = document.getElementById("btn-interiit-back");
+  if (bBack) {
+    bBack.onclick = () => {
+      if (typeof go === "function") {
+        go(typeof prevTab !== "undefined" && prevTab ? prevTab : "me");
+      } else if (typeof showSection === "function") {
+        showSection("pub-hero");
+      }
+    };
+  }
+}
+
+function vInterIIT() {
+  const v = document.getElementById("view");
+  if (!v) return;
+  v.innerHTML = renderInterIITPage();
+  bindInterIITPage();
+  window.scrollTo(0, 0);
+}
+
+function openInterIITModal() {
+  const d = (typeof ensureDlg === "function" ? ensureDlg("interiitdlg") : null) || document.getElementById("interiitdlg") || (() => {
+    const el = document.createElement("dialog");
+    el.id = "interiitdlg";
+    document.body.appendChild(el);
+    return el;
+  })();
+  d.className = "full-mobile-lightbox";
+  d.setAttribute("aria-label", "Inter IIT Sports Meet Hub");
+  d.innerHTML = `
+    <div class="lightbox-header">
+      <div class="lightbox-title">🏆 Inter IIT Sports Meet</div>
+      <div class="lightbox-actions">
+        <button type="button" class="lightbox-btn close" id="interiit-dlg-close" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <div class="lightbox-content" style="padding:14px;overflow-y:auto;display:block;">
+      ${renderInterIITPage()}
+    </div>
+  `;
+  bindInterIITPage();
+  const cBtn = d.querySelector("#interiit-dlg-close");
+  if (cBtn) cBtn.onclick = () => d.close();
+  const bBack = d.querySelector("#btn-interiit-back");
+  if (bBack) bBack.onclick = () => d.close();
+  if (typeof d.showModal === "function") d.showModal();
+}
+
+function showInterIITMeetInfo() {
+  if (typeof token !== "undefined" && token && document.getElementById("app") && !document.getElementById("app").hidden) {
+    if (typeof go === "function") go("interiit");
+  } else {
+    openInterIITModal();
+  }
+}
+
+window.renderInterIITPage = renderInterIITPage;
+window.bindInterIITPage = bindInterIITPage;
+window.vInterIIT = vInterIIT;
+window.openInterIITModal = openInterIITModal;
+window.showInterIITMeetInfo = showInterIITMeetInfo;
+
 
 
 

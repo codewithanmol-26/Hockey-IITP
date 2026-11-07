@@ -10483,5 +10483,64 @@ dialog.custom-export-dialog {
   }
 }
 
+/* ==========================================================================
+   Inter IIT Sports Meet Hub Styling
+   ========================================================================== */
+.interiit-link-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+.interiit-link-btn:active {
+  transform: translateY(0);
+}
+@keyframes pulse-red {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.25);
+  }
+}
+.btn-interiit-back:hover {
+  background: var(--soft) !important;
+  border-color: var(--brand) !important;
+}
+dialog#interiitdlg {
+  width: min(96vw, 920px);
+  max-height: 90vh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--bg);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+dialog#interiitdlg .lightbox-header {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 20px;
+}
+dialog#interiitdlg .lightbox-content {
+  padding: 20px;
+  background: var(--bg);
+  max-height: calc(90vh - 70px);
+  overflow-y: auto;
+}
+@media (max-width: 600px) {
+  dialog#interiitdlg {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+  dialog#interiitdlg .lightbox-content {
+    padding: 12px 10px !important;
+    max-height: calc(100vh - 60px) !important;
+  }
+}
+
+
 
 

@@ -934,6 +934,7 @@ const TABS = [
   ["schedule", "⏰", "Schedule", "", "Schedule"],
   ["rules", "📖", "Rules", "", ""],
   ["warmup", "🔥", "Warm-up", "", ""],
+  ["interiit", "🏆", "Inter IIT Sports Meet", "", "Inter-IIT"],
   ["gallery", "🖼️", "Gallery", "", ""],
   ["train", "⌚", "Training & health", "", ""],
   ["players", "👥", "Players", "s", ""],
@@ -3044,7 +3045,7 @@ function drawSidebar() {
   const allTabs = tabsFor();
   const mainKeys = ["me", "take", "plan", "stats", "schedule"];
   const mainTabs = allTabs.filter((t) => mainKeys.includes(t[0]));
-  const trainKeys = ["rules", "warmup", "gallery", "train"];
+  const trainKeys = ["rules", "warmup", "interiit", "gallery", "train"];
   const trainTabs = allTabs.filter((t) => trainKeys.includes(t[0]));
   const mgmtKeys = ["players", "removed", "admins", "helpbox"];
   const mgmtTabs = allTabs.filter((t) => mgmtKeys.includes(t[0]));
@@ -3294,6 +3295,7 @@ function render() {
       bugs: vBugs,
       rules: vRules,
       warmup: vWarm,
+      interiit: typeof vInterIIT === "function" ? vInterIIT : () => {},
       players: vPlayers,
       removed: vRemoved,
       admins: vAdmins,

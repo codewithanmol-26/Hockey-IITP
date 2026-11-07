@@ -723,6 +723,16 @@ function drawPublic() {
         </div>
 
         <div class="footer-col">
+          <h4>Inter IIT Sports Meet</h4>
+          <ul class="footer-links" style="list-style:none;padding:0;margin:0 0 10px;font-size:0.85rem;line-height:1.9;">
+            <li><a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" style="color:rgba(255,255,255,0.85);text-decoration:none;">▶ YouTube Live Streams ↗</a></li>
+            <li><a href="https://www.instagram.com/interiit_sportsmeet/" target="_blank" rel="noopener noreferrer" style="color:rgba(255,255,255,0.85);text-decoration:none;">📸 Official Instagram ↗</a></li>
+            <li><a href="https://en.wikipedia.org/wiki/Inter_IIT_Sports_Meet" target="_blank" rel="noopener noreferrer" style="color:rgba(255,255,255,0.85);text-decoration:none;">📖 Wikipedia Archives ↗</a></li>
+            <li><a href="javascript:void(0)" onclick="if(typeof showInterIITMeetInfo==='function')showInterIITMeetInfo()" style="color:var(--accent);text-decoration:underline;">🏆 Open Tournament Hub</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
           <h4>Team Leadership</h4>
           <p style="font-size:0.85rem;line-height:1.6;color:rgba(255,255,255,0.78);margin:0 0 10px">
             <b>Head Coach:</b> ${esc(nameOf2("coach"))}<br>
@@ -949,6 +959,9 @@ function pubMenu() {
     return `<button class="mi" data-k="${menuActs.length - 1}"><span class="i">${ic}</span><span class="t">${label}</span></button>`;
   };
   let h = menuHead("Menu");
+  h += mi("🏆", "Inter IIT Sports Meet", () => {
+    if (typeof showInterIITMeetInfo === "function") showInterIITMeetInfo();
+  });
   if (!standalone()) h += mi("📲", "Open in app / install", openInApp);
   h += mi("📲", "Share this app", shareApp);
   m.innerHTML = h;
