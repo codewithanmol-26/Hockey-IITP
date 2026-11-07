@@ -334,6 +334,9 @@ function drawPublic() {
         <a href="#pub-fixtures" class="btn-hero-secondary">
           <span>🏆 Student Fixtures</span>
         </a>
+        <a href="#pub-skills" class="btn-hero-secondary">
+          <span>🏑 Skill Videos</span>
+        </a>
         <a href="#pub-academic" class="btn-hero-secondary">
           <span>🏛️ Academic &amp; Holidays</span>
         </a>
@@ -485,7 +488,19 @@ function drawPublic() {
       </div>
     </section>
 
-    <!-- 3c. Academic Calendar & Holidays Section -->
+    <!-- 3c. Hockey Skill Practice & Video Drills Section -->
+    <section class="pub-sec" id="pub-skills">
+      <div class="sec-header">
+        <span class="sec-kicker">TECHNIQUE &amp; DRILLS</span>
+        <h2 class="sec-title">Hockey Skill Practice Video Tutorials</h2>
+        <p class="sec-lead">Direct in-browser video practice masterclasses from Shekhar Hockey (@shekhar_hockey) — hitting, dodging, wall passing &amp; 3D skills.</p>
+      </div>
+      <div id="pub-skills-container">
+        ${typeof skillsVideoCard === "function" ? skillsVideoCard({ isPublic: true }) : ""}
+      </div>
+    </section>
+
+    <!-- 3d. Academic Calendar & Holidays Section -->
     <section class="pub-sec" id="pub-academic">
       <div class="sec-header">
         <span class="sec-kicker">IIT PATNA ACADEMIC AFFAIRS</span>
@@ -732,6 +747,7 @@ function drawPublic() {
 
 function bindPublic() {
   if (typeof bindStudentFixtureCard === "function") bindStudentFixtureCard();
+  if (typeof bindSkillsVideoCard === "function") bindSkillsVideoCard();
 
   // Login buttons
   document
@@ -1140,6 +1156,7 @@ function bindHome() {
       if (p) openEdit(p, true);
     };
   if (typeof bindStudentFixtureCard === "function") bindStudentFixtureCard();
+  if (typeof bindSkillsVideoCard === "function") bindSkillsVideoCard();
 }
 // captain / vice-captain: names shown on the public page, and which player record is theirs
 function openNames() {

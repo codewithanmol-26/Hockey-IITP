@@ -1553,4 +1553,417 @@ function openSettingsModal() {
   }
 }
 
+// ---------------------------------------------------------------- 8. Hockey Skill Practice Video Player
+let currentSkillVideoId = "-iVUhQIC1m0";
+let skillVideoCategory = "all";
+
+const HOCKEY_SKILL_VIDEOS = [
+  {
+    id: "-iVUhQIC1m0",
+    title: "Perfect Hockey Hit Kaise Karein? 8 Important Basics for Beginners",
+    author: "Shekhar Hockey",
+    channelUrl: "https://www.youtube.com/@shekhar_hockey",
+    category: "hitting",
+    categoryLabel: "Hitting & Basics",
+    duration: "Shorts",
+    thumb: "https://i.ytimg.com/vi/-iVUhQIC1m0/hqdefault.jpg",
+    desc: "Detailed coaching on proper stick stance, grip alignment, head positioning, backswing, body weight transfer, and clean follow-through.",
+    coachingPoints: [
+      "Keep hands together near the top of the stick handle for maximum swing leverage.",
+      "Position the ball level with your front left foot, knees bent in an athletic athletic posture.",
+      "Keep eyes focused firmly on the ball through the moment of contact.",
+      "Transfer body weight smoothly from back foot to front foot during strike.",
+    ],
+    isFeatured: true,
+  },
+  {
+    id: "bN0bQhKswRg",
+    title: "Dodging Skills for Beginners | Ball Control & Beat Defenders",
+    author: "Shekhar Hockey",
+    channelUrl: "https://www.youtube.com/@shekhar_hockey",
+    category: "dodging",
+    categoryLabel: "Dodging & Control",
+    duration: "Shorts",
+    thumb: "https://i.ytimg.com/vi/bN0bQhKswRg/hqdefault.jpg",
+    desc: "Essential open-field and tight-space dodging techniques to beat aggressive defenders with rapid stick agility.",
+    coachingPoints: [
+      "Use your body and non-stick shoulder to shield the ball from tacklers.",
+      "Accelerate immediately after executing the change of direction.",
+      "Keep the ball within your comfortable stick reach zone.",
+    ],
+  },
+  {
+    id: "VOgiKTqr_E0",
+    title: "Wall Passing Drill for Beginners | Center, Left & Right Side Practice",
+    author: "Shekhar Hockey",
+    channelUrl: "https://www.youtube.com/@shekhar_hockey",
+    category: "passing",
+    categoryLabel: "Passing & Reception",
+    duration: "Shorts",
+    thumb: "https://i.ytimg.com/vi/VOgiKTqr_E0/hqdefault.jpg",
+    desc: "Solo wall drill routine for high-tempo push passing, soft ball trapping, and multi-angle stick reception.",
+    coachingPoints: [
+      "Cushion the ball on contact with relaxed wrists ('soft hands').",
+      "Alternate push-passing from left foot forward and square stance.",
+      "Count consecutive clean returns to build reaction speed.",
+    ],
+  },
+  {
+    id: "37BHSKMTqnw",
+    title: "One-Handed Ball Lifting Skill | Important Hockey Basic for Beginners",
+    author: "Shekhar Hockey",
+    channelUrl: "https://www.youtube.com/@shekhar_hockey",
+    category: "3d",
+    categoryLabel: "Aerial & 3D Skills",
+    duration: "Shorts",
+    thumb: "https://i.ytimg.com/vi/37BHSKMTqnw/hqdefault.jpg",
+    desc: "Step-by-step guidance on lifting the ball safely over flat sticks using controlled single-hand lever action.",
+    coachingPoints: [
+      "Angle the toe of your stick head slightly underneath the ball's center line.",
+      "Flick upward using wrist extension while keeping ball height below knee level in traffic.",
+    ],
+  },
+  {
+    id: "gx_-ABTzc-k",
+    title: "Beat Any Defender with This Drag Lift Dodge! | Beginner Hockey Tips",
+    author: "Shekhar Hockey",
+    channelUrl: "https://www.youtube.com/@shekhar_hockey",
+    category: "dodging",
+    categoryLabel: "Dodging & 3D Skills",
+    duration: "Shorts",
+    thumb: "https://i.ytimg.com/vi/gx_-ABTzc-k/hqdefault.jpg",
+    desc: "Execute the drag-and-lift combination to eliminate tacklers in 1v1 situations inside the attacking 23m.",
+    coachingPoints: [
+      "Drag the ball laterally across the defender's reach, then lift on the return stroke.",
+      "Keep your head up to scan for supporting teammates in the circle.",
+    ],
+  },
+  {
+    id: "YwE__exrT7A",
+    title: "Backhand Slider Pass Skill! | Quick Passing for Faster Attacks",
+    author: "Shekhar Hockey",
+    channelUrl: "https://www.youtube.com/@shekhar_hockey",
+    category: "passing",
+    categoryLabel: "Passing & Reverse Stick",
+    duration: "Shorts",
+    thumb: "https://i.ytimg.com/vi/YwE__exrT7A/hqdefault.jpg",
+    desc: "Fast and low reverse-stick slider pass across the midfield into attacking forward runners.",
+    coachingPoints: [
+      "Rotate stick grip so the flat face faces the target on the reverse side.",
+      "Stay low with bent knees to maintain ball contact throughout the slide.",
+    ],
+  },
+  {
+    id: "tiL1FR8qlS0",
+    title: "Forward Players! Stop Making This Mistake! | Smart Movement",
+    author: "Shekhar Hockey",
+    channelUrl: "https://www.youtube.com/@shekhar_hockey",
+    category: "tactics",
+    categoryLabel: "Tactical Movement",
+    duration: "Shorts",
+    thumb: "https://i.ytimg.com/vi/tiL1FR8qlS0/hqdefault.jpg",
+    desc: "Critical positional advice for strikers and wingers: cutting runs, creating passing lanes, and posting up.",
+    coachingPoints: [
+      "Never stand still behind defenders; make double-leads to create clear passing channels.",
+      "Angle runs towards the near post for deflections and rebound opportunities.",
+    ],
+  },
+  {
+    id: "dIfD6YBaHww",
+    title: "Beat the Defender with This Smart Pass! | Hockey Passing Tips",
+    author: "Shekhar Hockey",
+    channelUrl: "https://www.youtube.com/@shekhar_hockey",
+    category: "passing",
+    categoryLabel: "Passing & Vision",
+    duration: "Shorts",
+    thumb: "https://i.ytimg.com/vi/dIfD6YBaHww/hqdefault.jpg",
+    desc: "Vision and through-pass timing to split defensive lines and put teammates directly into scoring positions.",
+    coachingPoints: [
+      "Disguise your pass by keeping your body shape neutral until release.",
+      "Pass into the space in front of the runner rather than directly to their feet.",
+    ],
+  },
+  {
+    id: "A_dpqhY8nug",
+    title: "2 Smart Moves Every Hockey Forward Must Know! | Attacking Skills",
+    author: "Shekhar Hockey",
+    channelUrl: "https://www.youtube.com/@shekhar_hockey",
+    category: "tactics",
+    categoryLabel: "Attacking Skills",
+    duration: "Shorts",
+    thumb: "https://i.ytimg.com/vi/A_dpqhY8nug/hqdefault.jpg",
+    desc: "Two quick tactical moves to deceive defenders at the circle edge and create clear shooting windows.",
+    coachingPoints: [
+      "Use sudden decelerations to force the defender to commit their stick prematurely.",
+      "Quick release snapshot towards the far bottom corner.",
+    ],
+  },
+];
+
+function parseYouTubeId(input) {
+  if (!input) return null;
+  input = input.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
+  const match = input.match(/(?:shorts\/|v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/i);
+  return match ? match[1] : null;
+}
+
+function skillsVideoCard(opts = {}) {
+  const curVid = HOCKEY_SKILL_VIDEOS.find((v) => v.id === currentSkillVideoId) || HOCKEY_SKILL_VIDEOS[0];
+  const list = skillVideoCategory === "all"
+    ? HOCKEY_SKILL_VIDEOS
+    : HOCKEY_SKILL_VIDEOS.filter((v) => v.category === skillVideoCategory);
+
+  const categories = [
+    ["all", "All Drills"],
+    ["hitting", "Hitting & Basics"],
+    ["dodging", "Dodging & Control"],
+    ["passing", "Passing & Reception"],
+    ["3d", "Aerial & 3D Skills"],
+    ["tactics", "Attacking Tactics"],
+  ];
+
+  const renderCategoryChips = () => {
+    return categories
+      .map(
+        ([k, lbl]) =>
+          `<button type="button" class="hsk-cat-pill ${skillVideoCategory === k ? "active" : ""}" data-vcat="${k}">${lbl}</button>`,
+      )
+      .join("");
+  };
+
+  const renderDrillCards = () => {
+    return list
+      .map((v) => {
+        const isCurrent = v.id === currentSkillVideoId;
+        return `
+          <div class="hsk-thumb-card ${isCurrent ? "active" : ""}" data-play-video="${esc(v.id)}" role="button" tabindex="0" title="Play: ${esc(v.title)}">
+            <div class="hsk-thumb-wrap">
+              <img src="${esc(v.thumb)}" alt="${esc(v.title)}" loading="lazy" decoding="async">
+              <div class="hsk-play-overlay">
+                <span class="hsk-play-badge">${isCurrent ? "▶" : "▶"}</span>
+              </div>
+              <span class="hsk-duration-tag">${esc(v.duration || "Shorts")}</span>
+              ${isCurrent ? '<span class="hsk-now-playing-pill">Now Playing</span>' : ""}
+            </div>
+            <div class="hsk-thumb-info">
+              <span class="hsk-cat-tag">${esc(v.categoryLabel)}</span>
+              <b class="hsk-thumb-title">${esc(v.title)}</b>
+              <span class="hsk-channel-name">📺 ${esc(v.author)}</span>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  };
+
+  const curIdx = HOCKEY_SKILL_VIDEOS.findIndex((v) => v.id === currentSkillVideoId);
+  const prevVid = curIdx > 0 ? HOCKEY_SKILL_VIDEOS[curIdx - 1] : null;
+  const nextVid = curIdx < HOCKEY_SKILL_VIDEOS.length - 1 ? HOCKEY_SKILL_VIDEOS[curIdx + 1] : HOCKEY_SKILL_VIDEOS[0];
+
+  return `
+    <div class="skills-video-container" id="hockey-skills-video-container">
+      <div class="card hsk-card" id="hsk-card">
+        <div class="hsk-header">
+          <div class="hsk-title-group">
+            <div class="hsk-kicker-strip">
+              <span class="hsk-kicker-pill">🏑 HOCKEY SKILLS &amp; DRILLS</span>
+              <a href="https://www.youtube.com/@shekhar_hockey" target="_blank" rel="noopener noreferrer" class="hsk-channel-badge" title="Visit Shekhar Hockey YouTube Channel (opens in new tab)">
+                <span class="yt-play-icon">▶</span>
+                <span>shekhar hockey 🏑 (@shekhar_hockey)</span>
+                <span class="verified-check">✓</span>
+              </a>
+            </div>
+            <h2 class="hsk-heading">Field Hockey Skill Practice &amp; Video Tutorials</h2>
+            <p class="mute hsk-subhead">
+              Watch and master hitting, dodging, wall passing drills, ball lifting, and attacking tactics directly on the portal.
+            </p>
+          </div>
+          <div class="hsk-header-actions">
+            <a href="https://www.youtube.com/@shekhar_hockey" target="_blank" rel="noopener noreferrer" class="btn-channel-link">
+              <span>Channel Videos ↗</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Main Video Showcase Player -->
+        <div class="hsk-main-showcase">
+          <div class="hsk-player-wrap">
+            <iframe
+              id="hsk-main-iframe"
+              src="https://www.youtube-nocookie.com/embed/${currentSkillVideoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1"
+              title="${esc(curVid.title)}"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+              class="hsk-iframe"
+            ></iframe>
+          </div>
+
+          <div class="hsk-info-box">
+            <div class="hsk-info-top">
+              <span class="pill pri" id="hsk-active-cat">${esc(curVid.categoryLabel)}</span>
+              <span class="pill" style="background:var(--soft);color:var(--mute)">Shekhar Hockey #shorts</span>
+            </div>
+            <h3 class="hsk-active-title" id="hsk-active-title">${esc(curVid.title)}</h3>
+            <p class="hsk-active-desc" id="hsk-active-desc">${esc(curVid.desc)}</p>
+
+            ${curVid.coachingPoints && curVid.coachingPoints.length ? `
+              <div class="hsk-coaching-points">
+                <b style="display:block;margin-bottom:6px;color:var(--brand)">🎯 Key Coaching Points:</b>
+                <ul style="margin:0;padding-left:18px;color:var(--ink)" id="hsk-coaching-list">
+                  ${curVid.coachingPoints.map((pt) => `<li>${esc(pt)}</li>`).join("")}
+                </ul>
+              </div>
+            ` : '<div class="hsk-coaching-points" id="hsk-coaching-list" style="display:none"></div>'}
+
+            <div class="hsk-controls-row">
+              ${prevVid ? `<button type="button" class="btn-drill-nav" data-play-video="${esc(prevVid.id)}">⏮ Previous Drill</button>` : ""}
+              <button type="button" class="btn-drill-nav pri" data-play-video="${esc(nextVid.id)}">Next Skill Drill ⏭</button>
+              <a href="https://youtube.com/shorts/${currentSkillVideoId}" target="_blank" rel="noopener noreferrer" class="btn-drill-nav" id="hsk-yt-link">Watch on YouTube ↗</a>
+            </div>
+
+            <!-- Custom YouTube URL Input -->
+            <div class="hsk-custom-input-bar">
+              <input type="text" id="input-custom-yt" placeholder="Paste any YouTube Video / Short URL (e.g. https://youtube.com/shorts/...)" class="hsk-yt-input">
+              <button type="button" class="pri" id="btn-play-custom-yt">Direct Play ▶</button>
+            </div>
+            <span class="mute" id="hsk-custom-err" style="font-size:0.75rem;margin-top:2px;">Tip: Paste any hockey tutorial URL from YouTube to play it directly inside this player.</span>
+          </div>
+        </div>
+
+        <!-- Categories & Video List -->
+        <div class="hsk-filter-strip" role="tablist">
+          ${renderCategoryChips()}
+        </div>
+
+        <div class="hsk-gallery-grid">
+          ${renderDrillCards()}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindSkillsVideoCard() {
+  document.querySelectorAll("[data-vcat]").forEach((btn) => {
+    btn.onclick = () => {
+      skillVideoCategory = btn.dataset.vcat;
+      document.querySelectorAll(".skills-video-container").forEach((el) => {
+        el.outerHTML = skillsVideoCard();
+      });
+      bindSkillsVideoCard();
+    };
+  });
+
+  document.querySelectorAll("[data-play-video]").forEach((card) => {
+    card.onclick = () => {
+      const vidId = card.dataset.playVideo;
+      if (!vidId) return;
+      currentSkillVideoId = vidId;
+
+      const vid = HOCKEY_SKILL_VIDEOS.find((v) => v.id === vidId) || {
+        id: vidId,
+        title: "Hockey Skill Practice",
+        categoryLabel: "Custom Practice",
+        desc: "Watch and practice this field hockey tutorial drill.",
+        coachingPoints: ["Focus on stick technique, body balance, and regular repetition."],
+      };
+
+      const iframe = document.getElementById("hsk-main-iframe");
+      if (iframe) {
+        iframe.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&rel=0&playsinline=1&modestbranding=1`;
+      }
+      const titleEl = document.getElementById("hsk-active-title");
+      if (titleEl) titleEl.textContent = vid.title;
+      const catEl = document.getElementById("hsk-active-cat");
+      if (catEl) catEl.textContent = vid.categoryLabel || "Skill Drill";
+      const descEl = document.getElementById("hsk-active-desc");
+      if (descEl) descEl.textContent = vid.desc || "";
+      const ytLink = document.getElementById("hsk-yt-link");
+      if (ytLink) ytLink.href = `https://youtube.com/shorts/${vidId}`;
+
+      const listEl = document.getElementById("hsk-coaching-list");
+      if (listEl) {
+        if (vid.coachingPoints && vid.coachingPoints.length) {
+          listEl.parentElement.style.display = "block";
+          listEl.innerHTML = vid.coachingPoints.map((pt) => `<li>${esc(pt)}</li>`).join("");
+        } else {
+          listEl.parentElement.style.display = "none";
+        }
+      }
+
+      // Update active card styling
+      document.querySelectorAll(".hsk-thumb-card").forEach((c) => {
+        const isThis = c.dataset.playVideo === vidId;
+        c.classList.toggle("active", isThis);
+        const npPill = c.querySelector(".hsk-now-playing-pill");
+        if (isThis && !npPill) {
+          const wrap = c.querySelector(".hsk-thumb-wrap");
+          if (wrap) wrap.insertAdjacentHTML("beforeend", '<span class="hsk-now-playing-pill">Now Playing</span>');
+        } else if (!isThis && npPill) {
+          npPill.remove();
+        }
+      });
+
+      const playerContainer = document.getElementById("hsk-card");
+      if (playerContainer && window.innerWidth < 768) {
+        playerContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    };
+  });
+
+  const btnCustom = document.getElementById("btn-play-custom-yt");
+  const inputCustom = document.getElementById("input-custom-yt");
+  const errCustom = document.getElementById("hsk-custom-err");
+
+  const handleCustomPlay = () => {
+    if (!inputCustom) return;
+    const val = inputCustom.value.trim();
+    if (!val) return;
+    const parsedId = parseYouTubeId(val);
+    if (!parsedId) {
+      if (errCustom) {
+        errCustom.textContent = "⚠️ Please enter a valid YouTube video or short URL (e.g. https://youtube.com/shorts/-iVUhQIC1m0)";
+        errCustom.style.color = "#dc2626";
+      }
+      return;
+    }
+
+    if (errCustom) {
+      errCustom.textContent = "Loading video directly in player…";
+      errCustom.style.color = "var(--brand)";
+    }
+
+    currentSkillVideoId = parsedId;
+    const iframe = document.getElementById("hsk-main-iframe");
+    if (iframe) {
+      iframe.src = `https://www.youtube-nocookie.com/embed/${parsedId}?autoplay=1&rel=0&playsinline=1&modestbranding=1`;
+    }
+    const titleEl = document.getElementById("hsk-active-title");
+    if (titleEl) titleEl.textContent = `Custom Practice Video (${parsedId})`;
+    const descEl = document.getElementById("hsk-active-desc");
+    if (descEl) descEl.textContent = "Playing directly from YouTube. Practice and follow the stick drills.";
+    const ytLink = document.getElementById("hsk-yt-link");
+    if (ytLink) ytLink.href = `https://www.youtube.com/watch?v=${parsedId}`;
+
+    inputCustom.value = "";
+    const playerContainer = document.getElementById("hsk-card");
+    if (playerContainer) {
+      playerContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  if (btnCustom) btnCustom.onclick = handleCustomPlay;
+  if (inputCustom) {
+    inputCustom.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleCustomPlay();
+      }
+    };
+  }
+}
+
+
 

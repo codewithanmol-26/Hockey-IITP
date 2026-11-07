@@ -7865,6 +7865,7 @@ function vCoachDashboard() {
 
     ${annCard()}
     ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
+    ${typeof skillsVideoCard === "function" ? skillsVideoCard() : ""}
     ${lbPreviewCard()}
     ${teamCard()}
     ${gphCard()}
@@ -8051,6 +8052,7 @@ function vLeadershipDashboard() {
 
     ${annCard()}
     ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
+    ${typeof skillsVideoCard === "function" ? skillsVideoCard() : ""}
     ${lbPreviewCard()}
     ${teamCard()}
     ${gphCard()}
@@ -8170,6 +8172,7 @@ function vPlayerDashboard() {
 
     ${annCard()}
     ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
+    ${typeof skillsVideoCard === "function" ? skillsVideoCard() : ""}
     ${lbPreviewCard()}
     <div class="grid home-cards-grid">${upCard()}${newsCard()}${histCard()}</div>
   `;
@@ -9320,9 +9323,11 @@ function vTrain() {
   ${pre ? '<p class="mute" style="margin:6px 0 0">Tap a saved setup to load it.</p>' : ""}</div>
   ${healthCard()}
   <div class="card"><h2>💡 How to improve${pl && WHO ? " · " + esc(WHO.split(" ")[0]) : ""}</h2><label class="fl" style="margin-bottom:6px">My focus<select id="goal">${GOALS.map((g) => `<option value="${g[0]}" ${lsGet("hk_goal", "") === g[0] ? "selected" : ""}>${g[1]}</option>`).join("")}</select></label><p class="mute" style="margin:0 0 6px;font-size:.85rem">Tips use your position, focus, attendance, availability and saved sessions.</p>${RC.map((r, i) => `<div class="rc"><span class="ic">${r[0]}</span><span><b>${esc(r[1])}</b><br><span class="mute">${esc(r[2])}</span>${r[3] ? `<br><button class="tipb" data-act="${i}">⏱ ${esc(r[3].lbl)}</button>` : ""}</span></div>`).join("")}<p class="mute" style="margin:10px 0 0;font-size:.8rem">General fitness tips from your saved data, not medical advice. Stop and rest if you feel dizzy, have chest pain or feel unwell.</p></div>
+  ${typeof skillsVideoCard === "function" ? skillsVideoCard({ isTrainingTab: true }) : ""}
   <div class="card"><h2>Saved sessions</h2>${ss.length ? `<div class="stats"><div><b>${tw.length}</b>This week</div><div><b>${Math.round(tw.reduce((a, w) => a + w.dur, 0) / 60)}</b>Minutes this week</div><div><b>${ss.length}</b>Total saved</div></div>` : ""}${rows || empty("📋", wkErr || (wkLoaded ? "No saved sessions yet." : "Loading…"))}${wkErr ? '<div class="ctl"><button id="wtry">Try again</button></div>' : ""}<p class="mute" style="margin:8px 0 0;font-size:.8rem">Only you can see your training data.</p></div>`;
   drawTimerBtns();
   ttick();
+  if (typeof bindSkillsVideoCard === "function") bindSkillsVideoCard();
   document.querySelectorAll("[data-m]").forEach(
     (b) =>
       (b.onclick = () => {
