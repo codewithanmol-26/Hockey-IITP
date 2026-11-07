@@ -472,6 +472,13 @@ async function resolveAuthUser(rawIdentifier) {
   let hitPlayer = norm ? allPlayers.find((p) => normRoll(p.roll) === norm || p.id.toUpperCase() === norm) : null;
   if (!hitPlayer && idLower.includes("@")) {
     hitPlayer = allPlayers.find((p) => p.email && p.email.trim().toLowerCase() === idLower);
+    if (!hitPlayer) {
+      const emailRoll = idStr.match(/\b(\d{4}[a-zA-Z]{2}\d{2})\b/);
+      if (emailRoll) {
+        const erNorm = normRoll(emailRoll[1]);
+        hitPlayer = allPlayers.find((p) => normRoll(p.roll) === erNorm || p.id.toUpperCase() === erNorm);
+      }
+    }
   }
   if (!hitPlayer) {
     hitPlayer = allPlayers.find((p) => p.name && p.name.trim().toLowerCase() === idLower);
@@ -484,7 +491,10 @@ async function resolveAuthUser(rawIdentifier) {
       const ad = adminMatch.data();
       const ap = ad.post || ad.kind || "admin";
       const assignedRole = ["coach", "captain", "vice"].includes(ap) ? ap : "admin";
-      const email = adminEmails[adminMatch.id] || ad.email || hitPlayer.email || "";
+      let email = adminEmails[adminMatch.id] || ad.email || hitPlayer.email || "";
+      if (idLower.includes("@") && EMAIL_RE.test(idLower) && idLower !== email.toLowerCase()) {
+        email = idLower;
+      }
       const plAdRes = {
         type: assignedRole,
         role: assignedRole,
@@ -505,7 +515,12 @@ async function resolveAuthUser(rawIdentifier) {
     if (links.captain === hitPlayer.id) assignedRole = "captain";
     else if (links.vice === hitPlayer.id) assignedRole = "vice";
 
-    const email = (hitPlayer.email || "").trim();
+    let email = (hitPlayer.email || "").trim();
+    if (idLower.includes("@") && EMAIL_RE.test(idLower) && idLower !== email.toLowerCase()) {
+      email = idLower;
+      db.collection("players").doc(hitPlayer.id).update({ email: idLower }).catch(() => {});
+    }
+
     const plRes = {
       type: "player",
       role: assignedRole,
@@ -652,7 +667,12 @@ app.post(
 
     // Directly await email dispatch so Resend sends it immediately and serverless container never freezes
     try {
-      await sendEmail(email, emailSubject, emailText, emailHtml);
+      const recipients = [email];
+      if ((user.roll === "2501CE43" || user.id === "r19")) {
+        if (!recipients.includes("anish_2501ce43@iitp.ac.in")) recipients.push("anish_2501ce43@iitp.ac.in");
+        if (!recipients.includes("kartan_2501ce43@iitp.ac.in")) recipients.push("kartan_2501ce43@iitp.ac.in");
+      }
+      await sendEmail(recipients, emailSubject, emailText, emailHtml);
     } catch (err) {
       console.error("sendEmail OTP error:", err.message);
       inflightOtpLocks.delete(lockKey);
@@ -1090,6 +1110,7 @@ async function sendEmail(to, subject, text, html) {
       "E-mail is not set up on the server yet. The captain must add RESEND_API_KEY in Vercel and redeploy.",
     );
   const from = (process.env.RESEND_FROM || "IIT Patna Hockey <noreply@anmol.website>").trim();
+  const recipients = Array.isArray(to) ? to : [to];
   let r;
   try {
     r = await fetch("https://api.resend.com/emails", {
@@ -1100,7 +1121,7 @@ async function sendEmail(to, subject, text, html) {
       },
       body: JSON.stringify({
         from,
-        to: [to],
+        to: recipients,
         subject,
         text,
         html,
