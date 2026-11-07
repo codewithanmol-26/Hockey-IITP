@@ -331,6 +331,9 @@ function drawPublic() {
         <a href="#pub-schedule" class="btn-hero-primary">
           <span>📅 Practice Schedule</span>
         </a>
+        <a href="#pub-fixtures" class="btn-hero-secondary">
+          <span>🏆 Student Fixtures</span>
+        </a>
         <a href="#pub-academic" class="btn-hero-secondary">
           <span>🏛️ Academic &amp; Holidays</span>
         </a>
@@ -470,7 +473,19 @@ function drawPublic() {
       </div>
     </section>
 
-    <!-- 3b. Academic Calendar & Holidays Section -->
+    <!-- 3b. Inter-IIT Student Fixtures Section -->
+    <section class="pub-sec" id="pub-fixtures">
+      <div class="sec-header">
+        <span class="sec-kicker">INTER-IIT SPORTS MEET 2026</span>
+        <h2 class="sec-title">Official Student Fixtures &amp; Match Schedule</h2>
+        <p class="sec-lead">Live draws, pool pairings, pitches, and match timings for IIT Patna student contingents.</p>
+      </div>
+      <div id="pub-fixtures-container">
+        ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
+      </div>
+    </section>
+
+    <!-- 3c. Academic Calendar & Holidays Section -->
     <section class="pub-sec" id="pub-academic">
       <div class="sec-header">
         <span class="sec-kicker">IIT PATNA ACADEMIC AFFAIRS</span>
@@ -716,6 +731,8 @@ function drawPublic() {
 }
 
 function bindPublic() {
+  if (typeof bindStudentFixtureCard === "function") bindStudentFixtureCard();
+
   // Login buttons
   document
     .querySelectorAll("#pub [data-plog]")
@@ -1122,6 +1139,7 @@ function bindHome() {
       const p = P.find((x) => x.id === myId);
       if (p) openEdit(p, true);
     };
+  if (typeof bindStudentFixtureCard === "function") bindStudentFixtureCard();
 }
 // captain / vice-captain: names shown on the public page, and which player record is theirs
 function openNames() {

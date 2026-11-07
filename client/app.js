@@ -7864,6 +7864,7 @@ function vCoachDashboard() {
     </div>
 
     ${annCard()}
+    ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
     ${lbPreviewCard()}
     ${teamCard()}
     ${gphCard()}
@@ -8049,6 +8050,7 @@ function vLeadershipDashboard() {
     </div>
 
     ${annCard()}
+    ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
     ${lbPreviewCard()}
     ${teamCard()}
     ${gphCard()}
@@ -8167,6 +8169,7 @@ function vPlayerDashboard() {
     </div>
 
     ${annCard()}
+    ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
     ${lbPreviewCard()}
     <div class="grid home-cards-grid">${upCard()}${newsCard()}${histCard()}</div>
   `;

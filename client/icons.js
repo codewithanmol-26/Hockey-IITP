@@ -92,6 +92,11 @@ const _P = {
     '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".9" fill="currentColor"/>',
   bulb: '<path d="M9.2 17.5h5.6M10 20.5h4M12 3.5a6 6 0 0 0-3.6 10.8c.7.6 1.2 1.4 1.2 2.2h4.8c0-.8.5-1.6 1.2-2.2A6 6 0 0 0 12 3.5z"/>',
   expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  scan: '<rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M7.5 10.5V7.5h3M13.5 7.5h3v3M16.5 13.5v3h-3M10.5 16.5h-3v-3"/>',
+  settings:
+    '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  gear:
+    '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   hockey:
     '<path d="M8 3.5 6.2 14.2c-.3 1.6.7 3 2.2 3.2l4.6.7"/><circle cx="17" cy="17.4" r="2.3"/>',
   external:
@@ -175,6 +180,10 @@ const _EMO = {
   "×": "trash",
   "−": "minus",
   "📝": "edit",
+  "⚙️": "settings",
+  "⚙": "settings",
+  "🔲": "scan",
+  "🎛": "settings",
 };
 const _EKEYS = Object.keys(_EMO).sort((a, b) => b.length - a.length);
 const _noV = (s) => String(s).replace(/\uFE0F/g, "");
@@ -241,6 +250,13 @@ const _ONLY = {
   "change group photo": "camera",
   "cover picture": "image",
   "add cover": "image",
+  settings: "settings",
+  gear: "settings",
+  preferences: "settings",
+  scan: "scan",
+  "view full": "scan",
+  "full view": "scan",
+  "view fixtures": "scan",
 };
 const _DEFLBL = {
   trash: "Delete",
@@ -262,6 +278,9 @@ const _DEFLBL = {
   sun: "Day mode",
   close: "Close",
   trophy: "Squad Leaderboard",
+  scan: "View full",
+  settings: "Settings",
+  gear: "Settings",
 };
 const _normKey = (raw) =>
   raw

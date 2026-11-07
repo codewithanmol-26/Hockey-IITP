@@ -906,3 +906,651 @@ function bindAcadCard() {
   });
 }
 
+// ---------------------------------------------------------------- 7. Inter-IIT Sports Meet 2026 Student Fixtures
+let fixtureTab = "hockey";
+
+const INTER_IIT_2026 = {
+  title: "57th Inter-IIT Sports Meet 2026",
+  sub: "Official Student Preliminary League & Knockout Fixtures",
+  dates: "December 13 – 21, 2026",
+  host: "Tata Steel Sports Complex, Kalaikonda & SERSA Railways",
+  contingent: "Indian Institute of Technology Patna",
+  sports: {
+    hockey: {
+      name: "Hockey (Men)",
+      icon: "🏑",
+      color: "#2563eb",
+      pool: "Pool A",
+      poolTeams: [
+        { code: "KGP", name: "IIT Kharagpur", seed: "Top Seed" },
+        { code: "KAN", name: "IIT Kanpur", seed: "Challenger" },
+        { code: "PAT", name: "IIT Patna", seed: "Our Squad", isUs: true },
+        { code: "MAN", name: "IIT Mandi", seed: "Contender" },
+      ],
+      ourMatches: [
+        {
+          matchNo: 9,
+          date: "2026-12-16",
+          dayName: "Wednesday, 16 Dec 2026",
+          time: "11:00 AM",
+          ground: "Ground 1 · Tata Steel Complex",
+          opponent: "IIT Kanpur",
+          oppCode: "KAN",
+          stage: "Preliminary League · Pool A",
+          status: "Scheduled",
+        },
+        {
+          matchNo: 14,
+          date: "2026-12-17",
+          dayName: "Thursday, 17 Dec 2026",
+          time: "11:00 AM",
+          ground: "Ground 1 · Tata Steel Complex",
+          opponent: "IIT Mandi",
+          oppCode: "MAN",
+          stage: "Preliminary League · Pool A",
+          status: "Scheduled",
+        },
+      ],
+      knockouts: [
+        { stage: "Quarter-Final (QF 1 / QF 4)", date: "19 Dec 2026", time: "07:00 AM / 01:00 PM", venue: "Ground 1 & 2", condition: "Top 2 qualify from Pool A" },
+        { stage: "Semi-Final (SF 1 / SF 2)", date: "20 Dec 2026", time: "09:00 AM / 11:00 AM", venue: "Ground 1 · Tata Steel", condition: "Winners of QF 1 vs QF 3 & QF 2 vs QF 4" },
+        { stage: "3rd Place Playoff", date: "21 Dec 2026", time: "07:00 AM", venue: "Ground 1", condition: "Semi-Final Runners-up" },
+        { stage: "Championship Final 🏆", date: "21 Dec 2026", time: "09:00 AM", venue: "Ground 1 · Tata Steel Complex", condition: "Grand Inter-IIT Men's Hockey Final" },
+      ],
+      rulesNote: "Official FIH 4 quarters of 15 mins. Tied knockout ties proceed directly to FIH 8-second penalty shoot-out. Reporting time: 30 mins before push-off.",
+    },
+    football: {
+      name: "Football (Men)",
+      icon: "⚽",
+      color: "#059669",
+      pool: "Pool B",
+      poolTeams: [
+        { code: "IND", name: "IIT Indore", seed: "Top Seed" },
+        { code: "PAT", name: "IIT Patna", seed: "Our Squad", isUs: true },
+        { code: "HYD", name: "IIT Hyderabad", seed: "Contender" },
+      ],
+      ourMatches: [
+        {
+          matchNo: 2,
+          date: "2026-12-15",
+          dayName: "Monday, 15 Dec 2026",
+          time: "08:00 AM",
+          ground: "Ground 1 · Tata Steel Stadium",
+          opponent: "IIT Indore",
+          oppCode: "IND",
+          stage: "Preliminary League · Pool B",
+          status: "Scheduled",
+        },
+        {
+          matchNo: 10,
+          date: "2026-12-16",
+          dayName: "Tuesday, 16 Dec 2026",
+          time: "08:00 AM",
+          ground: "Ground 2 · Sports Arena",
+          opponent: "IIT Hyderabad",
+          oppCode: "HYD",
+          stage: "Preliminary League · Pool B",
+          status: "Scheduled",
+        },
+      ],
+      knockouts: [
+        { stage: "Quarter-Finals", date: "19 Dec 2026", time: "08:00 AM / 02:30 PM", venue: "Ground 1 & 2", condition: "Top 2 from Pool B" },
+        { stage: "Semi-Finals", date: "20 Dec 2026", time: "08:00 AM / 02:30 PM", venue: "Ground 1", condition: "Winners of QF" },
+        { stage: "Championship Final 🏆", date: "21 Dec 2026", time: "03:00 PM", venue: "Ground 1 · Main Arena", condition: "Inter-IIT Football Gold" },
+      ],
+      rulesNote: "Matches played in two 45-min halves. Standard FIFA/AIFF tie-breaker rules.",
+    },
+    cricket: {
+      name: "Cricket (Men)",
+      icon: "🏏",
+      color: "#d97706",
+      pool: "Pool E",
+      poolTeams: [
+        { code: "DEL", name: "IIT Delhi", seed: "Top Seed" },
+        { code: "PAT", name: "IIT Patna", seed: "Our Squad", isUs: true },
+        { code: "GOA", name: "IIT Goa", seed: "Contender" },
+      ],
+      ourMatches: [
+        {
+          matchNo: 6,
+          date: "2026-12-13",
+          dayName: "Saturday, 13 Dec 2026",
+          time: "01:00 PM",
+          ground: "GR-3 · SERSA Railways Ground",
+          opponent: "IIT Delhi",
+          oppCode: "DEL",
+          stage: "Preliminary League · Pool E",
+          status: "Scheduled",
+        },
+        {
+          matchNo: 11,
+          date: "2026-12-15",
+          dayName: "Monday, 15 Dec 2026",
+          time: "08:00 AM",
+          ground: "GR-2 · Tata Steel Ground",
+          opponent: "IIT Goa",
+          oppCode: "GOA",
+          stage: "Preliminary League · Pool E",
+          status: "Scheduled",
+        },
+      ],
+      knockouts: [
+        { stage: "Pre-Quarter & QF", date: "17 & 18 Dec 2026", time: "08:00 AM / 01:00 PM", venue: "GR-1 & GR-2", condition: "Pool Stage Qualifiers" },
+        { stage: "Semi-Finals", date: "20 Dec 2026", time: "08:00 AM / 01:00 PM", venue: "GR-1 Tata Steel", condition: "Winners of Quarter-Finals" },
+        { stage: "Championship Final 🏆", date: "21 Dec 2026", time: "09:00 AM", venue: "GR-1 · Main Stadium", condition: "Inter-IIT Cricket Championship" },
+      ],
+      rulesNote: "T20 format under standard BCCI/ICC playing conditions. White ball, coloured team kit.",
+    },
+    basketball_m: {
+      name: "Basketball (Men)",
+      icon: "🏀",
+      color: "#ea580c",
+      pool: "Pool G",
+      poolTeams: [
+        { code: "BHU", name: "IIT (BHU) Varanasi", seed: "Top Seed" },
+        { code: "PAT", name: "IIT Patna", seed: "Our Squad", isUs: true },
+        { code: "JAM", name: "IIT Jammu", seed: "Contender" },
+      ],
+      ourMatches: [
+        {
+          matchNo: 1,
+          date: "2026-12-15",
+          dayName: "Monday, 15 Dec 2026",
+          time: "07:30 AM",
+          ground: "Court 1 · Indoor Stadium",
+          opponent: "IIT (BHU) Varanasi",
+          oppCode: "BHU",
+          stage: "Preliminary League · Pool G",
+          status: "Scheduled",
+        },
+        {
+          matchNo: 15,
+          date: "2026-12-17",
+          dayName: "Wednesday, 17 Dec 2026",
+          time: "07:30 AM",
+          ground: "Court 1 · Indoor Stadium",
+          opponent: "IIT Jammu",
+          oppCode: "JAM",
+          stage: "Preliminary League · Pool G",
+          status: "Scheduled",
+        },
+      ],
+      knockouts: [
+        { stage: "Quarter-Finals", date: "19 Dec 2026", time: "07:30 AM / 04:30 PM", venue: "Court 1 & 2", condition: "Pool G Qualifiers" },
+        { stage: "Semi-Finals", date: "20 Dec 2026", time: "07:30 AM / 06:00 PM", venue: "Court 1", condition: "Winners of QF" },
+        { stage: "Championship Final 🏆", date: "21 Dec 2026", time: "04:30 PM", venue: "Court 1 · Main Arena", condition: "Inter-IIT Men's Basketball Final" },
+      ],
+      rulesNote: "FIBA 4x10 min quarters, 24-second shot clock, official game clock.",
+    },
+    basketball_w: {
+      name: "Basketball (Women)",
+      icon: "🏀",
+      color: "#db2777",
+      pool: "Pool G",
+      poolTeams: [
+        { code: "DHA", name: "IIT Dharwad", seed: "Top Seed" },
+        { code: "BHU", name: "IIT (BHU) Varanasi", seed: "Contender" },
+        { code: "PAT", name: "IIT Patna", seed: "Our Squad", isUs: true },
+      ],
+      ourMatches: [
+        {
+          matchNo: 7,
+          date: "2026-12-15",
+          dayName: "Monday, 15 Dec 2026",
+          time: "07:30 PM",
+          ground: "Court 2 · Indoor Hall",
+          opponent: "IIT Dharwad",
+          oppCode: "DHA",
+          stage: "Preliminary League · Pool G",
+          status: "Scheduled",
+        },
+        {
+          matchNo: 13,
+          date: "2026-12-16",
+          dayName: "Tuesday, 16 Dec 2026",
+          time: "06:00 PM",
+          ground: "Court 2 · Indoor Hall",
+          opponent: "IIT (BHU) Varanasi",
+          oppCode: "BHU",
+          stage: "Preliminary League · Pool G",
+          status: "Scheduled",
+        },
+      ],
+      knockouts: [
+        { stage: "Quarter-Finals", date: "18 Dec 2026", time: "06:00 PM", venue: "Court 1 & 2", condition: "Pool G Qualifiers" },
+        { stage: "Semi-Finals", date: "20 Dec 2026", time: "07:30 AM / 06:00 PM", venue: "Court 2", condition: "Winners of QF" },
+        { stage: "Championship Final 🏆", date: "21 Dec 2026", time: "03:00 PM", venue: "Court 1", condition: "Inter-IIT Women's Basketball Final" },
+      ],
+      rulesNote: "FIBA Women's standard ball (Size 6), 4x10 min quarters.",
+    },
+    athletics: {
+      name: "Athletics & Weightlifting",
+      icon: "🏃",
+      color: "#7c3aed",
+      pool: "Track, Field & Lifting Hall",
+      eventsList: [
+        { sport: "Weightlifting (Men)", date: "16 – 18 Dec 2026", time: "09:00 AM onwards", venue: "Tata Steel Indoor Sports Hall", details: "Snatch and Clean & Jerk across 56kg, 62kg, 69kg, 77kg, 85kg & +85kg categories." },
+        { sport: "Sprints & Relays (M & W)", date: "14 – 17 Dec 2026", time: "Morning 07:00 AM & Evening 03:30 PM", venue: "Synthetic Track Stadium", details: "100m, 200m, 400m preliminary heats & finals; 4x100m & 4x400m team relays." },
+        { sport: "Middle & Long Distance", date: "15 – 19 Dec 2026", time: "06:30 AM early morning sessions", venue: "Main Athletic Arena", details: "800m, 1500m tactical runs and 5000m endurance championship." },
+        { sport: "Jumps & Field Throws", date: "16 – 20 Dec 2026", time: "08:00 AM & 02:30 PM", venue: "Field Pits & Throw Circles", details: "Long Jump, High Jump, Triple Jump, Shot Put, Discus & Javelin Throw." },
+        { sport: "Valedictory & March Past 🏆", date: "21 Dec 2026", time: "05:30 PM", venue: "Main Athletic Stadium", details: "General Championship Trophy, Contingent March Past, and Closing Ceremony." },
+      ],
+      rulesNote: "World Athletics rules apply. Synthetic track spikes maximum 9mm. Athletes must report with official ID cards 45 mins prior to call room.",
+    },
+  },
+};
+
+function studentFixtureCard() {
+  const spKey = fixtureTab || "hockey";
+  const sp = INTER_IIT_2026.sports[spKey] || INTER_IIT_2026.sports.hockey;
+
+  const renderTabs = () => {
+    const tabs = [
+      ["hockey", "🏑", "Hockey Men"],
+      ["football", "⚽", "Football"],
+      ["cricket", "🏏", "Cricket"],
+      ["basketball_m", "🏀", "Basketball (M)"],
+      ["basketball_w", "🏀", "Basketball (W)"],
+      ["athletics", "🏃", "Athletics & Weights"],
+    ];
+    return tabs
+      .map(
+        ([k, ic, lbl]) =>
+          `<button type="button" class="fixture-tab-pill ${spKey === k ? "active" : ""}" data-ftab="${k}" role="tab" aria-selected="${spKey === k}">${ic} ${lbl}</button>`,
+      )
+      .join("");
+  };
+
+  const renderPoolStrip = () => {
+    if (!sp.poolTeams) return "";
+    return `
+      <div class="fixture-pool-banner">
+        <div class="fixture-pool-title">
+          <span class="pool-tag">${esc(sp.pool)}</span>
+          <span class="pool-desc">Group Allocation &amp; Competitors</span>
+        </div>
+        <div class="fixture-teams-row">
+          ${sp.poolTeams
+            .map(
+              (t) => `
+              <div class="fixture-team-chip ${t.isUs ? "is-us" : ""}">
+                <span class="team-chip-code">${esc(t.code)}</span>
+                <span class="team-chip-name">${esc(t.name)}</span>
+                <span class="team-chip-badge">${t.isUs ? "★ IIT Patna" : esc(t.seed)}</span>
+              </div>
+            `,
+            )
+            .join("")}
+        </div>
+      </div>
+    `;
+  };
+
+  const renderMatches = () => {
+    if (sp.ourMatches && sp.ourMatches.length) {
+      return `
+        <div class="fixture-matches-grid">
+          ${sp.ourMatches
+            .map(
+              (m) => `
+              <div class="fixture-match-card">
+                <div class="fmc-header">
+                  <div class="fmc-meta-left">
+                    <span class="fmc-num-pill">Match #${m.matchNo}</span>
+                    <span class="fmc-stage-pill">${esc(m.stage)}</span>
+                  </div>
+                  <div class="fmc-time-pill">
+                    <span>📅 ${esc(m.dayName)}</span>
+                    <b>⏰ ${esc(m.time)}</b>
+                  </div>
+                </div>
+
+                <div class="fmc-vs-strip">
+                  <div class="fmc-team fmc-opp">
+                    <div class="fmc-avatar">${esc(m.oppCode)}</div>
+                    <div class="fmc-team-info">
+                      <b class="fmc-team-name">${esc(m.opponent)}</b>
+                      <span class="fmc-team-sub">Opponent</span>
+                    </div>
+                  </div>
+
+                  <div class="fmc-center">
+                    <div class="fmc-vs-circle">VS</div>
+                    <span class="fmc-venue-tag">📍 ${esc(m.ground)}</span>
+                  </div>
+
+                  <div class="fmc-team fmc-pat is-us">
+                    <div class="fmc-avatar pat">PAT</div>
+                    <div class="fmc-team-info">
+                      <b class="fmc-team-name">IIT Patna</b>
+                      <span class="fmc-team-sub">Our Squad 🏑</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="fmc-footer">
+                  <div class="fmc-status-note">
+                    <span class="status-dot green"></span>
+                    <span>Official Inter-IIT Draw · Tata Steel Sports Complex</span>
+                  </div>
+                  <button type="button" class="btn-match-sheet" data-open-fixture-modal="${spKey}" title="View detailed match sheet and instructions">
+                    ${ico("scan")} Match Sheet
+                  </button>
+                </div>
+              </div>
+            `,
+            )
+            .join("")}
+        </div>
+      `;
+    }
+
+    // athletics & weights list
+    if (sp.eventsList && sp.eventsList.length) {
+      return `
+        <div class="fixture-athletics-grid">
+          ${sp.eventsList
+            .map(
+              (ev) => `
+              <div class="fixture-ath-item">
+                <div class="fai-date-box">
+                  <span class="fai-icon">🏆</span>
+                  <b>${esc(ev.date.split("–")[0].trim())}</b>
+                  <small>Dec 2026</small>
+                </div>
+                <div class="fai-content">
+                  <div class="fai-top-row">
+                    <h3 class="fai-title">${esc(ev.sport)}</h3>
+                    <span class="fai-time">⏰ ${esc(ev.time)}</span>
+                  </div>
+                  <p class="fai-venue">📍 ${esc(ev.venue)}</p>
+                  <p class="fai-details">${esc(ev.details)}</p>
+                </div>
+              </div>
+            `,
+            )
+            .join("")}
+        </div>
+      `;
+    }
+
+    return `<p class="mute" style="padding:16px;">Schedule being updated.</p>`;
+  };
+
+  const renderKnockouts = () => {
+    if (!sp.knockouts || !sp.knockouts.length) return "";
+    return `
+      <div class="fixture-knockouts-section">
+        <div class="fks-header">
+          <span class="fks-kicker">KNOCKOUT PROGRESSION</span>
+          <h3 class="fks-title">🏆 Road to the Championship Podium</h3>
+        </div>
+        <div class="fks-roadmap">
+          ${sp.knockouts
+            .map(
+              (k, idx) => `
+              <div class="fks-node ${idx === sp.knockouts.length - 1 ? "is-final" : ""}">
+                <div class="fks-badge">${idx === sp.knockouts.length - 1 ? "🥇 Final" : `Stage ${idx + 1}`}</div>
+                <div class="fks-info">
+                  <b class="fks-stage">${esc(k.stage)}</b>
+                  <span class="fks-timing">📅 ${esc(k.date)} · ${esc(k.time)}</span>
+                  <span class="fks-venue">📍 ${esc(k.venue)}</span>
+                  <small class="fks-cond">${esc(k.condition)}</small>
+                </div>
+              </div>
+            `,
+            )
+            .join("")}
+        </div>
+      </div>
+    `;
+  };
+
+  return `
+    <div class="student-fixtures-container">
+      <div class="card fixture-card" id="student-fixtures-card">
+        <div class="fixture-card-header">
+          <div class="fixture-title-group">
+            <div class="fixture-kicker-strip">
+              <span class="fixture-kicker-pill">🏆 OFFICIAL SCHEDULE · 57th INTER-IIT</span>
+              <span class="fixture-dates-pill">Dec 13–21, 2026</span>
+              <span class="fixture-host-pill">📍 Tata Steel Sports Complex</span>
+            </div>
+            <h2 class="fixture-heading">Inter-IIT Student Fixtures (IIT Patna)</h2>
+            <p class="mute fixture-subhead">
+              Official preliminary league draw, pitch allocations, match timings, and knockout roadmap for IIT Patna contingents.
+            </p>
+          </div>
+          <div class="fixture-action-group">
+            <button type="button" class="btn-fixture-scan" id="btn-fixtures-modal" title="Open Complete Multi-Sport Fixture Guide &amp; Rules">
+              ${ico("scan")} <span>Full Guide</span>
+            </button>
+            <button type="button" class="btn-fixture-settings" id="btn-fixtures-settings" title="Notification Preferences &amp; Match Alerts">
+              ${ico("settings")} <span>Settings</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="fixture-tabs-strip" role="tablist" aria-label="Inter-IIT Sports">
+          ${renderTabs()}
+        </div>
+
+        <div class="fixture-body">
+          ${renderPoolStrip()}
+          ${renderMatches()}
+          ${renderKnockouts()}
+
+          <div class="fixture-notice-strip">
+            <span class="notice-ic">📋</span>
+            <div class="notice-tx">
+              <b>Official Participant Guidelines:</b> ${esc(sp.rulesNote || "All contingent members must carry their official institute ID card.")}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindStudentFixtureCard() {
+  document.querySelectorAll("[data-ftab]").forEach((b) => {
+    b.onclick = () => {
+      fixtureTab = b.dataset.ftab;
+      document.querySelectorAll(".student-fixtures-container").forEach((el) => {
+        el.outerHTML = studentFixtureCard();
+      });
+      bindStudentFixtureCard();
+    };
+  });
+
+  document.querySelectorAll(".btn-fixture-scan, [data-open-fixture-modal]").forEach((b) => {
+    b.onclick = () => {
+      const sp = b.dataset.openFixtureModal || fixtureTab || "hockey";
+      openFixtureModal(sp);
+    };
+  });
+
+  document.querySelectorAll(".btn-fixture-settings, [data-open-settings-modal]").forEach((b) => {
+    b.onclick = () => {
+      openSettingsModal();
+    };
+  });
+}
+
+function openFixtureModal(sportKey) {
+  const d = (typeof ensureDlg === "function" ? ensureDlg("fixturedlg") : null) || document.getElementById("fixturedlg") || (() => {
+    const el = document.createElement("dialog");
+    el.id = "fixturedlg";
+    document.body.appendChild(el);
+    return el;
+  })();
+
+  const sp = INTER_IIT_2026.sports[sportKey] || INTER_IIT_2026.sports.hockey;
+
+  d.innerHTML = `
+    <div class="dlg-content-wrap">
+      <div class="dlg-header-strip" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:var(--brand-soft);color:var(--brand)">${ico("scan")}</span>
+          <div>
+            <h2 style="margin:0;font-size:1.15rem">Inter-IIT 2026 Student Fixture Guide</h2>
+            <p class="mute" style="margin:2px 0 0;font-size:0.8rem">57th Inter-IIT Sports Meet · Tata Steel Sports Complex</p>
+          </div>
+        </div>
+        <button type="button" class="ib" id="btn-dlg-fx-close" title="Close">${ico("close")}</button>
+      </div>
+
+      <div class="modal-sport-selector" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:14px">
+        <button type="button" class="pill ${sportKey === 'hockey' ? 'pri' : ''}" data-modtab="hockey">🏑 Hockey Men</button>
+        <button type="button" class="pill ${sportKey === 'football' ? 'pri' : ''}" data-modtab="football">⚽ Football</button>
+        <button type="button" class="pill ${sportKey === 'cricket' ? 'pri' : ''}" data-modtab="cricket">🏏 Cricket</button>
+        <button type="button" class="pill ${sportKey === 'basketball_m' ? 'pri' : ''}" data-modtab="basketball_m">🏀 Basketball (M)</button>
+        <button type="button" class="pill ${sportKey === 'basketball_w' ? 'pri' : ''}" data-modtab="basketball_w">🏀 Basketball (W)</button>
+        <button type="button" class="pill ${sportKey === 'athletics' ? 'pri' : ''}" data-modtab="athletics">🏃 Athletics &amp; Weights</button>
+      </div>
+
+      <div style="max-height:60vh;overflow-y:auto;padding-right:4px;">
+        <div class="card" style="margin:0 0 14px;background:var(--soft);border:1px solid var(--line)">
+          <h3 style="margin:0 0 6px;font-size:1rem;color:var(--brand)">📍 Venue &amp; Facility Information</h3>
+          <p style="margin:0;font-size:0.86rem;line-height:1.5;color:var(--ink)">
+            <b>Tata Steel Sports Complex:</b> Main Hockey Astroturf (Ground 1), Football Stadium, Synthetic Athletics Track &amp; Indoor Arena.<br>
+            <b>SERSA Railways Ground:</b> Cricket Ground 3 (Railway Colony).<br>
+            <b>Kalaikonda / Air Force Base:</b> Reserve backup pitches.
+          </p>
+        </div>
+
+        <div class="card" style="margin:0 0 14px;background:var(--soft);border:1px solid var(--line)">
+          <h3 style="margin:0 0 6px;font-size:1rem;color:var(--ink)">🎽 Kit &amp; Identification Rules</h3>
+          <ul style="margin:0;padding-left:18px;font-size:0.86rem;line-height:1.6;color:var(--ink)">
+            <li>Every player must carry their valid Institute Identity Card for verification by match commissaires before entering the pitch.</li>
+            <li>In case of color clashes, the team mentioned second in the fixture shall wear an alternate jersey.</li>
+            <li>Shin guards and mouth guards are mandatory for all hockey players.</li>
+            <li>Medical stations with physiotherapists and ambulance services are stationed at Ground 1 and Indoor Arena.</li>
+          </ul>
+        </div>
+
+        <div class="card" style="margin:0;background:var(--card);border:1px solid var(--line)">
+          <h3 style="margin:0 0 10px;font-size:1rem;color:var(--ink)">🏆 ${esc(sp.name)} Matches for IIT Patna</h3>
+          ${(sp.ourMatches || []).map((m) => `
+            <div style="padding:10px 12px;background:var(--soft);border-radius:10px;margin-bottom:8px;border:1px solid var(--line)">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                <span class="pill pri" style="font-size:0.75rem">Match #${m.matchNo}</span>
+                <span style="font-size:0.82rem;font-weight:700;color:var(--ink)">${esc(m.time)} · ${esc(m.dayName)}</span>
+              </div>
+              <div style="font-size:0.95rem;font-weight:800;color:var(--ink)">
+                IIT Patna vs ${esc(m.opponent)}
+              </div>
+              <div class="mute" style="font-size:0.8rem;margin-top:2px">
+                📍 ${esc(m.ground)} · ${esc(m.stage)}
+              </div>
+            </div>
+          `).join("") || '<p class="mute" style="margin:0">See detailed athletics timetable in card.</p>'}
+        </div>
+      </div>
+
+      <div class="ctl" style="margin-top:16px;display:flex;justify-content:flex-end">
+        <button type="button" class="pri" id="btn-dlg-fx-ok">Done</button>
+      </div>
+    </div>
+  `;
+
+  if (typeof d.showModal === "function") d.showModal();
+
+  const closeFx = () => d.close();
+  const bClose = d.querySelector("#btn-dlg-fx-close");
+  const bOk = d.querySelector("#btn-dlg-fx-ok");
+  if (bClose) bClose.onclick = closeFx;
+  if (bOk) bOk.onclick = closeFx;
+
+  d.querySelectorAll("[data-modtab]").forEach((btn) => {
+    btn.onclick = () => {
+      d.close();
+      openFixtureModal(btn.dataset.modtab);
+    };
+  });
+}
+
+function openSettingsModal() {
+  const d = (typeof ensureDlg === "function" ? ensureDlg("settingsdlg") : null) || document.getElementById("settingsdlg") || (() => {
+    const el = document.createElement("dialog");
+    el.id = "settingsdlg";
+    document.body.appendChild(el);
+    return el;
+  })();
+
+  const isDk = typeof isDark === "function" ? isDark() : false;
+
+  d.innerHTML = `
+    <div class="dlg-content-wrap">
+      <div class="dlg-header-strip" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:var(--brand-soft);color:var(--brand)">${ico("settings")}</span>
+          <div>
+            <h2 style="margin:0;font-size:1.15rem">Preferences &amp; System Settings</h2>
+            <p class="mute" style="margin:2px 0 0;font-size:0.8rem">Manage notifications, display theme, and offline storage</p>
+          </div>
+        </div>
+        <button type="button" class="ib" id="btn-dlg-set-close" title="Close">${ico("close")}</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
+          <div>
+            <b style="display:block;font-size:0.95rem;color:var(--ink)">Appearance Theme</b>
+            <span class="mute" style="font-size:0.8rem">Switch between Day (Light) and Night (Dark) mode</span>
+          </div>
+          <button type="button" class="pill" id="btn-set-theme-toggle" style="display:inline-flex;align-items:center;gap:6px">
+            ${ico(isDk ? "sun" : "moon")} <span>${isDk ? "Night Mode" : "Day Mode"}</span>
+          </button>
+        </div>
+
+        <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
+          <div>
+            <b style="display:block;font-size:0.95rem;color:var(--ink)">Attendance Confirmations</b>
+            <span class="mute" style="font-size:0.8rem">Instant notification sent to player when attendance is marked Present or Absent</span>
+          </div>
+          <span class="pill g" style="font-weight:700">Active ✅</span>
+        </div>
+
+        <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
+          <div>
+            <b style="display:block;font-size:0.95rem;color:var(--ink)">Inter-IIT Match Alerts</b>
+            <span class="mute" style="font-size:0.8rem">Upcoming fixture countdown and match morning reminders</span>
+          </div>
+          <span class="pill teal" style="font-weight:700">Enabled 🔔</span>
+        </div>
+
+        <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
+          <div>
+            <b style="display:block;font-size:0.95rem;color:var(--ink)">High-DPI &amp; WebP Images</b>
+            <span class="mute" style="font-size:0.8rem">Crisp retina photo loading with zero distortion</span>
+          </div>
+          <span class="pill" style="font-weight:700;color:var(--brand)">Active 🔍</span>
+        </div>
+      </div>
+
+      <div class="ctl" style="margin-top:18px;display:flex;justify-content:flex-end">
+        <button type="button" class="pri" id="btn-dlg-set-ok">Done</button>
+      </div>
+    </div>
+  `;
+
+  if (typeof d.showModal === "function") d.showModal();
+
+  const closeSet = () => d.close();
+  const bClose = d.querySelector("#btn-dlg-set-close");
+  const bOk = d.querySelector("#btn-dlg-set-ok");
+  if (bClose) bClose.onclick = closeSet;
+  if (bOk) bOk.onclick = closeSet;
+
+  const bThm = d.querySelector("#btn-set-theme-toggle");
+  if (bThm) {
+    bThm.onclick = () => {
+      if (typeof toggleTheme === "function") toggleTheme();
+      d.close();
+      openSettingsModal();
+    };
+  }
+}
+
+
