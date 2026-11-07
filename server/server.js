@@ -597,7 +597,7 @@ app.post(
       name: user.name,
       post: user.post || null,
       roll: user.roll || null,
-      exp: now + 600e3,
+      exp: now + 900e3, // 15 minutes validity
       n: 0,
       at: now,
       hs: hourStart,
@@ -611,7 +611,28 @@ app.post(
     const proto =
       req.headers["x-forwarded-proto"] || (req.secure ? "https" : "https");
     const appUrl = proto + "://" + host;
-    const autoFillUrl = appUrl + "/api/auth/magic-login?identifier=" + encodeURIComponent(identifier) + "&otp=" + encodeURIComponent(code);
+
+    // Cryptographically signed tamper-proof magic login token (15-min TTL)
+    // Immune to automated email crawlers / anti-virus pre-fetchers that consume single-use DB codes!
+    const magicToken = sign({
+      type: "magic",
+      id: user.id,
+      role: user.role,
+      name: user.name,
+      email,
+      roll: user.roll || undefined,
+      post: user.post || undefined,
+      exp: now + 900e3,
+    });
+
+    const autoFillUrl =
+      appUrl +
+      "/api/auth/magic-login?token=" +
+      encodeURIComponent(magicToken) +
+      "&identifier=" +
+      encodeURIComponent(identifier) +
+      "&otp=" +
+      encodeURIComponent(code);
 
     const escH = (s) =>
       String(s ?? "").replace(
@@ -631,10 +652,10 @@ app.post(
       "Hello " + user.name + ",\n\n" +
       "Your 6-digit login verification code for IIT Patna Hockey is: " + code + "\n\n" +
       "Or click here to log in instantly:\n" + autoFillUrl + "\n\n" +
-      "This code is valid for 10 minutes.\n\n" +
+      "This link and code are valid for 15 minutes.\n\n" +
       "IIT Patna Field Hockey";
 
-    const emailHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0;padding:20px 12px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:460px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.05);"><tr><td style="padding:24px 24px 16px;text-align:center;border-bottom:1px solid #f1f5f9;"><div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#0f4aa8;text-transform:uppercase;margin-bottom:4px;">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div><h1 style="margin:0;font-size:20px;color:#0b2a4a;font-weight:800;">🏑 Hockey Team Portal</h1></td></tr><tr><td style="padding:24px 24px 20px;"><p style="margin:0 0 10px;font-size:15px;color:#0b2a4a;font-weight:600;">Hello ' + escH(user.name) + ',</p><p style="margin:0 0 18px;font-size:14px;color:#475569;line-height:1.5;">Your one-time login verification code is:</p><div style="background:#f1f5f9;border-radius:12px;padding:16px;text-align:center;margin:0 0 20px;"><div style="font-family:\'Courier New\',Courier,monospace;font-size:36px;letter-spacing:8px;font-weight:900;color:#0b2a4a;user-select:all;-webkit-user-select:all;">' + code + '</div></div><div style="text-align:center;margin:0 0 20px;"><a href="' + autoFillUrl + '" target="_blank" style="display:inline-block;background:#0f4aa8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:13px 24px;border-radius:10px;box-shadow:0 4px 12px rgba(15,74,168,0.25);">🚀 Click Here to Log In Instantly</a></div><p style="margin:0;font-size:13px;color:#64748b;line-height:1.5;text-align:center;">Valid for <b>10 minutes</b>. If you did not request this, you can safely ignore this email.</p></td></tr><tr><td style="padding:12px 24px;background:#f8fafc;border-top:1px solid #f1f5f9;text-align:center;"><p style="margin:0;font-size:11px;color:#94a3b8;">Indian Institute of Technology Patna · Field Hockey</p></td></tr></table></body></html>';
+    const emailHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0;padding:20px 12px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:460px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.05);"><tr><td style="padding:24px 24px 16px;text-align:center;border-bottom:1px solid #f1f5f9;"><div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#0f4aa8;text-transform:uppercase;margin-bottom:4px;">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div><h1 style="margin:0;font-size:20px;color:#0b2a4a;font-weight:800;">🏑 Hockey Team Portal</h1></td></tr><tr><td style="padding:24px 24px 20px;"><p style="margin:0 0 10px;font-size:15px;color:#0b2a4a;font-weight:600;">Hello ' + escH(user.name) + ',</p><p style="margin:0 0 18px;font-size:14px;color:#475569;line-height:1.5;">Your one-time login verification code is:</p><div style="background:#f1f5f9;border-radius:12px;padding:16px;text-align:center;margin:0 0 20px;"><div style="font-family:\'Courier New\',Courier,monospace;font-size:36px;letter-spacing:8px;font-weight:900;color:#0b2a4a;user-select:all;-webkit-user-select:all;">' + code + '</div></div><div style="text-align:center;margin:0 0 20px;"><a href="' + autoFillUrl + '" target="_blank" style="display:inline-block;background:#0f4aa8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:13px 24px;border-radius:10px;box-shadow:0 4px 12px rgba(15,74,168,0.25);">🚀 Click Here to Log In Instantly</a></div><p style="margin:0;font-size:13px;color:#64748b;line-height:1.5;text-align:center;">Valid for <b>15 minutes</b>. If you did not request this, you can safely ignore this email.</p></td></tr><tr><td style="padding:12px 24px;background:#f8fafc;border-top:1px solid #f1f5f9;text-align:center;"><p style="margin:0;font-size:11px;color:#94a3b8;">Indian Institute of Technology Patna · Field Hockey</p></td></tr></table></body></html>';
 
     // Directly await email dispatch so Resend sends it immediately and serverless container never freezes
     try {
@@ -727,49 +748,68 @@ app.post(
   }),
 );
 
-// Instant Magic Link Login: Directly verifies OTP from email link and opens home interface
+// Instant Magic Link Login: Directly verifies OTP or magic token from email and opens home interface directly
 app.get(
   "/api/auth/magic-login",
   h(async (req, res) => {
+    const rawToken = String(req.query.token || "").trim();
     const identifier = String(req.query.identifier || req.query.roll || req.query.email || "").trim();
     const otp = String(req.query.otp || req.query.code || "").trim();
 
-    if (!identifier || !otp) {
-      return res.redirect("/?login_err=" + encodeURIComponent("Invalid login link. Please request a new code."));
+    let userPayload = null;
+
+    // 1. Primary verification: tamper-proof signed magic token (immune to email security crawlers)
+    if (rawToken) {
+      const verified = verify(rawToken);
+      if (verified && verified.type === "magic") {
+        userPayload = verified;
+      }
     }
 
-    const user = await resolveAuthUser(identifier);
-    if (!user) {
-      return res.redirect("/?login_err=" + encodeURIComponent("User account not found."));
+    // 2. Fallback verification: database OTP lookup for backward compatibility
+    if (!userPayload && identifier && otp) {
+      const user = await resolveAuthUser(identifier);
+      if (user) {
+        const ref = db.collection("otps").doc(user.otpKey);
+        const otpDoc = await ref.get().catch(() => null);
+        if (otpDoc && otpDoc.exists) {
+          const d = otpDoc.data() || {};
+          if (d.exp >= Date.now() && /^\d{6}$/.test(otp) && eq(otpHash(user.otpKey, (d.email || user.email).trim(), otp), d.h)) {
+            userPayload = {
+              id: user.id,
+              role: user.role,
+              name: user.name,
+              email: user.email,
+              roll: user.roll || undefined,
+              post: user.post || undefined,
+            };
+          }
+        }
+      }
     }
 
-    const ref = db.collection("otps").doc(user.otpKey);
-    const otpDoc = await ref.get().catch(() => null);
-
-    if (!otpDoc || !otpDoc.exists) {
-      return res.redirect("/?login_err=" + encodeURIComponent("Login code already used or expired. Please request a new code."));
+    if (!userPayload) {
+      // Check if a token was supplied but has expired
+      if (rawToken) {
+        try {
+          const [b] = rawToken.split(".");
+          const p = JSON.parse(Buffer.from(b, "base64url"));
+          if (p && p.exp && p.exp <= Date.now()) {
+            return res.redirect("/?login_err=" + encodeURIComponent("Login link has expired. Please request a new code."));
+          }
+        } catch (e) {}
+      }
+      return res.redirect("/?login_err=" + encodeURIComponent("Login link is invalid or already expired. Please request a new code."));
     }
-
-    const d = otpDoc.data() || {};
-    if (d.exp < Date.now()) {
-      return res.redirect("/?login_err=" + encodeURIComponent("Login code has expired. Please request a new code."));
-    }
-
-    if (!/^\d{6}$/.test(otp) || !eq(otpHash(user.otpKey, (d.email || user.email).trim(), otp), d.h)) {
-      return res.redirect("/?login_err=" + encodeURIComponent("Incorrect verification code in login link."));
-    }
-
-    // Success! Delete OTP record to prevent reuse
-    await ref.delete().catch(() => {});
 
     // Generate 30-day session token
     const token = sign({
-      id: user.id,
-      role: user.role,
-      name: user.name,
-      email: user.email,
-      roll: user.roll || undefined,
-      post: user.post || undefined,
+      id: userPayload.id,
+      role: userPayload.role,
+      name: userPayload.name,
+      email: userPayload.email,
+      roll: userPayload.roll || undefined,
+      post: userPayload.post || undefined,
       exp: Date.now() + 30 * 864e5,
     });
 
@@ -784,7 +824,8 @@ app.get(
     } catch (e) {}
 
     const safeToken = JSON.stringify(token);
-    const safeName = String(user.name || "Player").replace(/[&<>"']/g, "");
+    const safeName = String(userPayload.name || "Player").replace(/[&<>"']/g, "");
+    const destinationUrl = "/?token=" + encodeURIComponent(token) + "#tab=me";
 
     res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -844,13 +885,13 @@ app.get(
     <div class="spin"></div>
     <h1>Welcome, ${safeName}! 🏑</h1>
     <p>Opening your home dashboard directly...</p>
-    <a href="/#tab=me" class="btn" id="go-btn">Click here if not redirected</a>
+    <a href="${destinationUrl}" class="btn" id="go-btn">Click here if not redirected</a>
   </div>
   <script>
     try {
       localStorage.setItem("hk_token", ${safeToken});
     } catch (e) {}
-    window.location.replace("/#tab=me");
+    window.location.replace(${JSON.stringify(destinationUrl)});
   </script>
 </body>
 </html>`);

@@ -1470,6 +1470,28 @@ function handleUrlAuthParams() {
       return true;
     }
 
+    const tokenParam = (
+      params.get("token") ||
+      params.get("auth") ||
+      params.get("session") ||
+      ""
+    ).trim();
+
+    // Instant One-Click Login from direct session token
+    if (tokenParam) {
+      saveToken(tokenParam);
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname + "#tab=me");
+      }
+      tab = "me";
+      closeLogin();
+      showApp();
+      render();
+      load(true);
+      toast("Welcome back!");
+      return true;
+    }
+
     if (!identParam && !otp) return false;
 
     // Instant One-Click Auto-Login from Email link: Opens Home Interface directly!
