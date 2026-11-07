@@ -2346,15 +2346,7 @@ function drawMenu() {
       mi("📷", "Change team group photo", () =>
         pickFiles((f) => setGroupPhoto(f[0])),
       ) +
-      mi("🏑", "Edit Indian hockey fixtures", openMatches) +
-      mi("📖", "Edit hockey rules sections", () => {
-        ed = true;
-        go("rules");
-      }) +
-      mi("🔥", "Edit warm-up drills", () => {
-        ed = true;
-        go("warmup");
-      });
+      mi("🏑", "Edit Indian hockey fixtures", openMatches);
   h +=
     `<div class="ms">Share</div>` +
     mi("📊", "Share attendance report", () => openReport()) +
@@ -2375,7 +2367,7 @@ function drawMenu() {
       { sw: alertOn },
     );
   if (!standalone()) h += mi("⬇️", "Install app", installApp);
-  if (GROUP)
+  if (GROUP && !admin)
     h += mi("💬", "Join WhatsApp group", () =>
       window.open(GROUP, "_blank", "noopener"),
     );
