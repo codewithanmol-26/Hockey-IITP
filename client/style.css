@@ -9471,8 +9471,41 @@ dialog.custom-export-dialog {
 }
 .iit-crest-svg, .iit-crest-img, .iit-logo-badge {
   flex-shrink: 0;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   vertical-align: middle;
+}
+.iit-logo-badge {
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+.iit-logo-badge:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+}
+.iit-logo-badge img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  image-rendering: auto;
+}
+.iit-crest-img.is-patna {
+  border-radius: 50%;
+  object-fit: contain;
+  box-shadow: 0 3px 12px rgba(11, 42, 74, 0.45);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.iit-crest-img.is-patna:hover {
+  transform: scale(1.08);
 }
 .fmc-header {
   display: flex;

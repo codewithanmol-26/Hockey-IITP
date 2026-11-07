@@ -909,6 +909,32 @@ function bindAcadCard() {
 // ---------------------------------------------------------------- 7. Inter-IIT Sports Meet 2026 Student Fixtures (HOCKEY MEN ONLY)
 let fixtureHockeyView = "patna"; // "patna", "all", "pools", "knockouts"
 
+const IIT_LOGO_FILES = {
+  PAT: "icons/iitp-sports-crest.png",
+  KAN: "icons/iit-logos/kan.png",
+  MAN: "icons/iit-logos/man.png",
+  ROO: "icons/iit-logos/roo.png",
+  BOM: "icons/iit-logos/bom.png",
+  ROP: "icons/iit-logos/rop.png",
+  DHN: "icons/iit-logos/ism.png",
+  ISM: "icons/iit-logos/ism.png",
+  DEL: "icons/iit-logos/del.png",
+  GUW: "icons/iit-logos/guw.png",
+  HYD: "icons/iit-logos/hyd.png",
+  KGP: "icons/iit-logos/kgp.png",
+  MAD: "icons/iit-logos/mad.png",
+  BHU: "icons/iit-logos/bhu.png",
+  JOD: "icons/iit-logos/jod.png",
+  IND: "icons/iit-logos/ind.png",
+  TIR: "icons/iit-logos/tir.png",
+  GOA: "icons/iit-logos/goa.png",
+  JAM: "icons/iit-logos/jam.png",
+  BHI: "icons/iit-logos/bhi.png",
+  BBS: "icons/iit-logos/bbs.png",
+  PAL: "icons/iit-logos/pal.png",
+  IISC: "icons/iit-logos/iisc.png",
+};
+
 const IIT_DIRECTORY = {
   PAT: { name: "IIT Patna", short: "Patna", pool: "A", isUs: true, bg: "#0b2a4a", accent: "#38bdf8", text: "#ffffff", motif: "crest" },
   KAN: { name: "IIT Kanpur", short: "Kanpur", pool: "A", bg: "#1e3a8a", accent: "#fbbf24", text: "#ffffff", motif: "atom" },
@@ -917,6 +943,7 @@ const IIT_DIRECTORY = {
   BOM: { name: "IIT Bombay", short: "Bombay", pool: "B", bg: "#0f2a5c", accent: "#f59e0b", text: "#ffffff", motif: "gear" },
   ROP: { name: "IIT Ropar", short: "Ropar", pool: "B", bg: "#1d4ed8", accent: "#fdba74", text: "#ffffff", motif: "flame" },
   DHN: { name: "IIT ISM Dhanbad", short: "Dhanbad", pool: "B", bg: "#713f12", accent: "#facc15", text: "#ffffff", motif: "pickaxe" },
+  ISM: { name: "IIT ISM Dhanbad", short: "Dhanbad", pool: "B", bg: "#713f12", accent: "#facc15", text: "#ffffff", motif: "pickaxe" },
   DEL: { name: "IIT Delhi", short: "Delhi", pool: "C", bg: "#1e40af", accent: "#fb923c", text: "#ffffff", motif: "chakra" },
   GUW: { name: "IIT Guwahati", short: "Guwahati", pool: "C", bg: "#134e4a", accent: "#fef08a", text: "#ffffff", motif: "river" },
   HYD: { name: "IIT Hyderabad", short: "Hyderabad", pool: "C", bg: "#3730a3", accent: "#67e8f9", text: "#ffffff", motif: "nodes" },
@@ -925,6 +952,13 @@ const IIT_DIRECTORY = {
   BHU: { name: "IIT (BHU) Varanasi", short: "BHU", pool: "D", bg: "#9a3412", accent: "#ffedd5", text: "#ffffff", motif: "temple" },
   JOD: { name: "IIT Jodhpur", short: "Jodhpur", pool: "D", bg: "#7c2d12", accent: "#7dd3fc", text: "#ffffff", motif: "sun" },
   IND: { name: "IIT Indore", short: "Indore", pool: "D", bg: "#0369a1", accent: "#fde047", text: "#ffffff", motif: "star" },
+  TIR: { name: "IIT Tirupati", short: "Tirupati", pool: "Other", bg: "#881337", accent: "#fda4af", text: "#ffffff", motif: "pillar" },
+  GOA: { name: "IIT Goa", short: "Goa", pool: "Other", bg: "#1e3a8a", accent: "#93c5fd", text: "#ffffff", motif: "chakra" },
+  JAM: { name: "IIT Jammu", short: "Jammu", pool: "Other", bg: "#047857", accent: "#6ee7b7", text: "#ffffff", motif: "mountain" },
+  BHI: { name: "IIT Bhilai", short: "Bhilai", pool: "Other", bg: "#4c1d95", accent: "#c4b5fd", text: "#ffffff", motif: "atom" },
+  BBS: { name: "IIT Bhubaneswar", short: "Bhubaneswar", pool: "Other", bg: "#0369a1", accent: "#7dd3fc", text: "#ffffff", motif: "chakra" },
+  PAL: { name: "IIT Palakkad", short: "Palakkad", pool: "Other", bg: "#b45309", accent: "#fde68a", text: "#ffffff", motif: "sun" },
+  IISC: { name: "IISc Bangalore", short: "IISc", pool: "Other", bg: "#0f172a", accent: "#94a3b8", text: "#ffffff", motif: "pillar" },
 };
 
 function getMotifSvg(motif, acc) {
@@ -963,22 +997,36 @@ function getMotifSvg(motif, acc) {
 }
 
 function renderIitLogo(code, name, size = 38) {
-  if (code === "PAT") {
-    return `<img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Crest" class="iit-crest-img" width="${size}" height="${size}" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:50%;box-shadow:0 3px 10px rgba(11,42,74,0.4);flex-shrink:0;">`;
+  const normCode = String(code || "").toUpperCase().trim();
+  const titleText = esc(name || (IIT_DIRECTORY[normCode] && IIT_DIRECTORY[normCode].name) || normCode);
+
+  if (normCode === "PAT") {
+    return `<img src="icons/iitp-sports-crest.png" alt="${titleText} Sports Crest" title="${titleText}" class="iit-crest-img is-patna" width="${size}" height="${size}" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:50%;box-shadow:0 3px 10px rgba(11,42,74,0.45);flex-shrink:0;" loading="lazy" decoding="async">`;
   }
-  const m = IIT_DIRECTORY[code] || {
+
+  const logoFile = IIT_LOGO_FILES[normCode];
+  if (logoFile) {
+    const pad = Math.max(2, Math.round(size * 0.08));
+    return `
+      <div class="iit-logo-badge" title="${titleText}" aria-label="${titleText}" style="width:${size}px;height:${size}px;border-radius:50%;background:#ffffff;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.22);flex-shrink:0;overflow:hidden;padding:${pad}px;border:1.5px solid rgba(255,255,255,0.4);box-sizing:border-box;">
+        <img src="${logoFile}" alt="${titleText} Official Emblem" width="${size}" height="${size}" class="iit-crest-img" style="max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto;" loading="lazy" decoding="async">
+      </div>
+    `;
+  }
+
+  const m = IIT_DIRECTORY[normCode] || {
     bg: "#0f2b48",
     accent: "#38bdf8",
     text: "#ffffff",
     motif: "star",
-    name: name || code,
+    name: name || normCode,
   };
   return `
-    <svg class="iit-crest-svg" width="${size}" height="${size}" viewBox="0 0 44 44" aria-label="${esc(name || m.name || code)}" title="${esc(name || m.name || code)}" style="width:${size}px;height:${size}px;flex-shrink:0;border-radius:50%;box-shadow:0 3px 10px rgba(0,0,0,0.3);shape-rendering:geometricPrecision">
+    <svg class="iit-crest-svg" width="${size}" height="${size}" viewBox="0 0 44 44" aria-label="${titleText}" title="${titleText}" style="width:${size}px;height:${size}px;flex-shrink:0;border-radius:50%;box-shadow:0 3px 10px rgba(0,0,0,0.3);shape-rendering:geometricPrecision">
       <circle cx="22" cy="22" r="21" fill="${m.bg}" stroke="${m.accent}" stroke-width="2"/>
       <circle cx="22" cy="22" r="18" fill="none" stroke="${m.accent}" stroke-width="0.8" stroke-dasharray="2 2" opacity="0.6"/>
       ${getMotifSvg(m.motif, m.accent)}
-      <text x="22" y="${m.motif ? '33' : '26'}" text-anchor="middle" fill="${m.text}" font-size="${m.motif ? '9.5' : '11'}" font-weight="900" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" letter-spacing="0.5">${esc(code)}</text>
+      <text x="22" y="${m.motif ? '33' : '26'}" text-anchor="middle" fill="${m.text}" font-size="${m.motif ? '9.5' : '11'}" font-weight="900" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" letter-spacing="0.5">${esc(normCode)}</text>
     </svg>
   `;
 }
@@ -1330,9 +1378,7 @@ function studentFixtureCard() {
 
             <div class="fmc-vs-strip">
               <div class="fmc-team">
-                <div class="iit-logo-badge" style="width:40px;height:40px;border-radius:50%;background:#0b2a4a;color:#38bdf8;border:2px solid #38bdf8;display:grid;place-items:center;font-weight:800;font-size:10px;box-shadow:0 2px 8px rgba(0,0,0,0.3);flex-shrink:0;">
-                  ${esc(m.t1Code)}
-                </div>
+                ${renderIitLogo(m.t1Code, m.t1Name, 40)}
                 <div class="fmc-team-info">
                   <b class="fmc-team-name">${esc(m.t1Name)}</b>
                   <span class="fmc-team-sub">Knockout Competitor</span>
@@ -1349,9 +1395,7 @@ function studentFixtureCard() {
                   <b class="fmc-team-name">${esc(m.t2Name)}</b>
                   <span class="fmc-team-sub">Knockout Competitor</span>
                 </div>
-                <div class="iit-logo-badge" style="width:40px;height:40px;border-radius:50%;background:#0b2a4a;color:#38bdf8;border:2px solid #38bdf8;display:grid;place-items:center;font-weight:800;font-size:10px;box-shadow:0 2px 8px rgba(0,0,0,0.3);flex-shrink:0;">
-                  ${esc(m.t2Code)}
-                </div>
+                ${renderIitLogo(m.t2Code, m.t2Name, 40)}
               </div>
             </div>
 
@@ -2278,34 +2322,76 @@ function renderInterIITPage() {
 
       <!-- Participating IITs Showcase -->
       <div class="card interiit-campuses-card" style="padding:18px;border-radius:16px;background:var(--card);border:1px solid var(--line);">
-        <h3 style="margin:0 0 4px;font-size:1.1rem;color:var(--ink);">Participating IIT Campuses (Men's Hockey 2026)</h3>
-        <p class="mute" style="margin:0 0 14px;font-size:0.82rem">15 competing contingents drawn into Pools A, B, C, and D</p>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+          <div>
+            <h3 style="margin:0 0 4px;font-size:1.1rem;color:var(--ink);">Participating IIT Campuses (Men's Hockey 2026)</h3>
+            <p class="mute" style="margin:0;font-size:0.82rem">15 competing contingents drawn into Pools A, B, C, and D</p>
+          </div>
+          <span class="pill pri" style="font-size:0.75rem;font-weight:800;">Official Emblems</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:10px;margin-bottom:20px;">
           ${[
             ["PAT", "IIT Patna", "Pool A", "#0ea5e9"],
             ["KAN", "IIT Kanpur", "Pool A", "#dc2626"],
             ["MAN", "IIT Mandi", "Pool A", "#7c3aed"],
-            ["DEL", "IIT Delhi", "Pool B", "#ea580c"],
-            ["BOM", "IIT Bombay", "Pool B", "#0284c7"],
             ["ROO", "IIT Roorkee", "Pool B", "#16a34a"],
-            ["MAD", "IIT Madras", "Pool C", "#9333ea"],
-            ["KGP", "IIT Kharagpur", "Pool C", "#ca8a04"],
+            ["BOM", "IIT Bombay", "Pool B", "#0284c7"],
+            ["ROP", "IIT Ropar", "Pool B", "#d97706"],
+            ["DHN", "IIT ISM Dhanbad", "Pool B", "#eab308"],
+            ["DEL", "IIT Delhi", "Pool C", "#ea580c"],
             ["GUW", "IIT Guwahati", "Pool C", "#059669"],
-            ["BHU", "IIT BHU", "Pool C", "#b91c1c"],
-            ["IND", "IIT Indore", "Pool D", "#2563eb"],
-            ["ROP", "IIT Ropar", "Pool D", "#d97706"],
+            ["HYD", "IIT Hyderabad", "Pool C", "#6366f1"],
+            ["KGP", "IIT Kharagpur", "Pool C", "#ca8a04"],
+            ["MAD", "IIT Madras", "Pool D", "#9333ea"],
+            ["BHU", "IIT (BHU) Varanasi", "Pool D", "#b91c1c"],
             ["JOD", "IIT Jodhpur", "Pool D", "#0d9488"],
-            ["GN", "IIT Gandhinagar", "Pool D", "#6366f1"],
-            ["TIR", "IIT Tirupati", "Pool D", "#e11d48"],
+            ["IND", "IIT Indore", "Pool D", "#2563eb"],
           ].map(([code, name, pool, col]) => `
-            <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--soft);border:1px solid var(--line);">
-              ${renderIitLogo(code, name, 28)}
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;background:var(--soft);border:1px solid var(--line);transition:transform 0.15s ease;">
+              ${renderIitLogo(code, name, 30)}
               <div style="overflow:hidden">
-                <b style="display:block;font-size:0.8rem;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--ink)">${name}</b>
-                <span style="font-size:0.68rem;font-weight:700;color:${col}">${pool}</span>
+                <b style="display:block;font-size:0.82rem;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--ink)">${name}</b>
+                <span style="font-size:0.7rem;font-weight:700;color:${col}">${pool}</span>
               </div>
             </div>
           `).join("")}
+        </div>
+
+        <div style="border-top:1px dashed var(--line);padding-top:16px;margin-top:10px;">
+          <h4 style="margin:0 0 4px;font-size:0.95rem;color:var(--ink);">All 22 Official IIT &amp; IISc Emblems</h4>
+          <p class="mute" style="margin:0 0 12px;font-size:0.78rem">Official collegiate symbols across the Indian Institutes of Technology fraternity</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:8px;">
+            ${[
+              ["IISC", "IISc Bangalore"],
+              ["BHI", "IIT Bhilai"],
+              ["BBS", "IIT Bhubaneswar"],
+              ["BHU", "IIT BHU"],
+              ["BOM", "IIT Bombay"],
+              ["DEL", "IIT Delhi"],
+              ["GOA", "IIT Goa"],
+              ["GUW", "IIT Guwahati"],
+              ["HYD", "IIT Hyderabad"],
+              ["IND", "IIT Indore"],
+              ["ISM", "IIT ISM Dhanbad"],
+              ["JAM", "IIT Jammu"],
+              ["JOD", "IIT Jodhpur"],
+              ["KAN", "IIT Kanpur"],
+              ["KGP", "IIT Kharagpur"],
+              ["MAD", "IIT Madras"],
+              ["MAN", "IIT Mandi"],
+              ["PAL", "IIT Palakkad"],
+              ["PAT", "IIT Patna"],
+              ["ROO", "IIT Roorkee"],
+              ["ROP", "IIT Ropar"],
+              ["TIR", "IIT Tirupati"],
+            ].map(([code, name]) => `
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:var(--card);border:1px solid var(--line);">
+                ${renderIitLogo(code, name, 24)}
+                <span style="font-size:0.76rem;font-weight:600;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--ink)">${name}</span>
+              </div>
+            `).join("")}
+          </div>
         </div>
       </div>
     </div>

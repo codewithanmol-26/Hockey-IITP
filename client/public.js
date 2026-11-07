@@ -306,7 +306,7 @@ function drawPublic() {
     <!-- 1. Hero Section -->
     <section class="pub-hero" id="pub-hero">
       <div class="hero-crest-badge">
-        <img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Crest">
+        <img src="icons/iitp-sports-crest.png" alt="IIT Patna Sports Crest">
         Official Collegiate Portal · IIT Patna Athletics
       </div>
       <h1 class="hero-title">IIT PATNA <span class="accent-text">HOCKEY</span></h1>
@@ -697,7 +697,7 @@ function drawPublic() {
       <div class="footer-inner">
         <div class="footer-brand">
           <div class="footer-brand-title">
-            <img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Crest" width="48" height="48">
+            <img src="icons/iitp-sports-crest.png" alt="IIT Patna Sports Crest" width="48" height="48">
             <div>
               <div style="font-size:1.25rem;line-height:1">IIT PATNA</div>
               <div style="font-size:0.72rem;letter-spacing:0.12em;color:var(--accent)">FIELD HOCKEY TEAM</div>

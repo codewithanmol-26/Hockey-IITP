@@ -3071,7 +3071,7 @@ function drawSidebar() {
   sb.innerHTML = `
     <div class="sb-header">
       <div class="sb-brand">
-        <img src="icons/iitp-hockey-crest.svg" alt="IIT Patna Crest" class="sb-crest" width="38" height="38">
+        <img src="icons/iitp-sports-crest.png" alt="IIT Patna Sports Crest" class="sb-crest" width="38" height="38">
         <div class="sb-brand-info">
           <div class="sb-brand-title">IITP Hockey</div>
           <div class="sb-brand-sub">IIT PATNA ATHLETICS</div>
