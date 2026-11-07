@@ -7949,7 +7949,6 @@ function vCoachDashboard() {
     </div>
 
     ${annCard()}
-    ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
     ${typeof skillsVideoCard === "function" ? skillsVideoCard() : ""}
     ${lbPreviewCard()}
     ${teamCard()}
@@ -8136,7 +8135,6 @@ function vLeadershipDashboard() {
     </div>
 
     ${annCard()}
-    ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
     ${typeof skillsVideoCard === "function" ? skillsVideoCard() : ""}
     ${lbPreviewCard()}
     ${teamCard()}
@@ -8256,7 +8254,6 @@ function vPlayerDashboard() {
     </div>
 
     ${annCard()}
-    ${typeof studentFixtureCard === "function" ? studentFixtureCard() : ""}
     ${typeof skillsVideoCard === "function" ? skillsVideoCard() : ""}
     ${lbPreviewCard()}
     <div class="grid home-cards-grid">${upCard()}${newsCard()}${histCard()}</div>

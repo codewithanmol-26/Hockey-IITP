@@ -476,13 +476,6 @@ function drawPublic() {
       </div>
     </section>
 
-    <!-- 3b. Student Fixtures Section (Men's Hockey) -->
-    <section class="pub-sec" id="pub-fixtures">
-      <div id="pub-fixtures-container">
-        ${typeof studentFixtureCard === "function" ? studentFixtureCard({ isPublic: true }) : ""}
-      </div>
-    </section>
-
     <!-- 3c. Hockey Skill Practice & Video Drills Section -->
     <section class="pub-sec" id="pub-skills">
       <div class="sec-header">
@@ -838,6 +831,22 @@ function bindPublic() {
         pdr.hidden = true;
         pmb.setAttribute("aria-expanded", "false");
         if (typeof openSettingsModal === "function") openSettingsModal();
+      };
+    }
+    const pdlInt = gid("pdl-interiit");
+    if (pdlInt) {
+      pdlInt.onclick = (e) => {
+        e.preventDefault();
+        pdr.hidden = true;
+        pmb.setAttribute("aria-expanded", "false");
+        if (typeof showInterIITMeetInfo === "function") showInterIITMeetInfo();
+      };
+    }
+    const pnlInt = gid("pnl-interiit");
+    if (pnlInt) {
+      pnlInt.onclick = (e) => {
+        e.preventDefault();
+        if (typeof showInterIITMeetInfo === "function") showInterIITMeetInfo();
       };
     }
     document.addEventListener("click", (e) => {
