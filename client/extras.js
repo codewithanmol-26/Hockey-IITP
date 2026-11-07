@@ -2471,10 +2471,10 @@ function renderInterIITPage() {
             <h3 style="margin:0 0 4px;font-size:1.1rem;color:var(--ink);">Participating IIT Campuses (Men's Hockey 2026)</h3>
             <p class="mute" style="margin:0;font-size:0.82rem">15 competing contingents drawn into Pools A, B, C, and D</p>
           </div>
-          <span class="pill pri" style="font-size:0.75rem;font-weight:800;">Official Emblems</span>
+          <span class="pill pri" style="font-size:0.75rem;font-weight:800;">Competing Contingents</span>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:10px;margin-bottom:20px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:10px;">
           ${[
             ["PAT", "IIT Patna", "Pool A", "#0ea5e9"],
             ["KAN", "IIT Kanpur", "Pool A", "#dc2626"],
@@ -2500,42 +2500,6 @@ function renderInterIITPage() {
               </div>
             </div>
           `).join("")}
-        </div>
-
-        <div style="border-top:1px dashed var(--line);padding-top:14px;margin-top:10px;">
-          <h4 style="margin:0 0 4px;font-size:0.95rem;color:var(--ink);">All 22 Official IIT &amp; IISc Emblems</h4>
-          <p class="mute" style="margin:0 0 10px;font-size:0.78rem">Official collegiate symbols across the Indian Institutes of Technology fraternity</p>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:8px;">
-            ${[
-              ["IISC", "IISc Bangalore"],
-              ["BHI", "IIT Bhilai"],
-              ["BBS", "IIT Bhubaneswar"],
-              ["BHU", "IIT BHU"],
-              ["BOM", "IIT Bombay"],
-              ["DEL", "IIT Delhi"],
-              ["GOA", "IIT Goa"],
-              ["GUW", "IIT Guwahati"],
-              ["HYD", "IIT Hyderabad"],
-              ["IND", "IIT Indore"],
-              ["ISM", "IIT ISM Dhanbad"],
-              ["JAM", "IIT Jammu"],
-              ["JOD", "IIT Jodhpur"],
-              ["KAN", "IIT Kanpur"],
-              ["KGP", "IIT Kharagpur"],
-              ["MAD", "IIT Madras"],
-              ["MAN", "IIT Mandi"],
-              ["PAL", "IIT Palakkad"],
-              ["PAT", "IIT Patna"],
-              ["ROO", "IIT Roorkee"],
-              ["ROP", "IIT Ropar"],
-              ["TIR", "IIT Tirupati"],
-            ].map(([code, name]) => `
-              <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:var(--card);border:1px solid var(--line);">
-                ${renderIitLogo(code, name, 24)}
-                <span style="font-size:0.76rem;font-weight:600;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--ink)">${name}</span>
-              </div>
-            `).join("")}
-          </div>
         </div>
       </div>
 
