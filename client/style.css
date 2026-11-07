@@ -1673,7 +1673,9 @@ dialog .ctl button {
   display: inline-grid;
   place-items: center;
   border-radius: 50%;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
+  image-rendering: -webkit-optimize-contrast;
   color: #fff;
   font-weight: 800;
   flex: none;
@@ -2782,8 +2784,12 @@ dialog input:not([type]) {
 .gph {
   display: block;
   width: 100%;
-  max-height: 360px;
+  height: auto;
+  max-height: 480px;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
+  object-position: center;
+  image-rendering: -webkit-optimize-contrast;
   border-radius: 14px;
   cursor: zoom-in;
   background: var(--soft);
@@ -6110,6 +6116,25 @@ dialog.full-mobile-lightbox::backdrop {
   -webkit-user-drag: none;
   touch-action: pan-x pan-y pinch-zoom;
   cursor: default;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+}
+
+/* Global High-DPI Sharpness & Crisp Scaling */
+img {
+  image-rendering: -webkit-optimize-contrast;
+}
+img.avi,
+img.gph,
+img.bigimg,
+img.sig,
+.g-thumb-item img,
+.gi img,
+.group-photo-container img,
+.hero-avatar-wrap img {
+  image-rendering: -webkit-optimize-contrast;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* Clickable image affordances */
@@ -7074,8 +7099,12 @@ img.sig,
 }
 .group-photo-container img {
   width: 100%;
+  height: auto;
   max-height: 480px;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
+  object-position: center;
+  image-rendering: -webkit-optimize-contrast;
   display: block;
   transition: transform 0.3s ease;
 }
@@ -7121,11 +7150,14 @@ img.sig,
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   border: 1px solid var(--line);
+  background: var(--soft);
 }
 .g-thumb-item img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  image-rendering: -webkit-optimize-contrast;
   display: block;
   transition: transform 0.25s ease;
 }

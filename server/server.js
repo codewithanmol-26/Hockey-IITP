@@ -3404,11 +3404,25 @@ app.get(
       db.collection("blobs").doc("groupPhoto").get(),
       db.collection("gallery").orderBy("at", "desc").limit(30).get(),
     ]);
-    const teamPhotos = gs.docs
+    const teamPhotoDocs = gs.docs
       .filter((d) => galCat(d.data().cat) === "team photo")
-      .map((d) => d.data().thumb)
-      .filter(Boolean)
       .slice(0, 8);
+    const teamPhotos = await Promise.all(
+      teamPhotoDocs.map(async (d) => {
+        const data = d.data() || {};
+        let full = "";
+        try {
+          const fDoc = await db.collection("galleryFull").doc(d.id).get();
+          if (fDoc.exists) full = fDoc.data().img || "";
+        } catch (e) {}
+        return {
+          id: d.id,
+          thumb: data.thumb || full,
+          full: full || data.thumb || "",
+          desc: data.desc || "",
+        };
+      })
+    );
 
     // Compute top dedicated players summary for public showcase
     const sks = Object.keys(all.sessions || {});

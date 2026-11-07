@@ -55,9 +55,9 @@ function pickPhoto(cb) {
     const out = await cropFile(fl, {
       title: "Crop profile photo",
       ars: [["Square", 1]],
-      out: 240,
-      q: 0.82,
-      cap: 55000,
+      out: 480,
+      q: 0.88,
+      cap: 60000,
     });
     if (out) cb(out);
   };
@@ -68,9 +68,9 @@ async function editCurrentPhoto(currentPh, cb) {
     const out = await cropFile(currentPh, {
       title: "Edit profile photo",
       ars: [["Square", 1]],
-      out: 240,
-      q: 0.82,
-      cap: 55000,
+      out: 480,
+      q: 0.88,
+      cap: 60000,
     });
     if (out) cb(out);
   } else {
@@ -5343,13 +5343,21 @@ function pickImg(cb) {
     rd.onload = () => {
       const im = new Image();
       im.onload = () => {
-        const w = Math.min(200, im.width),
+        const w = Math.min(800, im.width),
           h = Math.round((im.height * w) / im.width),
           c = document.createElement("canvas");
         c.width = w;
         c.height = h;
-        c.getContext("2d").drawImage(im, 0, 0, w, h);
-        cb(c.toDataURL("image/jpeg", 0.7));
+        const ctx = c.getContext("2d");
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(im, 0, 0, w, h);
+        const supportsWebP = (() => {
+          try {
+            return document.createElement("canvas").toDataURL("image/webp").indexOf("data:image/webp") === 0;
+          } catch { return false; }
+        })();
+        cb(c.toDataURL(supportsWebP ? "image/webp" : "image/jpeg", 0.86));
       };
       im.src = rd.result;
     };
@@ -7205,7 +7213,7 @@ function podium(st, medal) {
 // v12: gallery, team photo, Indian hockey news (home), charts (Attendance tab)
 // =====================================================================================
 
-// ---------- images: any photo -> small JPEG under a size cap ----------
+// ---------- images: optimized WebP/JPEG under a size cap preserving original quality ----------
 function fileToImg(file, max, q, cap) {
   return new Promise((ok, no) => {
     const rd = new FileReader();
@@ -7214,21 +7222,34 @@ function fileToImg(file, max, q, cap) {
       const im = new Image();
       im.onerror = () => no(new Error("That file is not a picture"));
       im.onload = () => {
+        const supportsWebP = (() => {
+          try {
+            const tc = document.createElement("canvas");
+            return tc.toDataURL("image/webp").indexOf("data:image/webp") === 0;
+          } catch {
+            return false;
+          }
+        })();
+        const mime = supportsWebP ? "image/webp" : "image/jpeg";
         let m = max,
-          qq = q;
-        for (let i = 0; i < 5; i++) {
+          qq = Math.max(q || 0.85, 0.82);
+        for (let i = 0; i < 6; i++) {
           const s = Math.min(1, m / Math.max(im.width, im.height)),
             c = document.createElement("canvas");
           c.width = Math.max(1, Math.round(im.width * s));
           c.height = Math.max(1, Math.round(im.height * s));
           const x = c.getContext("2d");
-          x.fillStyle = "#fff";
-          x.fillRect(0, 0, c.width, c.height);
+          x.imageSmoothingEnabled = true;
+          x.imageSmoothingQuality = "high";
+          if (mime === "image/jpeg") {
+            x.fillStyle = "#fff";
+            x.fillRect(0, 0, c.width, c.height);
+          }
           x.drawImage(im, 0, 0, c.width, c.height);
-          const out = c.toDataURL("image/jpeg", qq);
+          const out = c.toDataURL(mime, qq);
           if (out.length < cap) return ok(out);
-          m = Math.round(m * 0.8);
-          qq = Math.max(0.5, qq - 0.06);
+          m = Math.round(m * 0.9);
+          qq = Math.max(0.72, qq - 0.03);
         }
         no(new Error("That photo is too big"));
       };
@@ -7256,8 +7277,9 @@ function ensureDlg(id) {
   }
   return d;
 }
-function openImg(src, title = "") {
-  if (!src) return;
+function openImg(src, title = "", fullSrc = "") {
+  if (!src && !fullSrc) return;
+  const initialSrc = fullSrc || src;
   const d = ensureDlg("imdlg");
   d.className = "full-mobile-lightbox";
   d.setAttribute("aria-label", title || "Image preview");
@@ -7267,14 +7289,46 @@ function openImg(src, title = "") {
     <div class="lightbox-header">
       <div class="lightbox-title">${esc(title || "Image")}</div>
       <div class="lightbox-actions">
-        <a href="${src}" download="hockey_image.jpg" class="lightbox-btn" target="_blank" rel="noopener" aria-label="Download full resolution image">⬇ Save</a>
+        <a href="${initialSrc}" download="hockey_image.jpg" class="lightbox-btn" target="_blank" rel="noopener" aria-label="Download full resolution image">⬇ Save</a>
         <button type="button" class="lightbox-btn close" id="imx" aria-label="Close image">✕</button>
       </div>
     </div>
     <div class="lightbox-content">
-      <img class="lightbox-img" src="${src}" alt="${esc(title || "Full image")}" decoding="async">
+      <img class="lightbox-img" src="${initialSrc}" alt="${esc(title || "Full image")}" decoding="async">
     </div>
   `;
+  const imgEl = d.querySelector(".lightbox-img");
+  const adjustSize = () => {
+    const nw = imgEl.naturalWidth || 0;
+    const nh = imgEl.naturalHeight || 0;
+    if (nw > 0 && nh > 0) {
+      // Never enlarge low-resolution images beyond their natural dimensions!
+      if (nw < 600 || nh < 600) {
+        imgEl.style.maxWidth = `${nw}px`;
+        imgEl.style.maxHeight = `${nh}px`;
+      } else {
+        imgEl.style.maxWidth = "100%";
+        imgEl.style.maxHeight = "100%";
+      }
+    }
+  };
+  if (imgEl.complete) adjustSize();
+  else imgEl.onload = adjustSize;
+
+  // If a separate high-res image was provided, progressively upgrade once loaded
+  if (fullSrc && fullSrc !== src) {
+    const hi = new Image();
+    hi.onload = () => {
+      if (d.open) {
+        imgEl.src = fullSrc;
+        const dl = d.querySelector(".lightbox-actions a");
+        if (dl) dl.href = fullSrc;
+        adjustSize();
+      }
+    };
+    hi.src = fullSrc;
+  }
+
   const x = d.querySelector("#imx");
   if (x) x.onclick = () => d.close();
   d.onclick = (e) => {
@@ -7306,21 +7360,24 @@ document.addEventListener("click", (e) => {
   }
 
   let src = "";
+  let fullSrc = "";
   let title = "";
   if (img.tagName === "IMG") {
     src = img.src;
+    fullSrc = img.dataset.full || img.dataset.orig || img.dataset.highres || img.src;
     title = img.alt || img.getAttribute("title") || "";
   } else if (img.classList.contains("cover") && img.style.backgroundImage) {
     const m = img.style.backgroundImage.match(/url\(["']?([^"']+)["']?\)/);
     if (m && m[1]) {
       src = m[1];
+      fullSrc = src;
       title = "Background Image";
     }
   }
 
   if (src && !src.startsWith("data:image/svg")) {
     e.stopPropagation();
-    openImg(src, title);
+    openImg(src, title, fullSrc);
   }
 });
 
@@ -8292,7 +8349,7 @@ async function openPhoto(id) {
   const info = () =>
     `<p class="gmeta"><span class="pill">${esc(gcLabel(g.cat))}</span> <span class="mute">${esc(g.by)}${g.by && g.at ? " · " : ""}${when(g.at)}</span></p>${g.desc ? `<p class="gdesc">${esc(g.desc)}</p>` : can ? '<p class="mute gdesc">No description yet.</p>' : ""}`;
   const draw = () => {
-    d.innerHTML = `<img class="bigimg" id="phi" src="${full || g.thumb}" alt="${esc(g.desc || "")}"><div id="phinfo">${info()}</div>
+    d.innerHTML = `<img class="bigimg" id="phi" data-full="${full || ""}" src="${full || g.thumb}" alt="${esc(g.desc || "")}"><div id="phinfo">${info()}</div>
     <div class="ctl"><a class="btn" id="phdl" download="hockey-photo.jpg" ${full ? `href="${full}"` : "hidden"}>⬇ Save</a>${can ? '<button id="phe">✏️ Edit</button>' : ""}${admin ? `<button id="phg" ${full ? "" : "disabled"}>🖼 Use as group photo</button>` : ""}${can ? '<button id="phd" class="dng">🗑 Delete</button>' : ""}<button id="phx">Close</button></div>`;
     $("phx").onclick = () => d.close();
     if ($("phg"))
@@ -8355,6 +8412,7 @@ async function openPhoto(id) {
     full = r.img || "";
     if (full && d.open && !$("pec")) {
       $("phi").src = full;
+      $("phi").dataset.full = full;
       const a = $("phdl");
       a.href = full;
       a.hidden = false;

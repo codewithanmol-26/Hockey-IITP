@@ -278,7 +278,7 @@ function drawPublic() {
   const photos =
     p && p.groupPhoto
       ? `<div class="group-photo-container" id="pgph">
-          <img class="gph" src="${p.groupPhoto}" alt="IIT Patna Hockey Team Squad Group Photo" loading="lazy">
+          <img class="gph" src="${p.groupPhoto}" alt="IIT Patna Hockey Team Squad Group Photo" loading="eager" decoding="async" fetchpriority="high">
           <div class="group-photo-overlay">
             <div>
               <div class="gpo-title">IIT Patna Hockey Squad</div>
@@ -294,7 +294,12 @@ function drawPublic() {
 
   const thumbs =
     p && p.gallery && p.gallery.length
-      ? `<div class="gallery-thumbs-grid">${p.gallery.map((src, i) => `<div class="g-thumb-item" data-gthumb="${esc(src)}" title="Open photo"><img src="${esc(src)}" alt="IIT Patna Hockey Team Photo ${i + 1}" loading="lazy"></div>`).join("")}</div>`
+      ? `<div class="gallery-thumbs-grid">${p.gallery.map((it, i) => {
+          const thumb = typeof it === "string" ? it : it.thumb || it.full;
+          const full = typeof it === "string" ? it : it.full || it.thumb;
+          const desc = (typeof it === "object" && it.desc) ? it.desc : `IIT Patna Hockey Team Photo ${i + 1}`;
+          return `<div class="g-thumb-item" data-gthumb="${esc(thumb)}" data-gfull="${esc(full)}" title="${esc(desc)}"><img src="${esc(thumb)}" alt="${esc(desc)}" loading="lazy" decoding="async"></div>`;
+        }).join("")}</div>`
       : "";
 
   gid("pview").innerHTML = `
@@ -742,9 +747,13 @@ function bindPublic() {
     };
   }
 
-  // Gallery thumbs click
+  // Gallery thumbs click -> opens the FULL-RESOLUTION image in lightbox, never the low-res thumbnail!
   document.querySelectorAll("#pub [data-gthumb]").forEach((el) => {
-    el.onclick = () => openImg(el.dataset.gthumb);
+    el.onclick = () => {
+      const full = el.dataset.gfull || el.dataset.gthumb;
+      const title = el.getAttribute("title") || "IIT Patna Hockey Team Photo";
+      openImg(full, title, full);
+    };
   });
 
   // Whistle Synthesizer buttons
@@ -1371,21 +1380,35 @@ async function cropFile(file, o) {
       H = o.out || 1024;
       W = H * r;
     }
-    let q = o.q || 0.8,
+    let q = o.q || 0.85,
       out = "";
+    const supportsWebP = (() => {
+      try {
+        const tc = document.createElement("canvas");
+        return tc.toDataURL("image/webp").indexOf("data:image/webp") === 0;
+      } catch (e) {
+        return false;
+      }
+    })();
+    const mime = supportsWebP ? "image/webp" : "image/jpeg";
+
     for (let i = 0; i < 7; i++) {
       const c = document.createElement("canvas");
       c.width = Math.max(1, Math.round(W));
       c.height = Math.max(1, Math.round(H));
       const x = c.getContext("2d");
-      x.fillStyle = "#fff";
-      x.fillRect(0, 0, c.width, c.height);
+      x.imageSmoothingEnabled = true;
+      x.imageSmoothingQuality = "high";
+      if (mime === "image/jpeg") {
+        x.fillStyle = "#fff";
+        x.fillRect(0, 0, c.width, c.height);
+      }
       x.drawImage(bm, sx, sy, sw, sh, 0, 0, c.width, c.height);
-      out = c.toDataURL("image/jpeg", q);
+      out = c.toDataURL(mime, q);
       if (!o.cap || out.length < o.cap) return out;
-      W *= 0.85;
-      H *= 0.85;
-      q = Math.max(0.5, q - 0.05);
+      W *= 0.9;
+      H *= 0.9;
+      q = Math.max(0.72, q - 0.03);
     }
     return out;
   };
