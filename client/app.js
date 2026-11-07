@@ -7271,6 +7271,18 @@ function fileToImg(file, max, q, cap) {
       const im = new Image();
       im.onerror = () => no(new Error("That file is not a picture"));
       im.onload = () => {
+        // Principle: Avoid unnecessary compression if original file is already within size cap & max dimensions
+        if (
+          file &&
+          file.size &&
+          cap &&
+          file.size < cap &&
+          im.width <= max &&
+          im.height <= max &&
+          /^image\/(webp|jpeg|png)$/i.test(file.type || "")
+        ) {
+          return ok(rd.result);
+        }
         const supportsWebP = (() => {
           try {
             const tc = document.createElement("canvas");
@@ -7281,7 +7293,7 @@ function fileToImg(file, max, q, cap) {
         })();
         const mime = supportsWebP ? "image/webp" : "image/jpeg";
         let m = max,
-          qq = Math.max(q || 0.85, 0.82);
+          qq = Math.max(q || 0.9, 0.86);
         for (let i = 0; i < 6; i++) {
           const s = Math.min(1, m / Math.max(im.width, im.height)),
             c = document.createElement("canvas");
@@ -7297,8 +7309,8 @@ function fileToImg(file, max, q, cap) {
           x.drawImage(im, 0, 0, c.width, c.height);
           const out = c.toDataURL(mime, qq);
           if (out.length < cap) return ok(out);
-          m = Math.round(m * 0.9);
-          qq = Math.max(0.72, qq - 0.03);
+          m = Math.round(m * 0.92);
+          qq = Math.max(0.78, qq - 0.02);
         }
         no(new Error("That photo is too big"));
       };
@@ -7326,7 +7338,7 @@ function ensureDlg(id) {
   }
   return d;
 }
-function openImg(src, title = "", fullSrc = "") {
+function openImg(src, title = "", fullSrc = "", galleryId = "") {
   if (!src && !fullSrc) return;
   const initialSrc = fullSrc || src;
   const d = ensureDlg("imdlg");
@@ -7351,14 +7363,13 @@ function openImg(src, title = "", fullSrc = "") {
     const nw = imgEl.naturalWidth || 0;
     const nh = imgEl.naturalHeight || 0;
     if (nw > 0 && nh > 0) {
-      // Never enlarge low-resolution images beyond their natural dimensions!
-      if (nw < 600 || nh < 600) {
-        imgEl.style.maxWidth = `${nw}px`;
-        imgEl.style.maxHeight = `${nh}px`;
-      } else {
-        imgEl.style.maxWidth = "100%";
-        imgEl.style.maxHeight = "100%";
-      }
+      // Rule 1: Never enlarge low-resolution images/thumbnails beyond their natural 1x scale
+      const maxW = Math.min(nw, Math.round(window.innerWidth * 0.94));
+      const maxH = Math.min(nh, Math.round(window.innerHeight * 0.84));
+      imgEl.style.maxWidth = `${maxW}px`;
+      imgEl.style.maxHeight = `${maxH}px`;
+      imgEl.style.width = "auto";
+      imgEl.style.height = "auto";
     }
   };
   if (imgEl.complete) adjustSize();
@@ -7376,6 +7387,18 @@ function openImg(src, title = "", fullSrc = "") {
       }
     };
     hi.src = fullSrc;
+  }
+
+  // If a gallery item ID is known, auto-fetch high-resolution image from server
+  if (galleryId) {
+    api("/api/gallery/" + galleryId).then((r) => {
+      if (r && r.img && d.open) {
+        imgEl.src = r.img;
+        const dl = d.querySelector(".lightbox-actions a");
+        if (dl) dl.href = r.img;
+        adjustSize();
+      }
+    }).catch(() => {});
   }
 
   const x = d.querySelector("#imx");
@@ -7398,23 +7421,29 @@ function openImg(src, title = "", fullSrc = "") {
 // Global click handler: tap any avatar, group photo, referee signal, or profile cover to view in full mobile view
 document.addEventListener("click", (e) => {
   const img = e.target.closest(
-    "img.avi, img.bigimg, img.sig, .pavw img, .gph img, #gpimg, #pgph, .cover.has",
+    "img.avi, img.bigimg, img.sig, .pavw img, .gph img, #gpimg, #pgph, .cover.has, [data-full], [data-gthumb]",
   );
   if (!img) return;
   if (e.target.closest(".full-mobile-lightbox")) return;
 
   // Don't intercept if clicking interactive form controls (unless the target itself is an image)
   if (e.target.closest("button, a, input, select")) {
-    if (e.target.tagName !== "IMG") return;
+    if (e.target.tagName !== "IMG" && !e.target.closest("[data-full], [data-gthumb]")) return;
   }
 
   let src = "";
   let fullSrc = "";
   let title = "";
+  let galleryId = "";
   if (img.tagName === "IMG") {
     src = img.src;
-    fullSrc = img.dataset.full || img.dataset.orig || img.dataset.highres || img.src;
+    fullSrc = img.dataset.full || img.dataset.orig || img.dataset.highres || img.dataset.gfull || img.src;
     title = img.alt || img.getAttribute("title") || "";
+    galleryId = img.dataset.galleryId || img.dataset.id || (img.closest("[data-g]") ? img.closest("[data-g]").dataset.g : "");
+  } else if (img.dataset.gthumb) {
+    src = img.dataset.gthumb;
+    fullSrc = img.dataset.gfull || img.dataset.gthumb;
+    title = img.getAttribute("title") || "IIT Patna Hockey Team Photo";
   } else if (img.classList.contains("cover") && img.style.backgroundImage) {
     const m = img.style.backgroundImage.match(/url\(["']?([^"']+)["']?\)/);
     if (m && m[1]) {
@@ -7426,7 +7455,7 @@ document.addEventListener("click", (e) => {
 
   if (src && !src.startsWith("data:image/svg")) {
     e.stopPropagation();
-    openImg(src, title, fullSrc);
+    openImg(src, title, fullSrc, galleryId);
   }
 });
 
@@ -8274,7 +8303,7 @@ function vGallery() {
         ? '<p class="mute" style="margin:8px 0 12px;font-size:0.86rem">📁 4 folders: <b>Match</b>, <b>Fitness</b>, <b>Practice</b>, and <b>Team photo</b>. Only Team photos are displayed publicly.</p>'
         : '<p class="mute" style="margin:8px 0 12px;font-size:0.86rem">🔒 Photos in this folder are private to team members only and are not shown publicly.</p>';
   const grid = list.length
-    ? `<div class="gal">${list.map((g) => `<figure class="gf"><button class="gi" data-g="${g.id}" aria-label="Open photo${g.desc ? ": " + esc(g.desc) : ""}"><img src="${g.thumb}" alt="${esc(g.desc || "")}" loading="lazy"></button>${g.desc ? `<figcaption>${esc(g.desc)}</figcaption>` : ""}</figure>`).join("")}</div>`
+    ? `<div class="gal">${list.map((g) => `<figure class="gf"><button class="gi" data-g="${g.id}" aria-label="Open photo${g.desc ? ": " + esc(g.desc) : ""}"><img src="${g.thumb}" data-gallery-id="${g.id}" alt="${esc(g.desc || "")}" loading="lazy" decoding="async"></button>${g.desc ? `<figcaption>${esc(g.desc)}</figcaption>` : ""}</figure>`).join("")}</div>`
     : empty(
         "🖼️",
         galErr ||
@@ -8404,7 +8433,7 @@ async function openPhoto(id) {
   const info = () =>
     `<p class="gmeta"><span class="pill">${esc(gcLabel(g.cat))}</span> <span class="mute">${esc(g.by)}${g.by && g.at ? " · " : ""}${when(g.at)}</span></p>${g.desc ? `<p class="gdesc">${esc(g.desc)}</p>` : can ? '<p class="mute gdesc">No description yet.</p>' : ""}`;
   const draw = () => {
-    d.innerHTML = `<img class="bigimg" id="phi" data-full="${full || ""}" src="${full || g.thumb}" alt="${esc(g.desc || "")}"><div id="phinfo">${info()}</div>
+    d.innerHTML = `<img class="bigimg" id="phi" data-id="${id}" data-gallery-id="${id}" data-full="${full || ""}" src="${full || g.thumb}" alt="${esc(g.desc || "")}" decoding="async"><div id="phinfo">${info()}</div>
     <div class="ctl"><a class="btn" id="phdl" download="hockey-photo.jpg" ${full ? `href="${full}"` : "hidden"}>⬇ Save</a>${can ? '<button id="phe">✏️ Edit</button>' : ""}${admin ? `<button id="phg" ${full ? "" : "disabled"}>🖼 Use as group photo</button>` : ""}${can ? '<button id="phd" class="dng">🗑 Delete</button>' : ""}<button id="phx">Close</button></div>`;
     const phi = $("phi");
     if (phi) {

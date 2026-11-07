@@ -1415,7 +1415,7 @@ async function cropFile(file, o) {
       H = o.out || 1024;
       W = H * r;
     }
-    let q = o.q || 0.85,
+    let q = Math.max(o.q || 0.88, 0.86),
       out = "";
     const supportsWebP = (() => {
       try {
@@ -1441,9 +1441,9 @@ async function cropFile(file, o) {
       x.drawImage(bm, sx, sy, sw, sh, 0, 0, c.width, c.height);
       out = c.toDataURL(mime, q);
       if (!o.cap || out.length < o.cap) return out;
-      W *= 0.9;
-      H *= 0.9;
-      q = Math.max(0.72, q - 0.03);
+      W *= 0.92;
+      H *= 0.92;
+      q = Math.max(0.78, q - 0.02);
     }
     return out;
   };

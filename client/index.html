@@ -47,7 +47,7 @@
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
   <script>
     (function () {
-      var v = "111";
+      var v = "115";
       try {
         var old = localStorage.getItem("hk_v");
         if (old && old !== v) {
@@ -62,8 +62,8 @@
       } catch (e) { }
     })();
   </script>
-  <link rel="preload" href="style.css?v=114" as="style">
-  <link rel="stylesheet" href="style.css?v=114">
+  <link rel="preload" href="style.css?v=115" as="style">
+  <link rel="stylesheet" href="style.css?v=115">
 </head>
 
 <body>
@@ -248,8 +248,11 @@
 
   <dialog id="oia" aria-labelledby="oiat">
     <button type="button" class="dx" id="oiax" aria-label="Close">✕</button>
-    <img src="icons/icon-192.png" alt="" width="64" height="64"
-      style="border-radius:16px;display:block;margin:0 auto 10px">
+    <picture>
+      <source srcset="icons/icon-192.webp" type="image/webp">
+      <img src="icons/icon-192.png" alt="IIT Patna Hockey App" width="64" height="64" loading="lazy" decoding="async"
+        style="border-radius:16px;display:block;margin:0 auto 10px;object-fit:cover;aspect-ratio:1/1;">
+    </picture>
     <h2 id="oiat" style="text-align:center;margin-bottom:4px">Open in the app?</h2>
     <p class="mute" style="text-align:center">The app is faster, works from your home screen and can send you reminders.
     </p>
@@ -291,11 +294,11 @@
     })();
   </script>
   <script src="config.js"></script>
-  <script src="icons.js?v=85"></script>
-  <script src="public.js?v=114"></script>
-  <script src="extras.js?v=114"></script>
+  <script src="icons.js?v=86"></script>
+  <script src="public.js?v=115"></script>
+  <script src="extras.js?v=115"></script>
   <script src="help.js?v=83"></script>
-  <script src="app.js?v=114"></script>
+  <script src="app.js?v=115"></script>
   <script src="chat.js?v=85"></script>
 </body>
 

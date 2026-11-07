@@ -1675,7 +1675,7 @@ dialog .ctl button {
   border-radius: 50%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
-  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
   color: #fff;
   font-weight: 800;
   flex: none;
@@ -2789,7 +2789,7 @@ dialog input:not([type]) {
   aspect-ratio: 16 / 9;
   object-fit: cover;
   object-position: center;
-  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
   border-radius: 14px;
   cursor: zoom-in;
   background: var(--soft);
@@ -4833,7 +4833,8 @@ textarea {
   font-size: max(16px, 1rem);
 } /* phones zoom into small fields; 16px stops that */
 .svgi {
-  stroke-width: 2;
+  stroke-width: 1.8;
+  shape-rendering: geometricPrecision;
 }
 button.ib:not(.pri):not(.dng),
 a.ib:not(.pri) {
@@ -6112,19 +6113,22 @@ dialog.full-mobile-lightbox::backdrop {
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: 6px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.85);
+  border-radius: 8px;
+  box-shadow: 0 16px 56px rgba(0, 0, 0, 0.88);
   user-select: none;
   -webkit-user-drag: none;
   touch-action: pan-x pan-y pinch-zoom;
   cursor: default;
-  image-rendering: -webkit-optimize-contrast;
   image-rendering: auto;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
-/* Global High-DPI Sharpness & Crisp Scaling */
+/* Global High-DPI Sharpness & Crisp Scaling - High-fidelity lanczos/bicubic downsampling without aliasing or jaggies */
 img {
-  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+  -webkit-font-smoothing: antialiased;
 }
 img.avi,
 img.gph,
@@ -6133,10 +6137,24 @@ img.sig,
 .g-thumb-item img,
 .gi img,
 .group-photo-container img,
-.hero-avatar-wrap img {
-  image-rendering: -webkit-optimize-contrast;
+.hero-avatar-wrap img,
+.iit-crest-img,
+.pub-crest,
+.lg-logo {
+  image-rendering: auto;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Vector icons and crests - pixel-precise edges on Retina/high-DPI screens */
+svg,
+.svgi,
+.iit-crest-svg {
+  shape-rendering: geometricPrecision;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Clickable image affordances */
@@ -7106,7 +7124,7 @@ img.sig,
   aspect-ratio: 16 / 9;
   object-fit: cover;
   object-position: center;
-  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
   display: block;
   transition: transform 0.3s ease;
 }
@@ -7159,7 +7177,7 @@ img.sig,
   height: 100%;
   object-fit: cover;
   object-position: center;
-  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
   display: block;
   transition: transform 0.25s ease;
 }
@@ -10244,5 +10262,226 @@ dialog.custom-export-dialog {
   color: var(--mute);
   font-weight: 600;
 }
+
+/* ==========================================================================
+   Mobile-First UI Optimization for Home Page & Image Systems (<= 600px & <= 480px)
+   ========================================================================== */
+@media (max-width: 600px) {
+  /* Minimal edge gutters - eliminate wasted horizontal space */
+  #pub main#pview,
+  #view,
+  .main-content {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Public Hero Banner mobile tuning */
+  .pub-hero,
+  .coach-hero,
+  .leader-hero {
+    padding: 18px 12px 16px !important;
+    border-radius: 16px !important;
+    margin-bottom: 12px !important;
+  }
+  .pub-hero h1,
+  .coach-hero h1,
+  .leader-hero h1 {
+    font-size: clamp(1.4rem, 6.2vw, 1.85rem) !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.02em !important;
+  }
+  .pub-hero p.lead {
+    font-size: 0.88rem !important;
+    line-height: 1.45 !important;
+    margin-bottom: 14px !important;
+  }
+  .hero-crest-badge {
+    padding: 3px 8px !important;
+    font-size: 0.72rem !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* Side-by-side touch-friendly CTA buttons */
+  .hero-cta-group {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-top: 10px !important;
+  }
+  .hero-cta-group button,
+  .hero-cta-group a {
+    min-height: 44px !important;
+    padding: 10px 8px !important;
+    font-size: 0.84rem !important;
+    justify-content: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Hero Live Next Session Card */
+  .next-session-live-card {
+    padding: 12px !important;
+    border-radius: 12px !important;
+    margin-top: 12px !important;
+  }
+  .nsc-top-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+  }
+  .nsc-countdown-pill {
+    align-self: flex-start !important;
+    font-size: 0.75rem !important;
+    padding: 3px 8px !important;
+  }
+
+  /* Compact Hero KPI / Metrics Strip */
+  .hero-metrics-strip,
+  .hero-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    margin-top: 12px !important;
+  }
+  .hero-metric-card,
+  .kpi-card {
+    padding: 10px 8px !important;
+    border-radius: 10px !important;
+    text-align: center !important;
+  }
+  .hero-metric-val,
+  .kpi-val {
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+  }
+  .hero-metric-lbl,
+  .kpi-lbl {
+    font-size: 0.7rem !important;
+  }
+
+  /* Student Fixtures Card on Mobile */
+  #student-fixtures-card,
+  .fixture-card {
+    padding: 12px 10px !important;
+    border-radius: 14px !important;
+    margin-bottom: 12px !important;
+  }
+  .fixture-tabs-strip {
+    gap: 6px !important;
+    padding-bottom: 6px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+  .fixture-tab-pill {
+    padding: 5px 10px !important;
+    font-size: 0.75rem !important;
+    white-space: nowrap !important;
+    min-height: 36px !important;
+  }
+  .fixture-match-card {
+    padding: 10px 8px !important;
+    border-radius: 10px !important;
+    margin-bottom: 8px !important;
+  }
+  .fmc-header {
+    font-size: 0.72rem !important;
+    margin-bottom: 6px !important;
+  }
+  .fmc-vs-strip {
+    gap: 6px !important;
+    padding: 6px 0 !important;
+  }
+  .fmc-team {
+    gap: 4px !important;
+    font-size: 0.82rem !important;
+  }
+  .fmc-team img,
+  .fmc-team svg {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .fmc-vs-badge {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
+  }
+  .fixture-actions-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    margin-top: 8px !important;
+  }
+  .btn-fixture-scan,
+  .btn-fixture-settings {
+    min-height: 40px !important;
+    padding: 6px 8px !important;
+    font-size: 0.78rem !important;
+    justify-content: center !important;
+  }
+
+  /* Hockey Skill Practice Video Card */
+  #hockey-skills-player-card,
+  .hsk-card {
+    padding: 12px 10px !important;
+    border-radius: 14px !important;
+    margin-bottom: 12px !important;
+  }
+  .hsk-player-wrap {
+    max-height: 440px !important;
+    border-radius: 12px !important;
+  }
+  .hsk-shelf-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .hsk-shelf-item {
+    padding: 8px !important;
+    gap: 10px !important;
+  }
+  .hsk-thumb-wrap {
+    width: 120px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Academic Calendar & Weekly Schedule Cards */
+  .academic-cal-card,
+  .weekly-schedule-card,
+  .avail-advisory-card {
+    padding: 12px 10px !important;
+    border-radius: 14px !important;
+    margin-bottom: 12px !important;
+  }
+
+  /* Gallery & Team Photos on Mobile */
+  .gallery-thumbs-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  .gph {
+    max-height: 260px !important;
+    border-radius: 12px !important;
+  }
+  .g-thumb-item {
+    border-radius: 10px !important;
+  }
+}
+
+@media (max-width: 400px) {
+  /* Extra compact screens (iPhone SE, Galaxy A-series) */
+  .hero-cta-group {
+    grid-template-columns: 1fr !important;
+  }
+  .hero-metric-val,
+  .kpi-val {
+    font-size: 1.05rem !important;
+  }
+  .fmc-team-name {
+    font-size: 0.75rem !important;
+  }
+}
+
 
 
