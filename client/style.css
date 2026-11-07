@@ -535,25 +535,39 @@ nav#nav[hidden] {
     max-width: 1400px;
     width: 100%;
     margin: 0 auto;
-    padding: 24px 28px 60px;
+    padding: 18px 20px 48px;
     box-sizing: border-box;
   }
   @media (min-width: 1600px) {
     main#view {
       max-width: 1540px;
-      padding: 28px 36px 60px;
+      padding: 20px 24px 48px;
     }
   }
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px;
   }
   .grid .span2 {
     grid-column: 1/-1;
   }
   @media (min-width: 1280px) {
-    .grid.grid-3col,
-    .home-cards-grid {
+    .grid.grid-3col {
       grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+  }
+  .home-cards-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+  .home-cards-grid > .span2 {
+    grid-column: 1 / -1 !important;
+  }
+  @media (max-width: 860px) {
+    .home-cards-grid {
+      grid-template-columns: 1fr !important;
     }
   }
 }
