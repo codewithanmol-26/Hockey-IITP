@@ -9444,9 +9444,15 @@ dialog.custom-export-dialog {
 /* Match Cards Grid */
 .fixture-matches-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
   margin-bottom: 12px;
+}
+@media (min-width: 900px) {
+  .fixture-matches-grid {
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 14px;
+  }
 }
 .fixture-match-card {
   padding: 12px 14px;
@@ -9559,8 +9565,8 @@ dialog.custom-export-dialog {
 .fmc-team {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex: 1;
+  gap: 8px;
+  flex: 1 1 0;
   min-width: 0;
 }
 .fmc-team.fmc-opp {
@@ -9599,21 +9605,30 @@ dialog.custom-export-dialog {
 }
 .fmc-team-info {
   min-width: 0;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
 }
 .fmc-team-name {
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   font-weight: 800;
   color: var(--ink);
-  white-space: nowrap;
+  line-height: 1.22;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
 }
 .fmc-team-sub {
   font-size: 0.72rem;
   color: var(--mute);
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .fmc-center {
   display: flex;
@@ -9624,24 +9639,21 @@ dialog.custom-export-dialog {
   padding: 0 4px;
 }
 .fmc-vs-circle {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 900;
   background: var(--card);
   border: 1px solid var(--line);
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--mute);
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 .fmc-venue-tag {
-  font-size: 0.72rem;
-  color: var(--mute);
-  white-space: nowrap;
-  font-weight: 600;
+  display: none !important;
 }
 .fmc-footer {
   display: flex;
@@ -10524,12 +10536,20 @@ dialog.custom-export-dialog {
 }
 
 /* ==========================================================================
-   Inter IIT Sports Meet Hub Styling (59th Edition - Compact & Responsive)
+   Inter IIT Sports Meet Hub & Settings (Full Desktop Width & Responsive Grid)
    ========================================================================== */
-.interiit-hub-page {
-  max-width: 860px;
-  margin: 0 auto;
-  padding-bottom: 16px;
+.interiit-hub-page,
+.settings-page {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding-bottom: 20px;
+}
+@media (min-width: 861px) {
+  .btn-interiit-back,
+  .btn-settings-back {
+    display: none !important;
+  }
 }
 .interiit-hub-page .fixture-card {
   background: transparent !important;
@@ -10607,24 +10627,27 @@ dialog.custom-export-dialog {
     transform: scale(1.25);
   }
 }
-dialog#interiitdlg {
-  width: min(94vw, 860px);
-  max-height: 92vh;
+dialog#interiitdlg,
+dialog#settingsdlg {
+  width: min(96vw, 1320px);
+  max-height: 94vh;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--bg);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
 }
-dialog#interiitdlg .lightbox-header {
+dialog#interiitdlg .lightbox-header,
+dialog#settingsdlg .lightbox-header {
   background: var(--card);
   border-bottom: 1px solid var(--line);
-  padding: 8px 14px;
+  padding: 10px 18px;
 }
-dialog#interiitdlg .lightbox-content {
-  padding: 10px 12px;
+dialog#interiitdlg .lightbox-content,
+dialog#settingsdlg .lightbox-content {
+  padding: 14px 18px;
   background: var(--bg);
-  max-height: calc(92vh - 46px);
+  max-height: calc(94vh - 54px);
   overflow-y: auto;
 }
 @media (max-width: 600px) {

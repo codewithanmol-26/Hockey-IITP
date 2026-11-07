@@ -1167,7 +1167,7 @@ function studentFixtureCard(opts = {}) {
 
               <div class="fmc-vs-strip">
                 <div class="fmc-team ${m.t1 === 'PAT' ? 'is-us' : ''}">
-                  ${renderIitLogo(m.t1, m.team1, 44)}
+                  ${renderIitLogo(m.t1, m.team1, 36)}
                   <div class="fmc-team-info">
                     <b class="fmc-team-name">${esc(m.team1)}</b>
                     <span class="fmc-team-sub">${m.t1 === 'PAT' ? '★ IIT Patna Squad' : 'Pool A Opponent'}</span>
@@ -1176,7 +1176,6 @@ function studentFixtureCard(opts = {}) {
 
                 <div class="fmc-center">
                   <div class="fmc-vs-circle">VS</div>
-                  <span class="fmc-venue-tag">📍 Ground 1 (Turf)</span>
                 </div>
 
                 <div class="fmc-team is-right ${m.t2 === 'PAT' ? 'is-us' : ''}">
@@ -1184,7 +1183,7 @@ function studentFixtureCard(opts = {}) {
                     <b class="fmc-team-name">${esc(m.team2)}</b>
                     <span class="fmc-team-sub">${m.t2 === 'PAT' ? '★ IIT Patna Squad' : 'Pool A Opponent'}</span>
                   </div>
-                  ${renderIitLogo(m.t2, m.team2, 44)}
+                  ${renderIitLogo(m.t2, m.team2, 36)}
                 </div>
               </div>
 
@@ -1274,7 +1273,7 @@ function studentFixtureCard(opts = {}) {
 
             <div class="fmc-vs-strip">
               <div class="fmc-team ${m.t1 === 'PAT' ? 'is-us' : ''}">
-                ${renderIitLogo(m.t1, m.team1, 40)}
+                ${renderIitLogo(m.t1, m.team1, 36)}
                 <div class="fmc-team-info">
                   <b class="fmc-team-name">${esc(m.team1)}</b>
                   <span class="fmc-team-sub">${m.t1 === 'PAT' ? '★ Our Squad' : 'Pool ' + m.pool}</span>
@@ -1283,7 +1282,6 @@ function studentFixtureCard(opts = {}) {
 
               <div class="fmc-center">
                 <div class="fmc-vs-circle">VS</div>
-                <span class="fmc-venue-tag">📍 Ground 1 (Turf)</span>
               </div>
 
               <div class="fmc-team is-right ${m.t2 === 'PAT' ? 'is-us' : ''}">
@@ -1291,7 +1289,7 @@ function studentFixtureCard(opts = {}) {
                   <b class="fmc-team-name">${esc(m.team2)}</b>
                   <span class="fmc-team-sub">${m.t2 === 'PAT' ? '★ Our Squad' : 'Pool ' + m.pool}</span>
                 </div>
-                ${renderIitLogo(m.t2, m.team2, 40)}
+                ${renderIitLogo(m.t2, m.team2, 36)}
               </div>
             </div>
 
@@ -1380,7 +1378,7 @@ function studentFixtureCard(opts = {}) {
 
             <div class="fmc-vs-strip">
               <div class="fmc-team">
-                ${renderIitLogo(m.t1Code, m.t1Name, 40)}
+                ${renderIitLogo(m.t1Code, m.t1Name, 36)}
                 <div class="fmc-team-info">
                   <b class="fmc-team-name">${esc(m.t1Name)}</b>
                   <span class="fmc-team-sub">Knockout Competitor</span>
@@ -1389,7 +1387,6 @@ function studentFixtureCard(opts = {}) {
 
               <div class="fmc-center">
                 <div class="fmc-vs-circle">VS</div>
-                <span class="fmc-venue-tag">📍 Ground 1 (Turf)</span>
               </div>
 
               <div class="fmc-team is-right">
@@ -1397,7 +1394,7 @@ function studentFixtureCard(opts = {}) {
                   <b class="fmc-team-name">${esc(m.t2Name)}</b>
                   <span class="fmc-team-sub">Knockout Competitor</span>
                 </div>
-                ${renderIitLogo(m.t2Code, m.t2Name, 40)}
+                ${renderIitLogo(m.t2Code, m.t2Name, 36)}
               </div>
             </div>
 
@@ -1625,79 +1622,26 @@ function openSettingsModal() {
     return el;
   })();
 
-  const isDk = typeof isDark === "function" ? isDark() : false;
-
+  d.className = "full-mobile-lightbox";
+  d.setAttribute("aria-label", "Settings");
   d.innerHTML = `
-    <div class="dlg-content-wrap">
-      <div class="dlg-header-strip" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:12px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:var(--brand-soft);color:var(--brand)">${ico("settings")}</span>
-          <div>
-            <h2 style="margin:0;font-size:1.15rem">Preferences &amp; System Settings</h2>
-            <p class="mute" style="margin:2px 0 0;font-size:0.8rem">Manage notifications, display theme, and offline storage</p>
-          </div>
-        </div>
-        <button type="button" class="ib" id="btn-dlg-set-close" title="Close">${ico("close")}</button>
+    <div class="lightbox-header">
+      <div class="lightbox-title">⚙️ App Preferences &amp; Settings</div>
+      <div class="lightbox-actions">
+        <button type="button" class="lightbox-btn close" id="settings-dlg-close" aria-label="Close">✕</button>
       </div>
-
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
-          <div>
-            <b style="display:block;font-size:0.95rem;color:var(--ink)">Appearance Theme</b>
-            <span class="mute" style="font-size:0.8rem">Switch between Day (Light) and Night (Dark) mode</span>
-          </div>
-          <button type="button" class="pill" id="btn-set-theme-toggle" style="display:inline-flex;align-items:center;gap:6px">
-            ${ico(isDk ? "sun" : "moon")} <span>${isDk ? "Night Mode" : "Day Mode"}</span>
-          </button>
-        </div>
-
-        <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
-          <div>
-            <b style="display:block;font-size:0.95rem;color:var(--ink)">Attendance Confirmations</b>
-            <span class="mute" style="font-size:0.8rem">Instant notification sent to player when attendance is marked Present or Absent</span>
-          </div>
-          <span class="pill g" style="font-weight:700">Active ✅</span>
-        </div>
-
-        <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
-          <div>
-            <b style="display:block;font-size:0.95rem;color:var(--ink)">Inter-IIT Match Alerts</b>
-            <span class="mute" style="font-size:0.8rem">Upcoming fixture countdown and match morning reminders</span>
-          </div>
-          <span class="pill teal" style="font-weight:700">Enabled 🔔</span>
-        </div>
-
-        <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--soft);border-radius:12px;border:1px solid var(--line)">
-          <div>
-            <b style="display:block;font-size:0.95rem;color:var(--ink)">High-DPI &amp; WebP Images</b>
-            <span class="mute" style="font-size:0.8rem">Crisp retina photo loading with zero distortion</span>
-          </div>
-          <span class="pill" style="font-weight:700;color:var(--brand)">Active 🔍</span>
-        </div>
-      </div>
-
-      <div class="ctl" style="margin-top:18px;display:flex;justify-content:flex-end">
-        <button type="button" class="pri" id="btn-dlg-set-ok">Done</button>
-      </div>
+    </div>
+    <div class="lightbox-content" style="padding:14px 18px;overflow-y:auto;display:block;">
+      ${renderSettingsPage()}
     </div>
   `;
 
+  bindSettingsPage();
+  const cBtn = d.querySelector("#settings-dlg-close");
+  if (cBtn) cBtn.onclick = () => d.close();
+  const bBack = d.querySelector("#btn-settings-back");
+  if (bBack) bBack.onclick = () => d.close();
   if (typeof d.showModal === "function") d.showModal();
-
-  const closeSet = () => d.close();
-  const bClose = d.querySelector("#btn-dlg-set-close");
-  const bOk = d.querySelector("#btn-dlg-set-ok");
-  if (bClose) bClose.onclick = closeSet;
-  if (bOk) bOk.onclick = closeSet;
-
-  const bThm = d.querySelector("#btn-set-theme-toggle");
-  if (bThm) {
-    bThm.onclick = () => {
-      if (typeof toggleTheme === "function") toggleTheme();
-      d.close();
-      openSettingsModal();
-    };
-  }
 }
 
 function renderSettingsPage() {
@@ -1706,99 +1650,169 @@ function renderSettingsPage() {
   const isAlert = typeof alertOn !== "undefined" ? alertOn : false;
 
   return `
-    <div class="settings-page" style="max-width:860px;margin:0 auto;padding-bottom:24px;">
-      <!-- Top Return Bar -->
-      <div class="settings-top-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-        <button type="button" class="btn-settings-back" id="btn-settings-back" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:0.84rem;font-weight:700;color:var(--ink);cursor:pointer;">
-          ${ico("back")} <span>Back</span>
-        </button>
-        <span class="pill pri" style="font-size:0.75rem;font-weight:800;letter-spacing:0.04em">⚙️ SETTINGS</span>
-        <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">Preferences &amp; System Configuration</span>
+    <div class="settings-page" style="width:100%;max-width:100%;padding-bottom:24px;">
+      <!-- Top Bar -->
+      <div class="settings-top-bar" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button type="button" class="btn-settings-back" id="btn-settings-back" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:0.84rem;font-weight:700;color:var(--ink);cursor:pointer;">
+            ${ico("back")} <span>Back</span>
+          </button>
+          <span class="pill pri" style="font-size:0.75rem;font-weight:800;letter-spacing:0.04em">⚙️ SYSTEM SETTINGS</span>
+          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v125 · Widescreen Ready</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button type="button" class="btn-sec" id="btn-settings-refresh-cache-top" style="padding:6px 14px;font-size:0.82rem;font-weight:700;">
+            🔄 Refresh Cache
+          </button>
+        </div>
       </div>
 
-      <!-- Settings Header Card -->
-      <div class="card settings-hero-card" style="margin-bottom:14px;padding:16px 18px;border-radius:14px;background:linear-gradient(135deg, rgba(11,42,74,0.96), rgba(7,26,46,0.98)), radial-gradient(circle at top right, rgba(56,189,248,0.22), transparent 70%);border:1px solid rgba(56,189,248,0.35);color:#fff;box-shadow:0 6px 20px rgba(0,0,0,0.25);">
+      <!-- Settings Header Banner (Full Width) -->
+      <div class="card settings-hero-card" style="margin-bottom:14px;padding:16px 20px;border-radius:14px;background:linear-gradient(135deg, rgba(11,42,74,0.96), rgba(7,26,46,0.98)), radial-gradient(circle at top right, rgba(56,189,248,0.22), transparent 70%);border:1px solid rgba(56,189,248,0.35);color:#fff;box-shadow:0 6px 20px rgba(0,0,0,0.25);">
         <div style="display:flex;align-items:center;gap:14px;">
-          <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:12px;background:rgba(56,189,248,0.18);color:#38bdf8;font-size:1.5rem;flex-shrink:0;">⚙️</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:rgba(56,189,248,0.18);color:#38bdf8;font-size:1.6rem;flex-shrink:0;">⚙️</span>
           <div>
-            <h1 style="margin:0 0 3px;font-size:clamp(1.15rem, 3.5vw, 1.4rem);font-family:var(--font-display);font-weight:900;letter-spacing:-0.02em;color:#fff;">
+            <h1 style="margin:0 0 4px;font-size:clamp(1.2rem, 3.5vw, 1.45rem);font-family:var(--font-display);font-weight:900;letter-spacing:-0.02em;color:#fff;">
               App Preferences &amp; Settings
             </h1>
-            <p style="margin:0;font-size:0.82rem;line-height:1.4;color:rgba(255,255,255,0.85);max-width:620px;">
-              Manage visual appearance, practice &amp; match notifications, whistle sound effects volume, and offline cache storage.
+            <p style="margin:0;font-size:0.84rem;line-height:1.45;color:rgba(255,255,255,0.85);">
+              Configure visual appearance, practice &amp; match notifications, whistle sound effects volume, and offline cache storage.
             </p>
           </div>
         </div>
       </div>
 
-      <!-- Settings Options -->
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <!-- 1. Visual Theme -->
-        <div class="card" style="margin:0;padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-          <div style="max-width:520px;">
-            <b style="display:block;font-size:0.95rem;color:var(--ink)">Appearance Theme</b>
-            <span class="mute" style="font-size:0.82rem">Switch between Day (Light) and Night (Dark) mode for optimal viewing comfort on the field or indoors.</span>
-          </div>
-          <button type="button" class="pill" id="btn-page-set-theme" style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;font-size:0.85rem;font-weight:700;cursor:pointer;background:var(--soft);color:var(--ink);border:1px solid var(--line);">
-            ${ico(isDk ? "sun" : "moon")} <span>${isDk ? "Night Mode Active 🌙" : "Day Mode Active ☀️"}</span>
-          </button>
-        </div>
-
-        <!-- 2. Notifications -->
-        <div class="card" style="margin:0;padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);">
-          <b style="display:block;font-size:0.95rem;color:var(--ink);margin-bottom:12px;">🔔 Notification Preferences</b>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);flex-wrap:wrap;gap:8px;">
-              <div style="max-width:480px;">
-                <b style="display:block;font-size:0.88rem;color:var(--ink)">Practice Reminders (15 min prior)</b>
-                <span class="mute" style="font-size:0.78rem">Automated morning reminder and pre-practice alerts so you never miss training</span>
-              </div>
-              <button type="button" class="pill ${isAlert ? "g" : ""}" id="btn-page-set-alert" style="font-weight:700;cursor:pointer;">
-                ${isAlert ? "Active 🔔" : "Enable 🔕"}
-              </button>
+      <!-- Responsive Multi-Column Desktop Grid -->
+      <div class="settings-cards-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:14px;width:100%;">
+        <!-- 1. Visual Appearance & Theme Card -->
+        <div class="card" style="margin:0;padding:16px 18px;border-radius:14px;background:var(--card);border:1px solid var(--line);display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.15rem;">🎨</span>
+              <b style="font-size:0.96rem;color:var(--ink)">Appearance &amp; Visual Theme</b>
             </div>
-
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);flex-wrap:wrap;gap:8px;">
-              <div style="max-width:480px;">
-                <b style="display:block;font-size:0.88rem;color:var(--ink)">Attendance Confirmations</b>
-                <span class="mute" style="font-size:0.78rem">Instant notification sent to player when attendance is marked Present or Absent</span>
-              </div>
-              <span class="pill g" style="font-weight:700">Active ✅</span>
-            </div>
-
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--soft);border-radius:10px;border:1px solid var(--line);flex-wrap:wrap;gap:8px;">
-              <div style="max-width:480px;">
-                <b style="display:block;font-size:0.88rem;color:var(--ink)">59th Inter-IIT Match Alerts</b>
-                <span class="mute" style="font-size:0.78rem">Live countdown and match day push notifications for IIT Patna Men's Hockey Pool A games</span>
-              </div>
-              <span class="pill teal" style="font-weight:700">Enabled 🏑</span>
-            </div>
+            <span class="pill" style="font-size:0.72rem;font-weight:700;">Display</span>
           </div>
-        </div>
 
-        <!-- 3. Whistle & Timer Sound -->
-        <div class="card" style="margin:0;padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-          <div>
-            <b style="display:block;font-size:0.95rem;color:var(--ink)">Umpire Whistle &amp; Drill Timer Audio</b>
-            <span class="mute" style="font-size:0.82rem">Volume level for whistle blasts and countdown beeps</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <input type="range" id="settings-vol-slider" min="0" max="1" step="0.05" value="${typeof volume === "function" ? volume() : 0.7}" style="width:130px;accent-color:var(--brand);cursor:pointer;">
-            <span id="settings-vol-val" style="font-size:0.82rem;font-weight:700;color:var(--ink);min-width:38px;">${currentVol}%</span>
-            <button type="button" class="btn-sec" id="btn-test-audio" style="padding:6px 12px;font-size:0.82rem;font-weight:700;">
-              📢 Test Audio
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
+            <div>
+              <b style="display:block;font-size:0.88rem;color:var(--ink)">Color Theme</b>
+              <span class="mute" style="font-size:0.78rem">Switch between Day (Light) and Night (Dark) mode</span>
+            </div>
+            <button type="button" class="pill" id="btn-page-set-theme" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;font-size:0.82rem;font-weight:700;cursor:pointer;background:var(--card);color:var(--ink);border:1px solid var(--line);white-space:nowrap;">
+              ${ico(isDk ? "sun" : "moon")} <span>${isDk ? "Night Mode 🌙" : "Day Mode ☀️"}</span>
             </button>
           </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
+            <div>
+              <b style="display:block;font-size:0.88rem;color:var(--ink)">High-DPI Retina Media</b>
+              <span class="mute" style="font-size:0.78rem">Lossless WebP image decoding for high resolution monitors</span>
+            </div>
+            <span class="pill" style="font-weight:700;color:var(--brand);font-size:0.78rem;">Active 🔍</span>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
+            <div>
+              <b style="display:block;font-size:0.88rem;color:var(--ink)">Widescreen Desktop Density</b>
+              <span class="mute" style="font-size:0.78rem">Optimized responsive grid layout with zero side voids</span>
+            </div>
+            <span class="pill g" style="font-weight:700;font-size:0.78rem;">Full Width 🖥️</span>
+          </div>
         </div>
 
-        <!-- 4. Offline Storage & Cache -->
-        <div class="card" style="margin:0;padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-          <div>
-            <b style="display:block;font-size:0.95rem;color:var(--ink)">Offline Cache &amp; Storage</b>
-            <span class="mute" style="font-size:0.82rem">App Build hk-v120 · Cached offline shell for instant page loads</span>
+        <!-- 2. Notifications & Alerts Card -->
+        <div class="card" style="margin:0;padding:16px 18px;border-radius:14px;background:var(--card);border:1px solid var(--line);display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.15rem;">🔔</span>
+              <b style="font-size:0.96rem;color:var(--ink)">Notification &amp; Alert Preferences</b>
+            </div>
+            <span class="pill pri" style="font-size:0.72rem;font-weight:700;">Alerts</span>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <button type="button" class="btn-sec" id="btn-settings-refresh-cache" style="padding:6px 12px;font-size:0.82rem;font-weight:700;">
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
+            <div>
+              <b style="display:block;font-size:0.88rem;color:var(--ink)">Practice Reminders (15 min prior)</b>
+              <span class="mute" style="font-size:0.78rem">Automated morning reminder and pre-practice alerts</span>
+            </div>
+            <button type="button" class="pill ${isAlert ? "g" : ""}" id="btn-page-set-alert" style="font-weight:700;cursor:pointer;white-space:nowrap;">
+              ${isAlert ? "Active 🔔" : "Enable 🔕"}
+            </button>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
+            <div>
+              <b style="display:block;font-size:0.88rem;color:var(--ink)">Attendance Confirmations</b>
+              <span class="mute" style="font-size:0.78rem">Instant notification sent when attendance is marked Present</span>
+            </div>
+            <span class="pill g" style="font-weight:700;font-size:0.78rem;">Active ✅</span>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
+            <div>
+              <b style="display:block;font-size:0.88rem;color:var(--ink)">59th Inter-IIT Match Alerts</b>
+              <span class="mute" style="font-size:0.78rem">Match day schedule, live turf updates, and push-off count</span>
+            </div>
+            <span class="pill teal" style="font-weight:700;font-size:0.78rem;">Enabled 🏑</span>
+          </div>
+        </div>
+
+        <!-- 3. Whistle & Timer Sound Card -->
+        <div class="card" style="margin:0;padding:16px 18px;border-radius:14px;background:var(--card);border:1px solid var(--line);display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.15rem;">📢</span>
+              <b style="font-size:0.96rem;color:var(--ink)">Umpire Whistle &amp; Audio Controls</b>
+            </div>
+            <span class="pill" style="font-size:0.72rem;font-weight:700;">Sound FX</span>
+          </div>
+
+          <div style="padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <b style="font-size:0.88rem;color:var(--ink)">Master Audio Volume</b>
+              <span id="settings-vol-val" style="font-size:0.86rem;font-weight:800;color:var(--brand);">${currentVol}%</span>
+            </div>
+            <input type="range" id="settings-vol-slider" min="0" max="1" step="0.05" value="${typeof volume === "function" ? volume() : 0.7}" style="width:100%;accent-color:var(--brand);cursor:pointer;">
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:8px;flex-wrap:wrap;">
+            <div>
+              <b style="display:block;font-size:0.88rem;color:var(--ink)">Test Umpire Blast</b>
+              <span class="mute" style="font-size:0.78rem">Synthesized FIH match whistle</span>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button type="button" class="btn-sec" id="btn-test-short" style="padding:5px 11px;font-size:0.78rem;font-weight:700;">Short</button>
+              <button type="button" class="btn-sec" id="btn-test-long" style="padding:5px 11px;font-size:0.78rem;font-weight:700;">Long</button>
+              <button type="button" class="btn-sec" id="btn-test-goal" style="padding:5px 11px;font-size:0.78rem;font-weight:700;">Goal</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Storage & Application Cache Card -->
+        <div class="card" style="margin:0;padding:16px 18px;border-radius:14px;background:var(--card);border:1px solid var(--line);display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.15rem;">⚡</span>
+              <b style="font-size:0.96rem;color:var(--ink)">PWA Cache &amp; Storage</b>
+            </div>
+            <span class="pill pri" style="font-size:0.72rem;font-weight:700;">Build System</span>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
+            <div>
+              <b style="display:block;font-size:0.88rem;color:var(--ink)">Production Version</b>
+              <span class="mute" style="font-size:0.78rem">Active service worker shell</span>
+            </div>
+            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v125</span>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
+            <div>
+              <b style="display:block;font-size:0.88rem;color:var(--ink)">Purge &amp; Re-Sync Cache</b>
+              <span class="mute" style="font-size:0.78rem">Clear cached bundles and force download latest release</span>
+            </div>
+            <button type="button" class="btn-sec" id="btn-settings-refresh-cache" style="padding:6px 14px;font-size:0.8rem;font-weight:700;white-space:nowrap;">
               🔄 Refresh Cache
             </button>
           </div>
@@ -1844,30 +1858,46 @@ function bindSettingsPage() {
     };
   }
 
-  const bAudio = document.getElementById("btn-test-audio");
-  if (bAudio) {
-    bAudio.onclick = () => {
-      if (typeof playWhistle === "function") {
-        playWhistle("short");
-      } else if (typeof playClick === "function") {
-        playClick();
-      }
+  const bShort = document.getElementById("btn-test-short");
+  if (bShort) {
+    bShort.onclick = () => {
+      if (typeof playWhistle === "function") playWhistle("short");
+      else if (typeof playClick === "function") playClick();
     };
   }
 
-  const bRef = document.getElementById("btn-settings-refresh-cache");
-  if (bRef) {
-    bRef.onclick = async () => {
-      try {
-        if (window.caches) {
-          const ks = await caches.keys();
-          await Promise.all(ks.map((k) => caches.delete(k)));
-        }
-        localStorage.removeItem("hk_cache");
-      } catch (e) {}
-      location.reload();
+  const bLong = document.getElementById("btn-test-long");
+  if (bLong) {
+    bLong.onclick = () => {
+      if (typeof playWhistle === "function") playWhistle("long");
+      else if (typeof playClick === "function") playClick();
     };
   }
+
+  const bGoal = document.getElementById("btn-test-goal");
+  if (bGoal) {
+    bGoal.onclick = () => {
+      if (typeof playWhistle === "function") playWhistle("double");
+      else if (typeof playClick === "function") playClick();
+    };
+  }
+
+  const doRefreshCache = async () => {
+    try {
+      if (window.caches) {
+        const ks = await caches.keys();
+        await Promise.all(ks.map((k) => caches.delete(k)));
+      }
+      localStorage.removeItem("hk_cache");
+    } catch (e) {}
+    location.reload();
+  };
+
+  const bRefTop = document.getElementById("btn-settings-refresh-cache-top");
+  if (bRefTop) bRefTop.onclick = doRefreshCache;
+
+  const bRef = document.getElementById("btn-settings-refresh-cache");
+  if (bRef) bRef.onclick = doRefreshCache;
 }
 
 function vSettings() {
@@ -2428,12 +2458,12 @@ function renderInterIITPage() {
           <h1 style="margin:0 0 4px;font-size:clamp(1.2rem, 3.5vw, 1.5rem);font-family:var(--font-display);font-weight:900;letter-spacing:-0.02em;color:#fff;line-height:1.2;">
             59th Inter IIT Sports Meet
           </h1>
-          <p style="margin:0 0 8px;font-size:0.82rem;line-height:1.4;color:rgba(255,255,255,0.85);max-width:760px;">
+          <p style="margin:0 0 10px;font-size:0.84rem;line-height:1.45;color:rgba(255,255,255,0.88);">
             India's oldest and longest-running multi-sport inter-university athletic tournament (Est. 1961), contested annually across all 23 IITs.
           </p>
 
-          <!-- Compact Quick-Links Strip -->
-          <div class="interiit-links-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:6px;">
+          <!-- Compact Quick-Links Strip (Desktop Fluid) -->
+          <div class="interiit-links-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;">
             <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" class="interiit-link-btn yt" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:#ef4444;color:#fff;text-decoration:none;font-weight:700;">
               <span style="font-size:1rem;flex-shrink:0;">▶</span>
               <div style="overflow:hidden;">
@@ -2474,7 +2504,7 @@ function renderInterIITPage() {
           <span class="pill pri" style="font-size:0.75rem;font-weight:800;">Competing Contingents</span>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:10px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:10px;">
           ${[
             ["PAT", "IIT Patna", "Pool A", "#0ea5e9"],
             ["KAN", "IIT Kanpur", "Pool A", "#dc2626"],
@@ -2492,11 +2522,11 @@ function renderInterIITPage() {
             ["JOD", "IIT Jodhpur", "Pool D", "#0d9488"],
             ["IND", "IIT Indore", "Pool D", "#2563eb"],
           ].map(([code, name, pool, col]) => `
-            <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;background:var(--soft);border:1px solid var(--line);transition:transform 0.15s ease;">
-              ${renderIitLogo(code, name, 30)}
-              <div style="overflow:hidden">
-                <b style="display:block;font-size:0.82rem;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--ink)">${name}</b>
-                <span style="font-size:0.7rem;font-weight:700;color:${col}">${pool}</span>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:var(--soft);border:1px solid var(--line);transition:transform 0.15s ease;">
+              ${renderIitLogo(code, name, 34)}
+              <div style="min-width:0;overflow:hidden">
+                <b style="display:block;font-size:0.86rem;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--ink)">${name}</b>
+                <span style="font-size:0.72rem;font-weight:700;color:${col}">${pool}</span>
               </div>
             </div>
           `).join("")}
