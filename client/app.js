@@ -5221,6 +5221,7 @@ const WARM = [
   [
     "Warm-up: about 12 minutes before practice",
     [
+      "Hockey Warm Up + Pre-Game Stretches 🏑|Follow this 10-minute dynamic routine with Hockey Training before taking the pitch",
       "Easy jog|3 minutes around the pitch, building pace gradually",
       "Leg swings|10 forward and back, 10 side to side per leg, holding a stick for balance",
       "High knees and heel flicks|2 x 20 m each",
@@ -5297,7 +5298,14 @@ const lst = (a, tag, d) =>
     .join("")}</${tag}>`;
 const emptyItem = (x) => {
   const [h, ...b] = x.split("|");
-  return { h, b: b.join("|"), img: "", yt: "" };
+  const body = b.join("|");
+  const isVideo = /pre-game/i.test(h) || /hockey warm up/i.test(h);
+  return {
+    h,
+    b: body,
+    img: isVideo ? "https://i.ytimg.com/vi/U1EX7tUj2aA/hqdefault.jpg" : "",
+    yt: isVideo ? "https://youtu.be/U1EX7tUj2aA" : "",
+  };
 };
 const defRules = () =>
   RULES.map((r, i) => ({
@@ -5370,16 +5378,53 @@ function pickImg(cb) {
   f.click();
 }
 const okYt = (v) => !v || /^https?:\/\/\S+$/i.test(v);
+
+function warmupVideoCard() {
+  return `
+    <div class="card warmup-video-card" style="margin-bottom:18px;padding:18px;border-radius:16px;background:var(--soft);border:1px solid var(--line);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+        <div>
+          <span class="pill pri" style="font-weight:800;font-size:0.75rem;margin-bottom:4px;display:inline-block;">🔥 OFFICIAL WARM-UP &amp; MOBILITY VIDEO</span>
+          <h2 style="margin:0;font-size:1.25rem;color:var(--ink);">Hockey Warm Up + Pre-Game Stretches 🏑</h2>
+          <p class="mute" style="margin:4px 0 0;font-size:0.85rem;">Follow along with Hockey Training (@hockeytraining) for complete pre-game mobility, groin &amp; hamstring dynamic activation.</p>
+        </div>
+        <a href="https://youtu.be/U1EX7tUj2aA" target="_blank" rel="noopener noreferrer" class="pill" style="display:inline-flex;align-items:center;gap:6px;font-weight:700;">
+          <span>Watch on YouTube ↗</span>
+        </a>
+      </div>
+      <div style="position:relative;width:100%;aspect-ratio:16/9;max-height:440px;border-radius:12px;overflow:hidden;background:#000;box-shadow:0 8px 24px rgba(0,0,0,0.3);margin:0 auto 12px;">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/U1EX7tUj2aA?rel=0&playsinline=1&modestbranding=1"
+          title="Hockey Warm Up + Pre-Game Stretches"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen
+          style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"
+        ></iframe>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;font-size:0.82rem;color:var(--mute);flex-wrap:wrap;">
+        <span>⏱️ <b>Routine:</b> 10–12 Mins</span>
+        <span>·</span>
+        <span>🎯 <b>Target:</b> Dynamic stretches, groin, hip flexors &amp; running posture</span>
+        <span>·</span>
+        <span>🏑 <b>IIT Patna Turf Protocol:</b> Recommended before every turf practice &amp; match play</span>
+      </div>
+    </div>
+  `;
+}
+
 function vSections(col) {
   const rules = col === "rules",
+    warm = col === "warmup",
     list = rules ? RL : WL,
     secs = list.length ? list : rules ? defRules() : defWarm(),
     ed = admin && list.length > 0,
     open = openS[col];
   $("view").innerHTML =
-    `${rules ? whistleCard() : ""}${rules ? '<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>' : ""}
-  ${admin && !list.length ? `<div class="note">Admin tools: <button class="pri" id="rl-on">Enable editing${rules ? " and signal photos" : ", photos and video links"}</button></div>` : ""}
-  ${ed ? '<div class="ctl"><button id="rl-add">+ Add section</button></div>' : ""}` +
+    `${rules ? whistleCard() : ""}${rules ? '<p class="mute">Summary of the FIH Rules of Hockey effective 1 March 2026. The full rulebook decides any dispute.</p>' : ""}` +
+    `${warm ? warmupVideoCard() : ""}` +
+    `${admin && !list.length ? `<div class="note">Admin tools: <button class="pri" id="rl-on">Enable editing${rules ? " and signal photos" : ", photos and video links"}</button></div>` : ""}` +
+    `${ed ? '<div class="ctl"><button id="rl-add">+ Add section</button></div>' : ""}` +
     secs
       .map(
         (

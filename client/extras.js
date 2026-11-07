@@ -1627,6 +1627,24 @@ let skillVideoCategory = "all";
 
 const HOCKEY_SKILL_VIDEOS = [
   {
+    id: "U1EX7tUj2aA",
+    title: "Hockey Warm Up + Pre-Game Stretches 🏑",
+    author: "Hockey Training",
+    channelUrl: "https://www.youtube.com/@hockeytraining",
+    category: "warmup",
+    categoryLabel: "Warm-Up & Stretches",
+    duration: "Full Video",
+    thumb: "https://i.ytimg.com/vi/U1EX7tUj2aA/hqdefault.jpg",
+    desc: "Complete pre-game dynamic warm-up and mobility routine tailored specifically for field hockey players to prevent injuries and optimize performance.",
+    coachingPoints: [
+      "Perform dynamic mobility drills before stepping onto the turf.",
+      "Activate hip flexors, hamstrings, and groin muscles to prepare for low hockey posture.",
+      "Gradually increase cardiovascular intensity from light jog to high knees and build-up sprints.",
+      "Save static stretches for post-match or post-practice cool-down.",
+    ],
+    isFeatured: true,
+  },
+  {
     id: "-iVUhQIC1m0",
     title: "Perfect Hockey Hit Kaise Karein? 8 Important Basics for Beginners",
     author: "Shekhar Hockey",
@@ -1784,6 +1802,7 @@ function skillsVideoCard(opts = {}) {
 
   const categories = [
     ["all", "All Drills"],
+    ["warmup", "Warm-Up & Stretches 🔥"],
     ["hitting", "Hitting & Basics"],
     ["dodging", "Dodging & Control"],
     ["passing", "Passing & Reception"],
