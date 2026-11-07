@@ -1788,16 +1788,22 @@ function skillsVideoCard(opts = {}) {
 
         <!-- Main Video Showcase Player -->
         <div class="hsk-main-showcase">
-          <div class="hsk-player-wrap">
+          <div class="hsk-player-wrap" id="hsk-player-wrap">
             <iframe
               id="hsk-main-iframe"
-              src="https://www.youtube-nocookie.com/embed/${currentSkillVideoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1"
+              data-video-id="${currentSkillVideoId}"
+              data-src="https://www.youtube-nocookie.com/embed/${currentSkillVideoId}?autoplay=1&mute=1&enablejsapi=1&rel=0&playsinline=1&modestbranding=1"
+              src=""
               title="${esc(curVid.title)}"
               frameborder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowfullscreen
               class="hsk-iframe"
             ></iframe>
+            <div class="hsk-poster-cover" id="hsk-poster-cover" style="background-image:url('${esc(curVid.thumb)}');">
+              <button type="button" class="hsk-poster-play-btn" id="hsk-btn-start-play" aria-label="Play video">▶</button>
+              <span class="hsk-poster-hint">Auto-plays when visible on screen</span>
+            </div>
           </div>
 
           <div class="hsk-info-box">
@@ -1872,7 +1878,14 @@ function bindSkillsVideoCard() {
 
       const iframe = document.getElementById("hsk-main-iframe");
       if (iframe) {
-        iframe.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&rel=0&playsinline=1&modestbranding=1`;
+        iframe.dataset.videoId = vidId;
+        const originParam = window.location.origin ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
+        iframe.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&enablejsapi=1&rel=0&playsinline=1&modestbranding=1${originParam}`;
+      }
+      const poster = document.getElementById("hsk-poster-cover");
+      if (poster) {
+        poster.style.opacity = "0";
+        poster.style.pointerEvents = "none";
       }
       const titleEl = document.getElementById("hsk-active-title");
       if (titleEl) titleEl.textContent = vid.title;
@@ -1938,7 +1951,14 @@ function bindSkillsVideoCard() {
     currentSkillVideoId = parsedId;
     const iframe = document.getElementById("hsk-main-iframe");
     if (iframe) {
-      iframe.src = `https://www.youtube-nocookie.com/embed/${parsedId}?autoplay=1&rel=0&playsinline=1&modestbranding=1`;
+      iframe.dataset.videoId = parsedId;
+      const originParam = window.location.origin ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
+      iframe.src = `https://www.youtube-nocookie.com/embed/${parsedId}?autoplay=1&enablejsapi=1&rel=0&playsinline=1&modestbranding=1${originParam}`;
+    }
+    const poster = document.getElementById("hsk-poster-cover");
+    if (poster) {
+      poster.style.opacity = "0";
+      poster.style.pointerEvents = "none";
     }
     const titleEl = document.getElementById("hsk-active-title");
     if (titleEl) titleEl.textContent = `Custom Practice Video (${parsedId})`;
@@ -1962,6 +1982,73 @@ function bindSkillsVideoCard() {
         handleCustomPlay();
       }
     };
+  }
+
+  // Smart Viewport Autoplay and Autopause:
+  // "Videos play start when videos will come on their screen. i mean dont play videos when someone is not showing video."
+  if (window._hskVideoObserver) {
+    try { window._hskVideoObserver.disconnect(); } catch (e) {}
+    window._hskVideoObserver = null;
+  }
+
+  const pWrap = document.getElementById("hsk-player-wrap") || document.querySelector(".hsk-player-wrap");
+  const mainIframe = document.getElementById("hsk-main-iframe");
+  const posterCover = document.getElementById("hsk-poster-cover");
+  const btnStartPlay = document.getElementById("hsk-btn-start-play");
+
+  const activateVideo = (forceUnmute = false) => {
+    if (!mainIframe) return;
+    const vidId = mainIframe.dataset.videoId || currentSkillVideoId;
+    const originParam = window.location.origin ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
+    const muteParam = forceUnmute ? "&mute=0" : "&mute=1";
+    const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1${muteParam}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1${originParam}`;
+
+    if (!mainIframe.src || mainIframe.src === "about:blank" || !mainIframe.src.includes(vidId)) {
+      mainIframe.src = embedUrl;
+    } else {
+      try {
+        mainIframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+      } catch (e) {}
+    }
+    if (posterCover) {
+      posterCover.style.opacity = "0";
+      posterCover.style.pointerEvents = "none";
+    }
+  };
+
+  const pauseVideo = () => {
+    if (!mainIframe || !mainIframe.src || mainIframe.src === "about:blank") return;
+    try {
+      mainIframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+    } catch (e) {}
+  };
+
+  if (btnStartPlay) {
+    btnStartPlay.onclick = (e) => {
+      e.stopPropagation();
+      activateVideo(true);
+    };
+  }
+  if (posterCover) {
+    posterCover.onclick = () => activateVideo(true);
+  }
+
+  if (pWrap && "IntersectionObserver" in window) {
+    window._hskVideoObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
+            // Video has scrolled onto screen -> start playback!
+            activateVideo(false);
+          } else {
+            // Video is off-screen / user scrolled away -> stop playback immediately!
+            pauseVideo();
+          }
+        });
+      },
+      { threshold: [0, 0.35, 0.7] }
+    );
+    window._hskVideoObserver.observe(pWrap);
   }
 }
 

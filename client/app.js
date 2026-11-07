@@ -1114,7 +1114,7 @@ function initUnifiedLogin() {
 
   let isOtpSending = false;
 
-  const startCooldown = (seconds = 25) => {
+  const startCooldown = (seconds = 8) => {
     if (otpCooldownInterval) clearInterval(otpCooldownInterval);
     let remaining = seconds;
     if (resendBtn) {
@@ -1198,7 +1198,7 @@ function initUnifiedLogin() {
       if (otpInp) {
         otpInp.focus();
       }
-      startCooldown(res.wait || 25);
+      startCooldown(res.wait || 8);
       toast("Verification code sent to " + (res.sentTo || idVal) + "!");
       return true;
     } catch (x) {
@@ -8361,6 +8361,18 @@ async function openPhoto(id) {
   const draw = () => {
     d.innerHTML = `<img class="bigimg" id="phi" data-full="${full || ""}" src="${full || g.thumb}" alt="${esc(g.desc || "")}"><div id="phinfo">${info()}</div>
     <div class="ctl"><a class="btn" id="phdl" download="hockey-photo.jpg" ${full ? `href="${full}"` : "hidden"}>⬇ Save</a>${can ? '<button id="phe">✏️ Edit</button>' : ""}${admin ? `<button id="phg" ${full ? "" : "disabled"}>🖼 Use as group photo</button>` : ""}${can ? '<button id="phd" class="dng">🗑 Delete</button>' : ""}<button id="phx">Close</button></div>`;
+    const phi = $("phi");
+    if (phi) {
+      const clampLowRes = () => {
+        if (phi.naturalWidth > 0 && phi.naturalWidth < 600 && !full) {
+          phi.style.maxWidth = `${phi.naturalWidth}px`;
+        } else {
+          phi.style.maxWidth = "100%";
+        }
+      };
+      if (phi.complete) clampLowRes();
+      else phi.onload = clampLowRes;
+    }
     $("phx").onclick = () => d.close();
     if ($("phg"))
       $("phg").onclick = () => {
@@ -8421,11 +8433,17 @@ async function openPhoto(id) {
     const r = await api("/api/gallery/" + id);
     full = r.img || "";
     if (full && d.open && !$("pec")) {
-      $("phi").src = full;
-      $("phi").dataset.full = full;
+      const phi = $("phi");
+      if (phi) {
+        phi.src = full;
+        phi.dataset.full = full;
+        phi.style.maxWidth = "100%";
+      }
       const a = $("phdl");
-      a.href = full;
-      a.hidden = false;
+      if (a) {
+        a.href = full;
+        a.hidden = false;
+      }
       if ($("phg")) $("phg").disabled = false;
     }
   } catch (e) {}

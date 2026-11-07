@@ -567,12 +567,12 @@ app.post(
       });
     }
 
-    // In-memory atomic debounce lock to prevent duplicate concurrent email dispatch
+    // In-memory atomic debounce lock to prevent duplicate concurrent email dispatch (< 10s cooldown)
     const lockKey = String(user.otpKey || user.id || email).toLowerCase();
     const lastLock = inflightOtpLocks.get(lockKey);
     const now = Date.now();
-    if (lastLock && now - lastLock < 25000) {
-      const waitSec = Math.ceil((25000 - (now - lastLock)) / 1000);
+    if (lastLock && now - lastLock < 8000) {
+      const waitSec = Math.ceil((8000 - (now - lastLock)) / 1000);
       return res.status(429).json({
         error: "Verification code was just sent! Please check your email inbox (or spam folder) or wait " + waitSec + "s.",
         wait: waitSec,
@@ -583,9 +583,9 @@ app.post(
     const cur = await ref.get().catch(() => null);
     const c = cur && cur.exists ? cur.data() || {} : {};
 
-    // 25s cooldown between OTP requests for the same account
-    if (c.at && now - c.at < 25000) {
-      const waitSec = Math.ceil((25000 - (now - c.at)) / 1000);
+    // 8s cooldown (< 10s) between OTP requests for the same account
+    if (c.at && now - c.at < 8000) {
+      const waitSec = Math.ceil((8000 - (now - c.at)) / 1000);
       return res.status(429).json({
         error: "Please wait " + waitSec + " seconds before requesting another code.",
         wait: waitSec,
@@ -686,7 +686,7 @@ app.post(
       sentTo: maskEmail(email),
       role: user.role,
       name: user.name,
-      wait: 25,
+      wait: 8,
     });
   }),
 );
