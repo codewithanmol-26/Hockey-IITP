@@ -3651,8 +3651,8 @@ button.x {
   display: none;
 }
 
-/* Mobile Take Attendance UI Optimization */
-@media (max-width: 640px) {
+/* Mobile & Tablet Take Attendance UI Optimization (Fixed Save Bar & No Blank Gap) */
+@media (max-width: 899px) {
   .desktop-only {
     display: none !important;
   }
@@ -3660,10 +3660,16 @@ button.x {
     display: inline !important;
   }
   #tkl {
-    padding-bottom: 6px !important;
+    padding-bottom: 4px !important;
   }
   .take-att-card {
-    margin-bottom: calc(var(--nav-h) + 110px + env(safe-area-inset-bottom)) !important;
+    margin-bottom: 0 !important;
+  }
+  body.is-take-att main#view,
+  body:has(#tksv) main#view,
+  #app:has(#tksv) main#view,
+  main#view:has(#tksv) {
+    padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .att-action-chips {
     margin-top: 14px !important;
@@ -3759,17 +3765,24 @@ button.x {
     margin-left: 2px;
   }
   .tksv {
-    position: sticky;
-    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 6px);
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    padding: 8px 12px 9px;
-    border-radius: 14px;
-    background: var(--card);
-    border: 1px solid var(--line);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 6px) !important;
+    z-index: 25 !important;
+    max-width: 580px !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    padding: 7px 12px 8px !important;
+    border-radius: 14px !important;
+    background: var(--card) !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: 0 4px 22px rgba(0, 0, 0, 0.45) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
   .tksv-stats-row {
     width: 100%;
@@ -3820,10 +3833,11 @@ button.x {
     text-align: center;
     color: var(--mute);
   }
+  body.is-take-att #chat-fab,
   body:has(#tksv) #chat-fab,
   #app:has(#tksv) #chat-fab,
   .take-att-card ~ #chat-fab {
-    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 98px) !important;
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 124px) !important;
     transform: scale(0.85);
     transform-origin: bottom right;
   }

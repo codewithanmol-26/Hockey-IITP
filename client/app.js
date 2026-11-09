@@ -3257,6 +3257,7 @@ function render() {
     navEl.hidden = !isPrimary;
   }
   document.body.classList.toggle("nav-hidden", !isPrimary);
+  document.body.classList.toggle("is-take-att", tab === "take" && !prof);
   $("xb").hidden = !(loaded && !err && !isPrimary);
 
   const hlbBtn = $("hlb");
