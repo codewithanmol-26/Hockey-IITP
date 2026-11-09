@@ -1658,7 +1658,7 @@ function renderSettingsPage() {
             ${ico("back")} <span>Back</span>
           </button>
           <span class="pill pri" style="font-size:0.75rem;font-weight:800;letter-spacing:0.04em">⚙️ SYSTEM SETTINGS</span>
-          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v127 · Mobile &amp; Desktop Optimized</span>
+          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v128 · Mobile &amp; Desktop Optimized</span>
         </div>
       </div>
 
@@ -1799,7 +1799,7 @@ function renderSettingsPage() {
               <b style="display:block;font-size:0.88rem;color:var(--ink)">Production Version</b>
               <span class="mute" style="font-size:0.78rem">Active service worker shell</span>
             </div>
-            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v127</span>
+            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v128</span>
           </div>
 
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
@@ -2493,7 +2493,14 @@ function renderInterIITPage() {
           </p>
 
           <!-- Compact Quick-Links Strip (Desktop Fluid) -->
-          <div class="interiit-links-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;">
+          <div class="interiit-links-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px;">
+            <a href="https://www.instagram.com/hockey_iitp/" target="_blank" rel="noopener noreferrer" class="interiit-link-btn ig-iitp" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);color:#fff;text-decoration:none;font-weight:700;box-shadow:0 3px 10px rgba(225,48,108,0.3);">
+              <span style="font-size:1rem;flex-shrink:0;">📸</span>
+              <div style="overflow:hidden;">
+                <div style="font-size:0.78rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">IIT Patna Hockey</div>
+                <div style="font-size:0.65rem;opacity:0.95;font-weight:600;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">@hockey_iitp ↗</div>
+              </div>
+            </a>
             <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" class="interiit-link-btn yt" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:#ef4444;color:#fff;text-decoration:none;font-weight:700;">
               <span style="font-size:1rem;flex-shrink:0;">▶</span>
               <div style="overflow:hidden;">
@@ -2504,7 +2511,7 @@ function renderInterIITPage() {
             <a href="https://www.instagram.com/interiit_sportsmeet/" target="_blank" rel="noopener noreferrer" class="interiit-link-btn ig" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);color:#fff;text-decoration:none;font-weight:700;">
               <span style="font-size:1rem;flex-shrink:0;">📸</span>
               <div style="overflow:hidden;">
-                <div style="font-size:0.78rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">Official Instagram</div>
+                <div style="font-size:0.78rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">Meet Instagram</div>
                 <div style="font-size:0.65rem;opacity:0.9;font-weight:500;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">@interiit_sportsmeet ↗</div>
               </div>
             </a>

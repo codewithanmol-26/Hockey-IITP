@@ -103,6 +103,8 @@ const _P = {
   external:
     '<path d="M13.5 4.5h6v6M19.5 4.5 11 13M17 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 5 18.5v-9A1.5 1.5 0 0 1 6.5 8H10"/>',
   dumbbell: '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
+  instagram:
+    '<rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4.5"/><circle cx="12" cy="12" r="3.8"/><circle cx="16.8" cy="7.2" r="1" fill="currentColor" stroke="none"/>',
 };
 function ico(n, c) {
   const p = _P[n];
@@ -144,6 +146,7 @@ const _EMO = {
   "🗑": "trash",
   "⤴": "share",
   "📷": "camera",
+  "📸": "instagram",
   "📋": "copy",
   "↩": "undo",
   "🔗": "link",

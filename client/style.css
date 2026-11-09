@@ -824,6 +824,33 @@ nav#nav[hidden] {
   gap: 8px;
   background: var(--card);
 }
+.sb-ig-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  background: linear-gradient(45deg, rgba(240,148,51,0.15), rgba(220,39,67,0.15), rgba(188,24,136,0.15));
+  border: 1px solid rgba(225,48,108,0.35);
+  color: var(--ink);
+  transition: all 0.18s ease;
+}
+.sb-ig-link:hover {
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  color: #fff;
+  border-color: transparent;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(225,48,108,0.3);
+}
+.footer-ig-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(225,48,108,0.5) !important;
+}
 .sb-footer-buttons {
   display: flex;
   gap: 6px;

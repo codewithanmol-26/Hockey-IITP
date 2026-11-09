@@ -2348,9 +2348,12 @@ function drawMenu() {
       ) +
       mi("🏑", "Edit Indian hockey fixtures", openMatches);
   h +=
-    `<div class="ms">Share</div>` +
+    `<div class="ms">Share & Connect</div>` +
     mi("📊", "Share attendance report", () => openReport()) +
-    mi("📲", "Share this app", shareApp);
+    mi("📲", "Share this app", shareApp) +
+    mi("📸", "Follow Instagram (@hockey_iitp)", () =>
+      window.open("https://www.instagram.com/hockey_iitp/", "_blank", "noopener"),
+    );
   h +=
     `<div class="ms">App & Tools</div>` +
     mi("📅", "Add schedule to calendar", icsDownload) +
@@ -3147,6 +3150,10 @@ function drawSidebar() {
     </div>
 
     <div class="sb-footer">
+      <a href="https://www.instagram.com/hockey_iitp/" target="_blank" rel="noopener noreferrer" class="sb-ig-link" title="Follow @hockey_iitp on Instagram">
+        <span class="sb-nav-icon">📸</span>
+        <span class="sb-footer-btn-label">Instagram @hockey_iitp ↗</span>
+      </a>
       <div class="sb-footer-buttons">
         <button type="button" class="sb-footer-btn" id="sb-thm" title="Toggle Day / Night mode">
           <span class="sb-nav-icon">${dk ? "☀️" : "🌙"}</span>
