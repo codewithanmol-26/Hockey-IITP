@@ -1111,15 +1111,15 @@ function studentFixtureCard(opts = {}) {
 
   const renderTabs = () => {
     const tabs = [
-      ["patna", "🏑", "IIT Patna Matches"],
-      ["all", "📋", "All 21 League Fixtures"],
-      ["pools", "🛡️", "Pools A, B, C, D"],
-      ["knockouts", "🏆", "Knockouts & Finals"],
+      ["patna", ico("award"), "IIT Patna Matches"],
+      ["all", ico("calendar"), "All 21 League Fixtures"],
+      ["pools", ico("grid"), "Pools A, B, C, D"],
+      ["knockouts", ico("trophy"), "Knockouts & Finals"],
     ];
     return tabs
       .map(
         ([k, ic, lbl]) =>
-          `<button type="button" class="fixture-tab-pill ${currentView === k ? "active" : ""}" data-hview="${k}" role="tab" aria-selected="${currentView === k}">${ic} ${lbl}</button>`,
+          `<button type="button" class="fixture-tab-pill ${currentView === k ? "active" : ""}" data-hview="${k}" role="tab" aria-selected="${currentView === k}"><span class="nav-sym" style="display:inline-flex;align-items:center;vertical-align:middle;margin-right:5px;width:1.1em;height:1.1em;">${ic}</span><span>${lbl}</span></button>`,
       )
       .join("");
   };
@@ -1160,8 +1160,8 @@ function studentFixtureCard(opts = {}) {
                   <span class="fmc-stage-pill">Pool A · Preliminary League</span>
                 </div>
                 <div class="fmc-time-pill">
-                  <span>📅 ${esc(m.day)}</span>
-                  <b>⏰ ${esc(m.time)}</b>
+                  <span style="display:inline-flex;align-items:center;gap:4px;">${ico("calendar")} ${esc(m.day)}</span>
+                  <b style="display:inline-flex;align-items:center;gap:4px;">${ico("clock")} ${esc(m.time)}</b>
                 </div>
               </div>
 
@@ -1266,8 +1266,8 @@ function studentFixtureCard(opts = {}) {
                 ${m.isPatna ? '<span class="pill pri" style="font-size:0.7rem;padding:2px 8px;">★ IIT Patna Match</span>' : ''}
               </div>
               <div class="fmc-time-pill">
-                <span>📅 ${esc(m.day)}</span>
-                <b>⏰ ${esc(m.time)}</b>
+                <span style="display:inline-flex;align-items:center;gap:4px;">${ico("calendar")} ${esc(m.day)}</span>
+                <b style="display:inline-flex;align-items:center;gap:4px;">${ico("clock")} ${esc(m.time)}</b>
               </div>
             </div>
 
@@ -1371,8 +1371,8 @@ function studentFixtureCard(opts = {}) {
                 <span class="fmc-stage-pill" style="${m.matchNo === 29 ? 'background:#eab308;color:#000;font-weight:800;' : ''}">${esc(m.stage)}</span>
               </div>
               <div class="fmc-time-pill">
-                <span>📅 ${esc(m.day)}</span>
-                <b>⏰ ${esc(m.time)}</b>
+                <span style="display:inline-flex;align-items:center;gap:4px;">${ico("calendar")} ${esc(m.day)}</span>
+                <b style="display:inline-flex;align-items:center;gap:4px;">${ico("clock")} ${esc(m.time)}</b>
               </div>
             </div>
 
@@ -1451,9 +1451,9 @@ function studentFixtureCard(opts = {}) {
           <div class="fixture-card-header">
             <div class="fixture-title-group">
               <div class="fixture-kicker-strip">
-                <span class="fixture-kicker-pill">🏑 59th INTER-IIT SPORTS MEET · HOCKEY MEN</span>
-                <span class="fixture-dates-pill">Dec 15–21, 2026</span>
-                <span class="fixture-host-pill">📍 Ground 1 Astroturf</span>
+                <span class="fixture-kicker-pill">${ico("award")} 59th INTER-IIT SPORTS MEET · HOCKEY MEN</span>
+                <span class="fixture-dates-pill">${ico("calendar")} Dec 15–21, 2026</span>
+                <span class="fixture-host-pill">${ico("pin-map")} Ground 1 Astroturf</span>
               </div>
               <h2 class="fixture-heading" style="margin:2px 0 0;font-size:1.15rem">59th Inter-IIT Men's Hockey Fixtures</h2>
             </div>
@@ -1658,7 +1658,7 @@ function renderSettingsPage() {
             ${ico("back")} <span>Back</span>
           </button>
           <span class="pill pri" style="font-size:0.75rem;font-weight:800;letter-spacing:0.04em">⚙️ SYSTEM SETTINGS</span>
-          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v130 · Mobile &amp; Desktop Optimized</span>
+          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v131 · Mobile &amp; Desktop Optimized</span>
         </div>
       </div>
 
@@ -1799,7 +1799,7 @@ function renderSettingsPage() {
               <b style="display:block;font-size:0.88rem;color:var(--ink)">Production Version</b>
               <span class="mute" style="font-size:0.78rem">Active service worker shell</span>
             </div>
-            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v130</span>
+            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v131</span>
           </div>
 
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
@@ -2316,10 +2316,11 @@ function playSkillVideo(vidId, opts = {}) {
   if (iframe) {
     iframe.dataset.videoId = vidId;
     const originParam = window.location.origin ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
-    iframe.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&enablejsapi=1&rel=0&playsinline=1&modestbranding=1${originParam}`;
+    iframe.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&rel=0&playsinline=1&modestbranding=1${originParam}`;
   }
   const poster = document.getElementById("hsk-poster-cover");
   if (poster) {
+    poster.style.backgroundImage = `url('${esc(vid.thumb || '')}')`;
     poster.style.opacity = "0";
     poster.style.pointerEvents = "none";
   }
@@ -2353,6 +2354,7 @@ function playSkillVideo(vidId, opts = {}) {
     if (isThis && !npPill) {
       const wrap = c.querySelector(".hsk-thumb-wrap");
       if (wrap) wrap.insertAdjacentHTML("beforeend", '<span class="hsk-now-playing-pill">Now Playing</span>');
+      try { c.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" }); } catch (e) {}
     } else if (!isThis && npPill) {
       npPill.remove();
     }
@@ -2365,6 +2367,33 @@ function playSkillVideo(vidId, opts = {}) {
 }
 
 function bindSkillsVideoCard() {
+  if (!window._hskDelegationSetup && typeof document !== "undefined") {
+    window._hskDelegationSetup = true;
+    document.addEventListener("click", (e) => {
+      const p = e.target.closest("#hsk-btn-prev");
+      if (p) {
+        e.preventDefault();
+        const tid = p.dataset.targetId;
+        if (tid) playSkillVideo(tid, { scroll: false });
+        return;
+      }
+      const n = e.target.closest("#hsk-btn-next");
+      if (n) {
+        e.preventDefault();
+        const tid = n.dataset.targetId;
+        if (tid) playSkillVideo(tid, { scroll: false });
+        return;
+      }
+      const tc = e.target.closest(".hsk-thumb-card[data-play-video]");
+      if (tc) {
+        e.preventDefault();
+        const vid = tc.dataset.playVideo;
+        if (vid) playSkillVideo(vid, { scroll: true });
+        return;
+      }
+    });
+  }
+
   const fDrawer = document.getElementById("hsk-folders-drawer");
   if (fDrawer) {
     fDrawer.ontoggle = () => {
@@ -2553,13 +2582,6 @@ function renderInterIITPage() {
 
           <!-- Compact Quick-Links Strip (Desktop Fluid) -->
           <div class="interiit-links-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px;">
-            <a href="https://www.instagram.com/hockey_iitp/" target="_blank" rel="noopener noreferrer" class="interiit-link-btn ig-iitp" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);color:#fff;text-decoration:none;font-weight:700;box-shadow:0 3px 10px rgba(225,48,108,0.3);">
-              <span style="font-size:1rem;flex-shrink:0;">📸</span>
-              <div style="overflow:hidden;">
-                <div style="font-size:0.78rem;line-height:1.15;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">IIT Patna Hockey</div>
-                <div style="font-size:0.65rem;opacity:0.95;font-weight:600;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;">@hockey_iitp ↗</div>
-              </div>
-            </a>
             <a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" class="interiit-link-btn yt" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:#ef4444;color:#fff;text-decoration:none;font-weight:700;">
               <span style="font-size:1rem;flex-shrink:0;">▶</span>
               <div style="overflow:hidden;">

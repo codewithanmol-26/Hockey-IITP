@@ -331,9 +331,6 @@ function drawPublic() {
         <a href="#pub-schedule" class="btn-hero-primary">
           <span>📅 Practice Schedule</span>
         </a>
-        <a href="https://www.instagram.com/hockey_iitp/" target="_blank" rel="noopener noreferrer" class="btn-hero-secondary" style="background:linear-gradient(45deg, rgba(240,148,51,0.22), rgba(220,39,67,0.22), rgba(188,24,136,0.22));border-color:rgba(225,48,108,0.45);color:#fff;">
-          <span>📸 Instagram @hockey_iitp ↗</span>
-        </a>
         <a href="javascript:void(0)" class="btn-hero-secondary" id="btn-hero-interiit">
           <span>🏆 59th Inter IIT</span>
         </a>
@@ -397,18 +394,6 @@ function drawPublic() {
               <b>Team Brotherhood</b>
               <span>Mutual respect, accountability, and sportsmanship on and off the turf.</span>
             </div>
-          </div>
-          <div style="margin-top:16px;padding:12px 16px;background:var(--soft);border:1px solid var(--line);border-radius:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-size:1.3rem;">📸</span>
-              <div>
-                <b style="font-size:0.9rem;color:var(--ink);display:block;">Follow IIT Patna Hockey on Instagram</b>
-                <span class="mute" style="font-size:0.78rem;">Match updates, turf practice reels, and team announcements: <b>@hockey_iitp</b></span>
-              </div>
-            </div>
-            <a href="https://www.instagram.com/hockey_iitp/" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;background:linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);color:#fff;text-decoration:none;font-weight:700;font-size:0.82rem;box-shadow:0 3px 10px rgba(225,48,108,0.3);">
-              <span>Follow @hockey_iitp ↗</span>
-            </a>
           </div>
         </div>
         <div class="about-leadership">
@@ -734,7 +719,6 @@ function drawPublic() {
         <div class="footer-col">
           <h4>Inter IIT Sports Meet</h4>
           <ul class="footer-links" style="list-style:none;padding:0;margin:0 0 10px;font-size:0.85rem;line-height:1.9;">
-            <li><a href="https://www.instagram.com/hockey_iitp/" target="_blank" rel="noopener noreferrer" style="color:#f472b6;font-weight:700;text-decoration:none;">📸 IITP Hockey (@hockey_iitp) ↗</a></li>
             <li><a href="https://www.youtube.com/@interiit_sportsmeet/streams" target="_blank" rel="noopener noreferrer" style="color:rgba(255,255,255,0.85);text-decoration:none;">▶ YouTube Live Streams ↗</a></li>
             <li><a href="https://www.instagram.com/interiit_sportsmeet/" target="_blank" rel="noopener noreferrer" style="color:rgba(255,255,255,0.85);text-decoration:none;">📸 Meet Instagram ↗</a></li>
             <li><a href="https://en.wikipedia.org/wiki/Inter_IIT_Sports_Meet" target="_blank" rel="noopener noreferrer" style="color:rgba(255,255,255,0.85);text-decoration:none;">📖 Wikipedia Archives ↗</a></li>

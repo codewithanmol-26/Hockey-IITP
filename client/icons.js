@@ -115,6 +115,7 @@ const _P = {
     '<rect x="6" y="4.5" width="3.5" height="15" rx="1.2" fill="currentColor" stroke="none"/><rect x="14.5" y="4.5" width="3.5" height="15" rx="1.2" fill="currentColor" stroke="none"/>',
   "chev-u": '<path d="m5.5 14.5 6.5-6.5 6.5 6.5"/>',
   "chev-d": '<path d="m5.5 9.5 6.5 6.5 6.5-6.5"/>',
+  grid: '<rect x="3.8" y="3.8" width="7" height="7" rx="1.8"/><rect x="13.2" y="3.8" width="7" height="7" rx="1.8"/><rect x="3.8" y="13.2" width="7" height="7" rx="1.8"/><rect x="13.2" y="13.2" width="7" height="7" rx="1.8"/>',
 };
 function ico(n, c) {
   const p = _P[n];
