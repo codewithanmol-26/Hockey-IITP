@@ -1658,7 +1658,7 @@ function renderSettingsPage() {
             ${ico("back")} <span>Back</span>
           </button>
           <span class="pill pri" style="font-size:0.75rem;font-weight:800;letter-spacing:0.04em">⚙️ SYSTEM SETTINGS</span>
-          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v128 · Mobile &amp; Desktop Optimized</span>
+          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v129 · Mobile &amp; Desktop Optimized</span>
         </div>
       </div>
 
@@ -1799,7 +1799,7 @@ function renderSettingsPage() {
               <b style="display:block;font-size:0.88rem;color:var(--ink)">Production Version</b>
               <span class="mute" style="font-size:0.78rem">Active service worker shell</span>
             </div>
-            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v128</span>
+            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v129</span>
           </div>
 
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">
@@ -2134,9 +2134,14 @@ function skillsVideoCard(opts = {}) {
       .join("");
   };
 
-  const curIdx = HOCKEY_SKILL_VIDEOS.findIndex((v) => v.id === currentSkillVideoId);
-  const prevVid = curIdx > 0 ? HOCKEY_SKILL_VIDEOS[curIdx - 1] : null;
-  const nextVid = curIdx < HOCKEY_SKILL_VIDEOS.length - 1 ? HOCKEY_SKILL_VIDEOS[curIdx + 1] : HOCKEY_SKILL_VIDEOS[0];
+  const activeNavList = list.some((v) => v.id === curVid.id) ? list : HOCKEY_SKILL_VIDEOS;
+  let curIdx = activeNavList.findIndex((v) => v.id === curVid.id);
+  if (curIdx === -1) curIdx = 0;
+  const totalDrills = activeNavList.length;
+  const prevIdx = (curIdx - 1 + totalDrills) % totalDrills;
+  const nextIdx = (curIdx + 1) % totalDrills;
+  const prevVid = activeNavList[prevIdx];
+  const nextVid = activeNavList[nextIdx];
 
   return `
     <div class="skills-video-container" id="hockey-skills-video-container">
@@ -2201,9 +2206,19 @@ function skillsVideoCard(opts = {}) {
             ` : '<div class="hsk-coaching-points" id="hsk-coaching-list" style="display:none"></div>'}
 
             <div class="hsk-controls-row">
-              ${prevVid ? `<button type="button" class="btn-drill-nav" data-play-video="${esc(prevVid.id)}">⏮ Previous</button>` : ""}
-              <button type="button" class="btn-drill-nav pri" data-play-video="${esc(nextVid.id)}">Next Drill ⏭</button>
-              <a href="https://youtube.com/shorts/${currentSkillVideoId}" target="_blank" rel="noopener noreferrer" class="btn-drill-nav" id="hsk-yt-link">Watch on YouTube ↗</a>
+              <button type="button" class="btn-drill-nav" id="hsk-btn-prev" data-target-id="${esc(prevVid.id)}" title="Previous drill: ${esc(prevVid.title)}">
+                <span class="nav-sym">${ico("prev")}</span>
+                <span>Previous</span>
+              </button>
+              <span class="hsk-drill-counter" id="hsk-drill-counter">Drill ${curIdx + 1} of ${totalDrills}</span>
+              <button type="button" class="btn-drill-nav pri" id="hsk-btn-next" data-target-id="${esc(nextVid.id)}" title="Next drill: ${esc(nextVid.title)}">
+                <span>Next Drill</span>
+                <span class="nav-sym">${ico("next")}</span>
+              </button>
+              <a href="https://youtube.com/shorts/${currentSkillVideoId}" target="_blank" rel="noopener noreferrer" class="btn-drill-nav" id="hsk-yt-link" title="Open drill in YouTube">
+                <span class="nav-sym">${ico("external")}</span>
+                <span>YouTube ↗</span>
+              </a>
             </div>
 
             <!-- Custom YouTube URL Input (Hidden on mobile) -->
@@ -2247,6 +2262,108 @@ function skillsVideoCard(opts = {}) {
   `;
 }
 
+function getSkillVideoNavigation(vidId) {
+  const curCatList = skillVideoCategory === "all"
+    ? HOCKEY_SKILL_VIDEOS
+    : HOCKEY_SKILL_VIDEOS.filter((v) => v.category === skillVideoCategory);
+  const activeNavList = curCatList.some((v) => v.id === vidId) ? curCatList : HOCKEY_SKILL_VIDEOS;
+  let curIdx = activeNavList.findIndex((v) => v.id === vidId);
+  if (curIdx === -1) curIdx = HOCKEY_SKILL_VIDEOS.findIndex((v) => v.id === vidId);
+  if (curIdx === -1) curIdx = 0;
+  const total = activeNavList.length;
+  const prevIdx = (curIdx - 1 + total) % total;
+  const nextIdx = (curIdx + 1) % total;
+  return {
+    curIndex: curIdx,
+    total: total,
+    prevVid: activeNavList[prevIdx],
+    nextVid: activeNavList[nextIdx],
+  };
+}
+
+function updateSkillVideoNavButtons(vidId) {
+  const nav = getSkillVideoNavigation(vidId);
+  const btnPrev = document.getElementById("hsk-btn-prev");
+  const btnNext = document.getElementById("hsk-btn-next");
+  const counterEl = document.getElementById("hsk-drill-counter");
+
+  if (btnPrev && nav.prevVid) {
+    btnPrev.dataset.targetId = nav.prevVid.id;
+    btnPrev.title = `Previous drill: ${nav.prevVid.title}`;
+  }
+  if (btnNext && nav.nextVid) {
+    btnNext.dataset.targetId = nav.nextVid.id;
+    btnNext.title = `Next drill: ${nav.nextVid.title}`;
+  }
+  if (counterEl) {
+    counterEl.textContent = `Drill ${nav.curIndex + 1} of ${nav.total}`;
+  }
+}
+
+function playSkillVideo(vidId, opts = {}) {
+  if (!vidId) return;
+  currentSkillVideoId = vidId;
+
+  const vid = HOCKEY_SKILL_VIDEOS.find((v) => v.id === vidId) || {
+    id: vidId,
+    title: "Hockey Skill Practice",
+    categoryLabel: "Custom Practice",
+    desc: "Watch and practice this field hockey tutorial drill.",
+    coachingPoints: ["Focus on stick technique, body balance, and regular repetition."],
+  };
+
+  const iframe = document.getElementById("hsk-main-iframe");
+  if (iframe) {
+    iframe.dataset.videoId = vidId;
+    const originParam = window.location.origin ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
+    iframe.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&enablejsapi=1&rel=0&playsinline=1&modestbranding=1${originParam}`;
+  }
+  const poster = document.getElementById("hsk-poster-cover");
+  if (poster) {
+    poster.style.opacity = "0";
+    poster.style.pointerEvents = "none";
+  }
+  const titleEl = document.getElementById("hsk-active-title");
+  if (titleEl) titleEl.textContent = vid.title;
+  const catEl = document.getElementById("hsk-active-cat");
+  if (catEl) catEl.textContent = vid.categoryLabel || "Skill Drill";
+  const descEl = document.getElementById("hsk-active-desc");
+  if (descEl) descEl.textContent = vid.desc || "";
+  const ytLink = document.getElementById("hsk-yt-link");
+  if (ytLink) ytLink.href = `https://youtube.com/shorts/${vidId}`;
+
+  const listEl = document.getElementById("hsk-coaching-list");
+  if (listEl) {
+    if (vid.coachingPoints && vid.coachingPoints.length) {
+      if (listEl.parentElement) listEl.parentElement.style.display = "block";
+      listEl.innerHTML = vid.coachingPoints.map((pt) => `<li>${esc(pt)}</li>`).join("");
+    } else {
+      if (listEl.parentElement) listEl.parentElement.style.display = "none";
+    }
+  }
+
+  // Update navigation buttons and counter dynamically
+  updateSkillVideoNavButtons(vidId);
+
+  // Update active thumbnail card styling
+  document.querySelectorAll(".hsk-thumb-card").forEach((c) => {
+    const isThis = c.dataset.playVideo === vidId;
+    c.classList.toggle("active", isThis);
+    const npPill = c.querySelector(".hsk-now-playing-pill");
+    if (isThis && !npPill) {
+      const wrap = c.querySelector(".hsk-thumb-wrap");
+      if (wrap) wrap.insertAdjacentHTML("beforeend", '<span class="hsk-now-playing-pill">Now Playing</span>');
+    } else if (!isThis && npPill) {
+      npPill.remove();
+    }
+  });
+
+  const playerContainer = document.getElementById("hsk-card");
+  if (opts.scroll && playerContainer && window.innerWidth < 768) {
+    playerContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
 function bindSkillsVideoCard() {
   const fDrawer = document.getElementById("hsk-folders-drawer");
   if (fDrawer) {
@@ -2266,67 +2383,31 @@ function bindSkillsVideoCard() {
     };
   });
 
-  document.querySelectorAll("[data-play-video]").forEach((card) => {
-    card.onclick = () => {
+  // Dedicated previous and next button handlers
+  const btnPrev = document.getElementById("hsk-btn-prev");
+  if (btnPrev) {
+    btnPrev.onclick = (e) => {
+      e.preventDefault();
+      const targetId = btnPrev.dataset.targetId;
+      if (targetId) playSkillVideo(targetId, { scroll: false });
+    };
+  }
+
+  const btnNext = document.getElementById("hsk-btn-next");
+  if (btnNext) {
+    btnNext.onclick = (e) => {
+      e.preventDefault();
+      const targetId = btnNext.dataset.targetId;
+      if (targetId) playSkillVideo(targetId, { scroll: false });
+    };
+  }
+
+  // Thumbnail cards in gallery
+  document.querySelectorAll(".hsk-thumb-card[data-play-video]").forEach((card) => {
+    card.onclick = (e) => {
+      e.preventDefault();
       const vidId = card.dataset.playVideo;
-      if (!vidId) return;
-      currentSkillVideoId = vidId;
-
-      const vid = HOCKEY_SKILL_VIDEOS.find((v) => v.id === vidId) || {
-        id: vidId,
-        title: "Hockey Skill Practice",
-        categoryLabel: "Custom Practice",
-        desc: "Watch and practice this field hockey tutorial drill.",
-        coachingPoints: ["Focus on stick technique, body balance, and regular repetition."],
-      };
-
-      const iframe = document.getElementById("hsk-main-iframe");
-      if (iframe) {
-        iframe.dataset.videoId = vidId;
-        const originParam = window.location.origin ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
-        iframe.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&enablejsapi=1&rel=0&playsinline=1&modestbranding=1${originParam}`;
-      }
-      const poster = document.getElementById("hsk-poster-cover");
-      if (poster) {
-        poster.style.opacity = "0";
-        poster.style.pointerEvents = "none";
-      }
-      const titleEl = document.getElementById("hsk-active-title");
-      if (titleEl) titleEl.textContent = vid.title;
-      const catEl = document.getElementById("hsk-active-cat");
-      if (catEl) catEl.textContent = vid.categoryLabel || "Skill Drill";
-      const descEl = document.getElementById("hsk-active-desc");
-      if (descEl) descEl.textContent = vid.desc || "";
-      const ytLink = document.getElementById("hsk-yt-link");
-      if (ytLink) ytLink.href = `https://youtube.com/shorts/${vidId}`;
-
-      const listEl = document.getElementById("hsk-coaching-list");
-      if (listEl) {
-        if (vid.coachingPoints && vid.coachingPoints.length) {
-          listEl.parentElement.style.display = "block";
-          listEl.innerHTML = vid.coachingPoints.map((pt) => `<li>${esc(pt)}</li>`).join("");
-        } else {
-          listEl.parentElement.style.display = "none";
-        }
-      }
-
-      // Update active card styling
-      document.querySelectorAll(".hsk-thumb-card").forEach((c) => {
-        const isThis = c.dataset.playVideo === vidId;
-        c.classList.toggle("active", isThis);
-        const npPill = c.querySelector(".hsk-now-playing-pill");
-        if (isThis && !npPill) {
-          const wrap = c.querySelector(".hsk-thumb-wrap");
-          if (wrap) wrap.insertAdjacentHTML("beforeend", '<span class="hsk-now-playing-pill">Now Playing</span>');
-        } else if (!isThis && npPill) {
-          npPill.remove();
-        }
-      });
-
-      const playerContainer = document.getElementById("hsk-card");
-      if (playerContainer && window.innerWidth < 768) {
-        playerContainer.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      if (vidId) playSkillVideo(vidId, { scroll: true });
     };
   });
 
@@ -2352,30 +2433,8 @@ function bindSkillsVideoCard() {
       errCustom.style.color = "var(--brand)";
     }
 
-    currentSkillVideoId = parsedId;
-    const iframe = document.getElementById("hsk-main-iframe");
-    if (iframe) {
-      iframe.dataset.videoId = parsedId;
-      const originParam = window.location.origin ? `&origin=${encodeURIComponent(window.location.origin)}` : "";
-      iframe.src = `https://www.youtube-nocookie.com/embed/${parsedId}?autoplay=1&enablejsapi=1&rel=0&playsinline=1&modestbranding=1${originParam}`;
-    }
-    const poster = document.getElementById("hsk-poster-cover");
-    if (poster) {
-      poster.style.opacity = "0";
-      poster.style.pointerEvents = "none";
-    }
-    const titleEl = document.getElementById("hsk-active-title");
-    if (titleEl) titleEl.textContent = `Custom Practice Video (${parsedId})`;
-    const descEl = document.getElementById("hsk-active-desc");
-    if (descEl) descEl.textContent = "Playing directly from YouTube. Practice and follow the stick drills.";
-    const ytLink = document.getElementById("hsk-yt-link");
-    if (ytLink) ytLink.href = `https://www.youtube.com/watch?v=${parsedId}`;
-
+    playSkillVideo(parsedId, { scroll: true });
     inputCustom.value = "";
-    const playerContainer = document.getElementById("hsk-card");
-    if (playerContainer) {
-      playerContainer.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
   };
 
   if (btnCustom) btnCustom.onclick = handleCustomPlay;

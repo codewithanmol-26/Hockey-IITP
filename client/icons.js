@@ -105,6 +105,16 @@ const _P = {
   dumbbell: '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
   instagram:
     '<rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4.5"/><circle cx="12" cy="12" r="3.8"/><circle cx="16.8" cy="7.2" r="1" fill="currentColor" stroke="none"/>',
+  prev:
+    '<path d="M18 19L8.5 12 18 5v14z" fill="currentColor" stroke="none"/><path d="M6 5v14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  next:
+    '<path d="M6 5l9.5 7L6 19V5z" fill="currentColor" stroke="none"/><path d="M18 5v14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  play:
+    '<path d="M7 4.5l12 7.5-12 7.5V4.5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  pause:
+    '<rect x="6" y="4.5" width="3.5" height="15" rx="1.2" fill="currentColor" stroke="none"/><rect x="14.5" y="4.5" width="3.5" height="15" rx="1.2" fill="currentColor" stroke="none"/>',
+  "chev-u": '<path d="m5.5 14.5 6.5-6.5 6.5 6.5"/>',
+  "chev-d": '<path d="m5.5 9.5 6.5 6.5 6.5-6.5"/>',
 };
 function ico(n, c) {
   const p = _P[n];
@@ -162,6 +172,19 @@ const _EMO = {
   "↻": "refresh",
   "‹": "chev-l",
   "›": "chev-r",
+  "▲": "chev-u",
+  "▼": "chev-d",
+  "∧": "chev-u",
+  "∨": "chev-d",
+  "←": "back",
+  "→": "fwd",
+  "◀": "chev-l",
+  "▶": "play",
+  "▶️": "play",
+  "⏮": "prev",
+  "⏭": "next",
+  "⏸": "pause",
+  "⏹": "stop",
   "🌙": "moon",
   "☀": "sun",
   "📱": "phone",
@@ -277,6 +300,12 @@ const _DEFLBL = {
   back: "Back",
   "chev-l": "Previous",
   "chev-r": "Next",
+  "chev-u": "Up",
+  "chev-d": "Down",
+  prev: "Previous",
+  next: "Next",
+  play: "Play",
+  pause: "Pause",
   minus: "Less",
   moon: "Night mode",
   sun: "Day mode",
