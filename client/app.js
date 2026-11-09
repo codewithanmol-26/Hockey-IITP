@@ -3377,7 +3377,7 @@ function vTake() {
     tkUn = false;
   }
   const el = P.filter((p) => !p.joined || p.joined <= baseDate),
-    pln = SCH.team[dayIdx(baseDate)];
+    pln = (SCH && SCH.team && SCH.team[dayIdx(baseDate)]) || ["Practice", "5:30 PM", "", ""];
   const av = AVL[baseDate] || {},
     prev = dates()
       .filter((d) => d < takeDate)
@@ -3385,11 +3385,11 @@ function vTake() {
     cx = PL[baseDate] && PL[baseDate].status === "cancelled";
   const dots = (p) =>
     prev
-      .filter((d) => SS[d][p.id] !== undefined)
+      .filter((d) => SS[d] && SS[d][p.id] !== undefined)
       .slice(0, 5)
       .reverse()
       .map(
-        (d) => `<i class="${SS[d][p.id] ? "d1" : "d0"}" title="${fmt(d)}"></i>`,
+        (d) => `<i class="${SS[d] && SS[d][p.id] ? "d1" : "d0"}" title="${fmt(d)}"></i>`,
       )
       .join("");
   const badge = (p) => {
@@ -3428,7 +3428,7 @@ function vTake() {
   </div>
   <div class="tkinfo"><span class="pill ${cx ? "r" : "g"}">${cx ? "Cancelled" : esc(pln[0])}</span><span class="mute">${cx ? "This playing day is cancelled" : pln[3] ? esc(pln[1]) + " · " + esc(pln[3]) : "Rest day on the schedule"}${SS[takeDate] ? ` · Session ${curSessNum} already saved, saving again updates it` : ` · Session ${curSessNum} (not saved yet)`}</span></div>
   <div class="tkq"><input id="tkq" type="search" placeholder="Search name or roll no" value="${esc(tkQ)}" aria-label="Search players"><button id="tkun" aria-pressed="${tkUn}" class="${tkUn ? "pri" : ""}">Unmarked only</button></div>
-  <div class="chips" style="margin:6px 0 8px"><button id="allp">✔ All present</button><button id="alla">✘ All absent</button>${blocked.length ? `<button id="blk">Mark “can’t come / injured” absent (${blocked.length})</button>` : ""}<button id="clr">Clear</button></div>
+  <div class="chips" style="margin:6px 0 8px"><button id="allp">✔ All present</button><button id="alla">✘ All absent</button>${blocked.length ? `<button id="blk"><span class="desktop-only">Mark “can’t come / injured” absent (${blocked.length})</span><span class="mobile-only">Injured absent (${blocked.length})</span></button>` : ""}<button id="clr" data-noico="1">🔄 Clear</button></div>
   <div id="tkl">${
     el
       .map(
@@ -3441,7 +3441,7 @@ function vTake() {
     '<p class="mute">No players yet. Add students from the ⋮ menu.</p>'
   }<p id="tkn" class="mute" hidden>No players match.</p></div>
   ${SS[takeDate] ? `<div class="chips"><button id="wat">⤴ Share</button><button class="dng" id="del">${delLabel}</button></div>` : ""}</div>
-  <div class="tksv"><div class="tks"><div class="tkc"><b id="tkp" class="gp">0</b><small>Present</small></div><div class="tkc"><b id="tka" class="ga">0</b><small>Absent</small></div><div class="tkc"><b id="tkm">0</b><small>Left</small></div></div><div class="tkprog"><i id="tkpb"></i></div><button class="pri big" id="sv">Save Session ${curSessNum} attendance</button><p class="mute" style="margin:6px 0 0;font-size:0.8rem;text-align:center;">🔔 Saves record and sends instant confirmation to players (Present/Absent).</p></div>`;
+  <div class="tksv" id="tksv"><div class="tksv-stats-row"><div class="tks"><div class="tkc"><b id="tkp" class="gp">0</b><small>Present</small></div><div class="tkc"><b id="tka" class="ga">0</b><small>Absent</small></div><div class="tkc"><b id="tkm">0</b><small>Left</small></div></div></div><div class="tkprog"><i id="tkpb"></i></div><button class="pri big" id="sv">Save Session ${curSessNum} attendance</button><p class="mute tksv-note">🔔 Saves record and sends instant confirmation to players (Present/Absent).</p></div>`;
   const upd = () => {
     const p = el.filter((x) => draft[x.id] === true).length,
       a = el.filter((x) => draft[x.id] === false).length;
@@ -3460,8 +3460,10 @@ function vTake() {
       const v = draft[r.dataset.id];
       r.classList.toggle("mp", v === true);
       r.classList.toggle("ma", v === false);
-      r.querySelector(".p").classList.toggle("on", v === true);
-      r.querySelector(".a").classList.toggle("on", v === false);
+      const btnP = r.querySelector(".p");
+      const btnA = r.querySelector(".a");
+      if (btnP) btnP.classList.toggle("on", v === true);
+      if (btnA) btnA.classList.toggle("on", v === false);
     });
     $("tkn").hidden = shown > 0 || !el.length;
   };
