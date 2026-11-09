@@ -3402,7 +3402,7 @@ function vTake() {
       ? `Delete Session ${curSessNum}`
       : `Delete this day`;
 
-  $("view").innerHTML = `<div class="card"><h2>Take attendance</h2>
+  $("view").innerHTML = `<div class="card take-att-card"><h2>Take attendance</h2>
   <div class="tkh"><button id="dprev" aria-label="Previous day">‹</button><input type="date" id="td" value="${baseDate}" aria-label="Date"><button id="dnext" aria-label="Next day">›</button><button id="dtoday">Today</button></div>
   <div class="session-tabs-bar" role="tablist" aria-label="Sessions on this day">
     <div class="session-tabs-header">
@@ -3436,7 +3436,7 @@ function vTake() {
       .join("") ||
     '<p class="mute">No players yet. Add students from the ⋮ menu.</p>'
   }<p id="tkn" class="mute" hidden>No players match.</p></div>
-  ${SS[takeDate] ? `<div class="chips"><button id="wat">⤴ Share</button><button class="dng" id="del">${delLabel}</button></div>` : ""}</div>
+  ${SS[takeDate] ? `<div class="chips att-action-chips"><button id="wat">⤴ Share</button><button class="dng" id="del">${delLabel}</button></div>` : ""}</div>
   <div class="tksv" id="tksv"><div class="tksv-stats-row"><div class="tks"><div class="tkc"><b id="tkp" class="gp">0</b><small>Present</small></div><div class="tkc"><b id="tka" class="ga">0</b><small>Absent</small></div><div class="tkc"><b id="tkm">0</b><small>Left</small></div></div></div><div class="tkprog"><i id="tkpb"></i></div><button class="pri big" id="sv">Save Session ${curSessNum} attendance</button><p class="mute tksv-note">🔔 Saves record and sends instant confirmation to players (Present/Absent).</p></div>`;
   const upd = () => {
     const p = el.filter((x) => draft[x.id] === true).length,

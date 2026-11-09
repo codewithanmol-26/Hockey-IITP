@@ -3566,6 +3566,9 @@ button.x {
   font-weight: 700;
   font-size: 1rem;
 }
+.take-att-card {
+  margin-bottom: 16px;
+}
 #tkl {
   padding-bottom: 16px;
 }
@@ -3657,7 +3660,23 @@ button.x {
     display: inline !important;
   }
   #tkl {
-    padding-bottom: calc(var(--nav-h) + 140px + env(safe-area-inset-bottom));
+    padding-bottom: 6px !important;
+  }
+  .take-att-card {
+    margin-bottom: calc(var(--nav-h) + 110px + env(safe-area-inset-bottom)) !important;
+  }
+  .att-action-chips {
+    margin-top: 14px !important;
+    margin-bottom: 6px !important;
+    display: flex !important;
+    gap: 8px !important;
+  }
+  .att-action-chips button {
+    flex: 1 !important;
+    min-height: 40px !important;
+    font-size: 0.84rem !important;
+    font-weight: 700 !important;
+    justify-content: center !important;
   }
   .tkh {
     gap: 4px;
@@ -3740,41 +3759,73 @@ button.x {
     margin-left: 2px;
   }
   .tksv {
+    position: sticky;
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 6px);
+    z-index: 10;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 10px 12px 12px;
+    gap: 5px;
+    padding: 8px 12px 9px;
     border-radius: 14px;
-    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 6px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
   }
   .tksv-stats-row {
     width: 100%;
   }
   .tks {
     width: 100%;
+    display: flex;
     justify-content: space-around;
-    gap: 8px;
+    align-items: center;
+    gap: 6px;
+  }
+  .tkc {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    line-height: 1;
   }
   .tkc b {
-    font-size: 1.25rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+  }
+  .tkc small {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--mute);
   }
   .tkprog {
     width: 100%;
+    height: 3px;
+    margin: 1px 0 2px;
   }
   .tksv .big {
     width: 100%;
-    padding: 11px 16px;
-    font-size: 0.92rem;
-    border-radius: 10px;
+    min-height: 38px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 800;
+    border-radius: 9px;
     text-align: center;
-    white-space: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .tksv-note {
-    font-size: 0.72rem;
-    line-height: 1.35;
-    margin: 2px 0 0;
+    font-size: 0.68rem;
+    line-height: 1.2;
+    margin: 0;
     text-align: center;
+    color: var(--mute);
+  }
+  body:has(#tksv) #chat-fab,
+  #app:has(#tksv) #chat-fab,
+  .take-att-card ~ #chat-fab {
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 98px) !important;
+    transform: scale(0.85);
+    transform-origin: bottom right;
   }
 }
 /* removed students */
