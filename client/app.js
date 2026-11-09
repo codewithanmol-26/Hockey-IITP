@@ -3850,6 +3850,7 @@ function vStats() {
 
 // ---------- Custom Attendance Export (Excel / PDF) ----------
 const EXPORT_AVAILABLE_COLS = [
+  { id: "sno", label: "S.No.", default: true },
   { id: "roll", label: "Roll Number", default: true },
   { id: "name", label: "Full Name", default: true },
   { id: "joined", label: "Joined Date", default: true },
@@ -4175,6 +4176,11 @@ function openCustomExport() {
       rows.sort((a, b) => String(a.joined || "9999").localeCompare(String(b.joined || "9999")));
     }
 
+    // Number rows sequentially with Serial No after sorting
+    rows.forEach((r, idx) => {
+      r.sno = idx + 1;
+    });
+
     // 3. Overall Stats for Summary Card
     const totalRecordedSessions = allRecordedDates.length;
     const teamTurnoutPct = rows.length
@@ -4221,13 +4227,14 @@ function openCustomExport() {
 
 function generateExcelExport(opt) {
   const { isCols, exportColsList, targetMonthsList, rows, minDate, maxDate, totalRecordedSessions, teamTurnoutPct, includeSummaryCard, title } = opt;
-  const colCount = isCols ? exportColsList.length : (3 + targetMonthsList.length + 3);
+  const colCount = isCols ? exportColsList.length : (1 + 3 + targetMonthsList.length + 3);
 
   let thead = "";
   if (isCols) {
     thead = `<tr>${exportColsList.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr>`;
   } else {
     thead = `<tr>
+      <th style="width:50px;">S.No.</th>
       <th>Roll No</th>
       <th>Full Name</th>
       <th>Joined Date</th>
@@ -4246,7 +4253,8 @@ function generateExcelExport(opt) {
       const tds = exportColsList.map((c) => {
         let val = r[c.id];
         let cls = "text";
-        if (c.id === "roll") cls = "text center";
+        if (c.id === "sno") cls = "center";
+        else if (c.id === "roll") cls = "text center";
         else if (c.id === "joined") cls = "center";
         else if (c.id === "totalSessions" || c.id === "present" || c.id === "absent" || c.id === "jerseyNo") cls = "num";
         else if (c.id === "pct") cls = "pct";
@@ -4260,6 +4268,7 @@ function generateExcelExport(opt) {
         return `<td class="center">${esc(mc ? mc.text : "–")}</td>`;
       }).join("");
       tbody += `<tr class="${rowCls}">
+        <td class="center" style="font-weight:bold;">${idx + 1}</td>
         <td class="text center">${esc(r.roll)}</td>
         <td class="text">${esc(r.name + removedBadge)}</td>
         <td class="center">${esc(r.joined)}</td>
@@ -4372,9 +4381,10 @@ function generatePdfPrint(opt) {
 
   let thead = "";
   if (isCols) {
-    thead = `<tr>${exportColsList.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr>`;
+    thead = `<tr>${exportColsList.map((c) => `<th${c.id === "sno" ? ' style="width:48px;"' : ""}>${esc(c.label)}</th>`).join("")}</tr>`;
   } else {
     thead = `<tr>
+      <th style="width:48px;">S.No.</th>
       <th>Roll No</th>
       <th>Full Name</th>
       <th>Joined</th>
@@ -4392,7 +4402,7 @@ function generatePdfPrint(opt) {
       const tds = exportColsList.map((c) => {
         let val = esc(String(r[c.id] !== undefined && r[c.id] !== null ? r[c.id] : ""));
         let cls = "";
-        if (c.id === "roll" || c.id === "joined") cls = "center";
+        if (c.id === "sno" || c.id === "roll" || c.id === "joined") cls = "center";
         else if (c.id === "totalSessions" || c.id === "present" || c.id === "absent" || c.id === "jerseyNo") cls = "num";
         else if (c.id === "pct") cls = "pct";
         else if (c.id === "name") val = val + removedBadge;
@@ -4405,6 +4415,7 @@ function generatePdfPrint(opt) {
         return `<td class="center">${esc(mc ? mc.text : "–")}</td>`;
       }).join("");
       tbody += `<tr>
+        <td class="center" style="font-weight:bold;">${idx + 1}</td>
         <td class="center">${esc(r.roll)}</td>
         <td>${esc(r.name)}${removedBadge}</td>
         <td class="center">${esc(r.joined)}</td>
