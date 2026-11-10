@@ -1671,22 +1671,9 @@ const done = (res) => {
   res.json({ ok: true });
 };
 
-// ---- Attendance notifications: send push & email confirmation to players when attendance is saved ----
+// ---- Attendance notifications: send push confirmation to players who allowed notifications when attendance is saved ----
 async function notifyAttendance(sessionKey, newR, prevR, playerMap) {
   try {
-    const escH = (s) =>
-      String(s ?? "").replace(
-        /[&<>"']/g,
-        (ch) =>
-          ({
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#39;",
-          })[ch],
-      );
-
     const baseDate = sessionKey.replace(/_\d+$/, "");
     const isSecondSess = sessionKey.includes("_2");
     const dObj = new Date(baseDate + "T12:00:00Z");
@@ -1704,7 +1691,6 @@ async function notifyAttendance(sessionKey, newR, prevR, playerMap) {
 
     const presentPlayers = [];
     const absentPlayers = [];
-    const playersToEmail = [];
 
     for (const [pid, isPresent] of Object.entries(newR)) {
       if (typeof isPresent !== "boolean") continue;
@@ -1716,7 +1702,6 @@ async function notifyAttendance(sessionKey, newR, prevR, playerMap) {
           id: p.id || pid,
           roll: p.roll || "",
           name: p.name || "Player",
-          email: p.email || "",
           isPresent,
           isUpdate: !isNew && hasChanged,
         };
@@ -1725,20 +1710,19 @@ async function notifyAttendance(sessionKey, newR, prevR, playerMap) {
         } else {
           absentPlayers.push(record);
         }
-        if (record.email) {
-          playersToEmail.push(record);
-        }
       }
     }
 
-    const tasks = [];
+    let presentSent = 0;
+    let absentSent = 0;
+    const pushTasks = [];
 
-    // 1. Web Push to Present Players
+    // 1. Web Push to Present Players (only devices that allowed notifications)
     if (presentPlayers.length) {
       const presentIds = new Set(
         presentPlayers.flatMap((p) => [p.id, p.roll]).filter(Boolean),
       );
-      tasks.push(
+      pushTasks.push(
         pushAll(
           {
             title: "🏑 Attendance: Present ✅",
@@ -1748,19 +1732,24 @@ async function notifyAttendance(sessionKey, newR, prevR, playerMap) {
             data: { url: "./#tab=me" },
           },
           presentIds,
-        ).catch((e) => {
-          console.error("push present error:", e.message);
-          return null;
-        }),
+        )
+          .then((res) => {
+            if (res && typeof res.sent === "number") presentSent = res.sent;
+            return res;
+          })
+          .catch((e) => {
+            console.error("push present error:", e.message);
+            return null;
+          }),
       );
     }
 
-    // 2. Web Push to Absent Players
+    // 2. Web Push to Absent Players (only devices that allowed notifications)
     if (absentPlayers.length) {
       const absentIds = new Set(
         absentPlayers.flatMap((p) => [p.id, p.roll]).filter(Boolean),
       );
-      tasks.push(
+      pushTasks.push(
         pushAll(
           {
             title: "🏑 Attendance: Absent ❌",
@@ -1770,61 +1759,24 @@ async function notifyAttendance(sessionKey, newR, prevR, playerMap) {
             data: { url: "./#tab=me" },
           },
           absentIds,
-        ).catch((e) => {
-          console.error("push absent error:", e.message);
-          return null;
-        }),
+        )
+          .then((res) => {
+            if (res && typeof res.sent === "number") absentSent = res.sent;
+            return res;
+          })
+          .catch((e) => {
+            console.error("push absent error:", e.message);
+            return null;
+          }),
       );
     }
 
-    // 3. Email notifications (if RESEND_API_KEY configured)
-    if (process.env.RESEND_API_KEY && playersToEmail.length) {
-      for (const p of playersToEmail) {
-        const statusWord = p.isPresent ? "Present" : "Absent";
-        const statusEmoji = p.isPresent ? "✅" : "❌";
-        const emailSubject = `🏑 Practice Attendance: ${statusWord} ${statusEmoji} (${sessLabel})`;
-        const emailHtml = `
-          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;color:#0f172a;">
-            <div style="text-align:center;margin-bottom:20px;">
-              <span style="display:inline-block;background:#0369a1;color:#ffffff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;">IIT Patna Hockey</span>
-              <h2 style="margin:12px 0 4px;font-size:22px;color:#0f172a;">Practice Attendance Logged</h2>
-              <p style="margin:0;color:#64748b;font-size:14px;">${sessLabel}</p>
-            </div>
-            <div style="background:${p.isPresent ? "#ecfdf5" : "#fff1f2"};border:1px solid ${p.isPresent ? "#a7f3d0" : "#fecdd3"};border-radius:12px;padding:18px;margin-bottom:20px;text-align:center;">
-              <div style="font-size:32px;margin-bottom:6px;">${statusEmoji}</div>
-              <div style="font-size:18px;font-weight:800;color:${p.isPresent ? "#065f46" : "#9f1239"};">${statusWord.toUpperCase()}</div>
-              <p style="margin:6px 0 0;font-size:14px;color:${p.isPresent ? "#047857" : "#be123c"};">
-                ${p.isPresent ? "Your attendance was confirmed for this practice session." : "You were recorded as absent for this practice session."}
-              </p>
-            </div>
-            <p style="font-size:15px;line-height:1.5;color:#334155;margin:0 0 16px;">
-              Hello <b>${escH(p.name)}</b>, your attendance status for the practice fixture on <b>${sessLabel}</b> has been recorded by team leadership.
-            </p>
-            ${!p.isPresent ? '<p style="font-size:13px;color:#64748b;margin:0 0 16px;">If you were present at this session or have an approved leave, please notify your team captain or coach.</p>' : ""}
-            <div style="text-align:center;margin-top:24px;">
-              <a href="https://hockey-iitp.anmol.website/#tab=me" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;">View My Turnout &amp; Stats</a>
-            </div>
-            <hr style="border:0;border-top:1px solid #e2e8f0;margin:24px 0 16px;">
-            <p style="font-size:12px;color:#94a3b8;text-align:center;margin:0;">
-              Indian Institute of Technology Patna · Field Hockey Team Portal
-            </p>
-          </div>
-        `;
-        const emailText = `IIT Patna Hockey - Attendance Confirmation\n\nHello ${p.name},\nYour attendance for practice on ${sessLabel} is recorded as: ${statusWord} ${statusEmoji}.\n\nView details: https://hockey-iitp.anmol.website/#tab=me`;
-        tasks.push(
-          sendEmail(p.email, emailSubject, emailText, emailHtml).catch((e) => {
-            console.error("attendance email error for", p.email, e.message);
-            return null;
-          }),
-        );
-      }
-    }
+    await Promise.allSettled(pushTasks);
 
-    await Promise.allSettled(tasks);
     return {
-      presentNotified: presentPlayers.length,
-      absentNotified: absentPlayers.length,
-      totalNotified: presentPlayers.length + absentPlayers.length,
+      presentNotified: presentSent,
+      absentNotified: absentSent,
+      totalNotified: presentSent + absentSent,
     };
   } catch (err) {
     console.error("notifyAttendance error:", err.message);
@@ -1979,9 +1931,9 @@ async function pushAll(payload, only, exclude) {
   await Promise.all(
     snap.docs.map(async (d) => {
       const x = d.data();
-      if (x.role === "player" && removed.has(x.uid)) return;
-      if (only && !(x.role === "player" && only.has(x.uid))) return;
-      if (exclude && x.role === "player" && exclude.has(x.uid)) return;
+      if (removed.has(x.uid)) return;
+      if (only && !only.has(x.uid)) return;
+      if (exclude && exclude.has(x.uid)) return;
       st.total++;
       try {
         await w.sendNotification(x.sub, body, {
