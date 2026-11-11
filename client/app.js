@@ -3905,6 +3905,7 @@ function openCustomExport() {
   let pctFormula = "overall"; // 'overall' (earlier formula) or 'joined' (only after joined date)
   let sortOrder = "pct_desc"; // 'pct_desc', 'roll_asc', 'name_asc', 'joined_asc'
   let includeSummaryCard = true;
+  let customDocTitle = "";
 
   const renderModal = () => {
     const isCols = activeTab === "cols";
@@ -3914,8 +3915,8 @@ function openCustomExport() {
     dlg.innerHTML = `
       <div class="exp-modal-head">
         <div>
-          <h2 style="margin:0 0 4px;font-size:1.25rem;">📑 Export Attendance Register</h2>
-          <small class="mute">Custom columns, monthwise breakdown, Excel (.xls) &amp; printable PDF</small>
+          <h2 style="margin:0 0 4px;font-size:1.25rem;">📑 Export Data &amp; Reports</h2>
+          <small class="mute">Custom columns, squad rosters, attendance breakdown, Excel (.xls) &amp; printable PDF</small>
         </div>
         <button type="button" class="dx" id="exp-close" aria-label="Close dialog">✕</button>
       </div>
@@ -3973,6 +3974,12 @@ function openCustomExport() {
 
       <!-- Settings & Sort Options -->
       <div class="exp-options-card">
+        <div class="exp-opt-row" style="margin-bottom:8px;">
+          <label class="exp-opt-label" style="flex:1 1 100%;">
+            <b>Report / Document Title (for PDF &amp; Excel)</b>
+            <input class="exp-sel" id="exp-custom-title" type="text" placeholder="${isCols ? 'e.g. Squad Roster, Player Details, Kit List, Camp Selection...' : 'IIT Patna Hockey - Monthwise Attendance Matrix'}" value="${esc(customDocTitle)}" style="width:100%;box-sizing:border-box;">
+          </label>
+        </div>
         <div class="exp-opt-row">
           <label class="exp-opt-label">
             <b>Squad Scope</b>
@@ -4081,6 +4088,11 @@ function openCustomExport() {
           else selectedMonths.delete(ck.dataset.month);
         };
       });
+    }
+
+    const titleInp = $("exp-custom-title");
+    if (titleInp) {
+      titleInp.oninput = () => { customDocTitle = titleInp.value; };
     }
 
     $("exp-scope").onchange = (e) => { squadScope = e.target.value; };
@@ -4206,9 +4218,18 @@ function openCustomExport() {
       : 0;
 
     const exportColsList = EXPORT_AVAILABLE_COLS.filter((c) => selectedCols.has(c.id));
-    const title = isCols
-      ? "IIT Patna Hockey - Attendance Register"
+    const hasAttendanceCols =
+      !isCols ||
+      selectedCols.has("totalSessions") ||
+      selectedCols.has("present") ||
+      selectedCols.has("absent") ||
+      selectedCols.has("pct");
+
+    const defaultTitle = isCols
+      ? (hasAttendanceCols ? "IIT Patna Hockey - Squad Report" : "IIT Patna Hockey - Squad Roster")
       : "IIT Patna Hockey - Monthwise Attendance Matrix";
+
+    const title = (customDocTitle || "").trim() || defaultTitle;
 
     if (format === "excel") {
       generateExcelExport({
@@ -4337,7 +4358,8 @@ function generateExcelExport(opt) {
     </table>
   `;
 
-  const filename = isCols ? "IITP_Hockey_Attendance_Register.xls" : "IITP_Hockey_Monthwise_Attendance.xls";
+  const cleanTitle = title.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 36);
+  const filename = cleanTitle ? `${cleanTitle}.xls` : (isCols ? "IITP_Hockey_Squad_Report.xls" : "IITP_Hockey_Monthwise.xls");
 
   const fullHtml = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -4502,7 +4524,7 @@ function generatePdfPrint(opt) {
       <div class="doc-header">
         <div class="doc-inst">INDIAN INSTITUTE OF TECHNOLOGY PATNA</div>
         <div class="doc-title">${esc(title)}</div>
-        <div class="doc-meta">Generated on ${new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} · Official Team Attendance Report</div>
+        <div class="doc-meta">Generated on ${new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} · Official Team Report</div>
       </div>
       <table>
         <thead>
