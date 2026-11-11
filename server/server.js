@@ -567,12 +567,12 @@ app.post(
       });
     }
 
-    // In-memory atomic debounce lock to prevent duplicate concurrent email dispatch (< 10s cooldown)
+    // In-memory atomic debounce lock to prevent duplicate concurrent email dispatch (< 25s cooldown)
     const lockKey = String(user.otpKey || user.id || email).toLowerCase();
     const lastLock = inflightOtpLocks.get(lockKey);
     const now = Date.now();
-    if (lastLock && now - lastLock < 8000) {
-      const waitSec = Math.ceil((8000 - (now - lastLock)) / 1000);
+    if (lastLock && now - lastLock < 25000) {
+      const waitSec = Math.ceil((25000 - (now - lastLock)) / 1000);
       return res.status(429).json({
         error: "Verification code was just sent! Please check your email inbox (or spam folder) or wait " + waitSec + "s.",
         wait: waitSec,
@@ -583,11 +583,11 @@ app.post(
     const cur = await ref.get().catch(() => null);
     const c = cur && cur.exists ? cur.data() || {} : {};
 
-    // 8s cooldown (< 10s) between OTP requests for the same account
-    if (c.at && now - c.at < 8000) {
-      const waitSec = Math.ceil((8000 - (now - c.at)) / 1000);
+    // 25s cooldown between OTP requests for the same account
+    if (c.at && now - c.at < 25000) {
+      const waitSec = Math.ceil((25000 - (now - c.at)) / 1000);
       return res.status(429).json({
-        error: "Please wait " + waitSec + " seconds before requesting another code.",
+        error: "Please check your inbox. You can request another code in " + waitSec + " seconds.",
         wait: waitSec,
       });
     }
@@ -604,8 +604,15 @@ app.post(
     inflightOtpLocks.set(lockKey, now);
 
     const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+    const newHash = otpHash(user.otpKey, email, code);
+    const prevHashes = Array.isArray(c.hashes)
+      ? c.hashes
+      : (c.h ? [c.h] : []);
+    const validHashes = [newHash, ...prevHashes.filter((x) => x !== newHash)].slice(0, 3);
+
     await ref.set({
-      h: otpHash(user.otpKey, email, code),
+      h: newHash,
+      hashes: validHashes,
       email,
       role: user.role,
       userId: user.id,
@@ -613,7 +620,7 @@ app.post(
       post: user.post || null,
       roll: user.roll || null,
       exp: now + 900e3, // 15 minutes validity
-      n: 0,
+      n: c.n || 0,
       at: now,
       hs: hourStart,
       sends: sends + 1,
@@ -686,7 +693,7 @@ app.post(
       sentTo: maskEmail(email),
       role: user.role,
       name: user.name,
-      wait: 8,
+      wait: 25,
     });
   }),
 );
@@ -724,7 +731,11 @@ app.post(
       return res.status(423).json({ error: "Too many incorrect attempts. Please request a new code." });
     }
 
-    if (!/^\d{6}$/.test(otp) || !eq(otpHash(user.otpKey, (d.email || user.email).trim(), otp), d.h)) {
+    const candidateHash = otpHash(user.otpKey, (d.email || user.email).trim(), otp);
+    const validHashes = Array.isArray(d.hashes) && d.hashes.length ? d.hashes : (d.h ? [d.h] : []);
+    const isValid = /^\d{6}$/.test(otp) && validHashes.some((h) => eq(candidateHash, h));
+
+    if (!isValid) {
       await ref.update({ n: (d.n || 0) + 1 }).catch(() => {});
       const triesLeft = Math.max(0, 4 - (d.n || 0));
       return res.status(401).json({
@@ -787,7 +798,9 @@ app.get(
         const otpDoc = await ref.get().catch(() => null);
         if (otpDoc && otpDoc.exists) {
           const d = otpDoc.data() || {};
-          if (d.exp >= Date.now() && /^\d{6}$/.test(otp) && eq(otpHash(user.otpKey, (d.email || user.email).trim(), otp), d.h)) {
+          const candidateHash = otpHash(user.otpKey, (d.email || user.email).trim(), otp);
+          const validHashes = Array.isArray(d.hashes) && d.hashes.length ? d.hashes : (d.h ? [d.h] : []);
+          if (d.exp >= Date.now() && /^\d{6}$/.test(otp) && validHashes.some((h) => eq(candidateHash, h))) {
             userPayload = {
               id: user.id,
               role: user.role,
@@ -2656,7 +2669,7 @@ app.put(
         (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {})
           .links || {};
       const myPid =
-        lk[p.role] || (p.role === "captain" ? "2501CE01" : "2501MC44");
+        lk[p.role] || (p.role === "captain" ? "2501MM22" : "2501MC44");
       if (myPid) {
         await db
           .collection("players")
@@ -4571,7 +4584,7 @@ app.post(
           (customNamesDoc && customNamesDoc.exists ? customNamesDoc.data() : {})
             .links || {};
         const pId =
-          lk[user.role] || (user.role === "captain" ? "2501CE01" : "2501MC44");
+          lk[user.role] || (user.role === "captain" ? "2501MM22" : "2501MC44");
         user.playerId = pId;
         const plDoc = await db
           .collection("players")

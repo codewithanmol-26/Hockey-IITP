@@ -1658,7 +1658,7 @@ function renderSettingsPage() {
             ${ico("back")} <span>Back</span>
           </button>
           <span class="pill pri" style="font-size:0.75rem;font-weight:800;letter-spacing:0.04em">⚙️ SYSTEM SETTINGS</span>
-          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v136 · Mobile &amp; Desktop Optimized</span>
+          <span class="pill" style="font-size:0.75rem;font-weight:700;background:var(--soft);color:var(--ink);border:1px solid var(--line)">App Build hk-v137 · Mobile &amp; Desktop Optimized</span>
         </div>
       </div>
 
@@ -1799,7 +1799,7 @@ function renderSettingsPage() {
               <b style="display:block;font-size:0.88rem;color:var(--ink)">Production Version</b>
               <span class="mute" style="font-size:0.78rem">Active service worker shell</span>
             </div>
-            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v136</span>
+            <span class="pill" style="font-weight:800;color:var(--brand);font-size:0.78rem;">hk-v137</span>
           </div>
 
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--soft);border-radius:10px;border:1px solid var(--line);gap:10px;">

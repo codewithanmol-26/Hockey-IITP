@@ -1018,6 +1018,11 @@ function resetLoginForm() {
   const otpInp = $("login-otp");
   const statusBox = $("login-status-box");
   const destEl = $("login-otp-dest");
+  const verifyBtn = $("login-verify-btn");
+  if (verifyBtn) {
+    verifyBtn.disabled = false;
+    verifyBtn.innerHTML = "Login";
+  }
   if (errEl) {
     errEl.textContent = "";
     errEl.style.color = "";
@@ -1116,14 +1121,14 @@ function initUnifiedLogin() {
 
   let isOtpSending = false;
 
-  const startCooldown = (seconds = 8) => {
+  const startCooldown = (seconds = 25) => {
     if (otpCooldownInterval) clearInterval(otpCooldownInterval);
     let remaining = seconds;
     if (resendBtn) {
       resendBtn.disabled = true;
       resendBtn.style.color = "var(--mute, #64748b)";
       resendBtn.style.cursor = "not-allowed";
-      resendBtn.textContent = "Resend OTP (" + remaining + "s)";
+      resendBtn.textContent = "Resend OTP in " + remaining + "s";
     }
     if (sendBtn) {
       sendBtn.disabled = true;
@@ -1147,7 +1152,7 @@ function initUnifiedLogin() {
           sendBtn.textContent = "Send OTP ✉️";
         }
       } else {
-        if (resendBtn) resendBtn.textContent = "Resend OTP (" + remaining + "s)";
+        if (resendBtn) resendBtn.textContent = "Resend OTP in " + remaining + "s";
         if (sendBtn) sendBtn.textContent = "Sent ✉️ (" + remaining + "s)";
       }
     }, 1000);
@@ -1184,8 +1189,14 @@ function initUnifiedLogin() {
     isOtpSending = true;
     const activeBtn = isResend ? resendBtn : sendBtn;
     const origText = activeBtn ? activeBtn.innerHTML : "";
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.style.opacity = "0.6";
+    }
+    if (resendBtn) {
+      resendBtn.disabled = true;
+    }
     if (activeBtn) {
-      activeBtn.disabled = true;
       activeBtn.innerHTML = isResend ? "Sending... ✉️" : "Sending code... ✉️";
     }
 
@@ -1197,10 +1208,17 @@ function initUnifiedLogin() {
       otpLoginTargetId = idVal;
       if (destEl) destEl.textContent = res.sentTo || idVal;
       if (statusBox) statusBox.style.display = "block";
+      if (errEl) {
+        errEl.style.color = "var(--ink, #0b2a4a)";
+        errEl.textContent = "✉️ Verification code sent to " + (res.sentTo || idVal) + ". Please check your inbox!";
+      }
+      if (verifyBtn) {
+        verifyBtn.innerHTML = "Verify & Log In 🚀";
+      }
       if (otpInp) {
         otpInp.focus();
       }
-      startCooldown(res.wait || 8);
+      startCooldown(res.wait || 25);
       toast("Verification code sent to " + (res.sentTo || idVal) + "!");
       return true;
     } catch (x) {
@@ -1208,8 +1226,11 @@ function initUnifiedLogin() {
         errEl.style.color = "";
         errEl.textContent = x.message || "Could not send verification code. Please try again.";
       }
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.style.opacity = "";
+      }
       if (activeBtn) {
-        activeBtn.disabled = false;
         activeBtn.innerHTML = origText;
       }
       return false;

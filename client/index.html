@@ -47,7 +47,7 @@
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
   <script>
     (function () {
-      var v = "136";
+      var v = "137";
       try {
         var old = localStorage.getItem("hk_v");
         if (old && old !== v) {
@@ -62,8 +62,8 @@
       } catch (e) { }
     })();
   </script>
-  <link rel="preload" href="style.css?v=136" as="style">
-  <link rel="stylesheet" href="style.css?v=136">
+  <link rel="preload" href="style.css?v=137" as="style">
+  <link rel="stylesheet" href="style.css?v=137">
 </head>
 
 <body>
@@ -138,32 +138,33 @@
 
       <form id="unified-login-form" action="javascript:void(0);" onsubmit="return false;" autocomplete="on">
         <!-- Field 1: Roll Number / Email -->
-        <label class="fl lg-label">
+        <div class="fl lg-label">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <span class="fl-lbl" style="margin-bottom:0;">Roll Number / Email</span>
+            <label for="login-id" class="fl-lbl" style="margin-bottom:0; cursor:pointer;">Roll Number / Email</label>
             <button type="button" id="login-send-btn" class="btn-link" style="background:none; border:none; color:var(--pri, #2563eb); font-size:0.84rem; font-weight:700; cursor:pointer; padding:0;">
               Send OTP ✉️
             </button>
           </div>
           <input id="login-id" class="lg-input" placeholder="Enter your roll number or email" autocapitalize="none" spellcheck="false" autocomplete="username" required>
-        </label>
+        </div>
 
         <!-- Status / sent info banner -->
-        <div id="login-status-box" style="display:none; background:var(--soft, #f0f4f9); border:1px solid rgba(37,99,235,0.25); border-radius:10px; padding:8px 12px; margin-bottom:12px; text-align:left; font-size:0.85rem;">
-          <div style="color:var(--mute, #64748b); font-size:0.78rem;">Code sent to:</div>
-          <div id="login-otp-dest" style="font-weight:700; color:var(--ink, #0b2a4a); word-break:break-all;"></div>
+        <div id="login-status-box" style="display:none; background:var(--soft, #f0f4f9); border:1px solid rgba(37,99,235,0.25); border-radius:10px; padding:10px 14px; margin-bottom:12px; text-align:left; font-size:0.85rem;">
+          <div style="color:var(--mute, #64748b); font-size:0.78rem;">Verification code sent to:</div>
+          <div id="login-otp-dest" style="font-weight:700; color:var(--ink, #0b2a4a); word-break:break-all; margin-top:2px;"></div>
+          <div style="color:var(--mute, #64748b); font-size:0.75rem; margin-top:4px;">Check your email inbox (and spam/promotions folder).</div>
         </div>
 
         <!-- Field 2: 6-Digit OTP Box (Always visible on login page) -->
-        <label class="fl lg-label" id="login-otp-wrap" style="margin-top:10px;">
+        <div class="fl lg-label" id="login-otp-wrap" style="margin-top:10px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <span class="fl-lbl" style="margin-bottom:0;">Verification Code (OTP)</span>
+            <label for="login-otp" class="fl-lbl" style="margin-bottom:0; cursor:pointer;">Verification Code (OTP)</label>
             <button type="button" id="login-resend-btn" class="btn-link" style="background:none; border:none; color:var(--mute, #64748b); font-size:0.82rem; font-weight:600; cursor:pointer; padding:0;" disabled>
               Resend OTP
             </button>
           </div>
           <input id="login-otp" class="lg-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Enter 6-digit OTP" autocomplete="one-time-code" style="font-size:1.25rem; letter-spacing:6px; text-align:center; font-family:monospace; font-weight:700;">
-        </label>
+        </div>
 
         <p id="login-err" class="err" role="alert" style="margin:8px 0 12px; min-height:1.2em;"></p>
 
@@ -297,10 +298,10 @@
   </script>
   <script src="config.js"></script>
   <script src="icons.js?v=89"></script>
-  <script src="public.js?v=136"></script>
-  <script src="extras.js?v=136"></script>
+  <script src="public.js?v=137"></script>
+  <script src="extras.js?v=137"></script>
   <script src="help.js?v=83"></script>
-  <script src="app.js?v=136"></script>
+  <script src="app.js?v=137"></script>
   <script src="chat.js?v=85"></script>
 </body>
 
