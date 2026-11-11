@@ -925,10 +925,10 @@ async function checkPublicProgress() {
         <span class="pill g">Active Roster</span>
       </div>
       <p style="margin:0 0 14px;font-size:0.92rem;color:var(--ink);line-height:1.5">
-        ${j.hasAccount ? "Your player account is active. Click below to enter your PIN and view your full attendance analytics, month-by-month charts &amp; training log." : "You are registered on the squad list! Complete quick roll-number sign-up to start tracking your attendance."}
+        Your player account is active on the roster. Click below to log in via instant email OTP and view your full attendance analytics, month-by-month charts &amp; training log.
       </p>
       <button class="btn-hero-primary" id="btn-lookup-continue" style="width:100%;justify-content:center">
-        ${j.hasAccount ? "Log In to View My Attendance →" : "Sign Up with Roll Number →"}
+        Log In with Email OTP →
       </button>
     </div>`;
     const btn = gid("btn-lookup-continue");

@@ -596,7 +596,7 @@ app.post(
     const sends = c.hs && now - c.hs < 3600e3 ? (c.sends || 0) : 0;
     if (sends >= 10) {
       return res.status(429).json({
-        error: "Too many login codes requested for this account. Please try again in an hour.",
+        error: "Too many login OTPs requested for this account. Please try again in an hour.",
       });
     }
 
@@ -712,7 +712,7 @@ app.post(
     const otpDoc = await ref.get().catch(() => null);
 
     if (!otpDoc || !otpDoc.exists) {
-      return res.status(400).json({ error: "No login code was requested. Please enter your roll/email and click Send OTP." });
+      return res.status(400).json({ error: "No login OTP was requested. Please enter your email or roll number and click Send OTP." });
     }
 
     const d = otpDoc.data() || {};
@@ -2229,6 +2229,9 @@ app.post(
     const pName = str(b.name).trim();
     if (!pName) return res.status(400).json({ error: "Name required" });
     const pEmail = str(b.email).trim().toLowerCase();
+    if (!pEmail || !EMAIL_RE.test(pEmail)) {
+      return res.status(400).json({ error: "Valid email address is required" });
+    }
     if (sameAsCoach(await coachIdentity(), pName, pEmail)) {
       return res
         .status(400)
@@ -2236,25 +2239,42 @@ app.post(
           error: "The Head Coach is staff and cannot be added as a player.",
         });
     }
-    const roll = str(b.roll, 12).trim(),
-      rid = roll.replace(/[^A-Za-z0-9_-]/g, "");
+    const rawRoll = str(b.roll, 12).trim();
+    const rid = rawRoll ? normRoll(rawRoll) : "";
+    if (rid && !ROLL_RE.test(rid)) {
+      return res.status(400).json({ error: "Roll number must look like 2401CS01" });
+    }
+
+    const all = (await db.collection("players").get()).docs;
+    const existing = all.find((d) => {
+      const data = d.data() || {};
+      return (
+        (rid && (d.id.toUpperCase() === rid || (data.roll && String(data.roll).toUpperCase() === rid))) ||
+        (data.email && String(data.email).trim().toLowerCase() === pEmail)
+      );
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        error: existing.data().removed
+          ? "That student is in Removed students. Restore them there."
+          : (rid && existing.data().roll && String(existing.data().roll).toUpperCase() === rid
+              ? "That roll number already exists"
+              : "A student with that email already exists"),
+      });
+    }
+
     const ref = rid
       ? db.collection("players").doc(rid)
       : db.collection("players").doc();
-    const ex = rid && (await ref.get());
-    if (ex && ex.exists)
-      return res.status(409).json({
-        error: ex.data().removed
-          ? "That student is in Removed students. Restore them there."
-          : "That roll number already exists",
-      });
+
     await ref.set({
       n: Number(b.n) || 999,
       name: pName,
-      roll,
+      roll: rid || "",
       position: str(b.position, 40).trim(),
       joined: str(b.joined, 10),
-      ...(EMAIL_RE.test(pEmail) ? { email: pEmail } : {}),
+      email: pEmail,
     });
     done(res);
   }),
@@ -2379,11 +2399,18 @@ app.put(
     done(res);
   }),
 );
-// Add many students at once (also used by the jersey-form import). Existing roll numbers are not duplicated;
-// their missing contact / jersey details are filled in instead.
+// Add many students at once (also used by the jersey-form import). Existing students matched by roll number or email.
 async function addStudents(list) {
   const all = (await db.collection("players").get()).docs;
-  const have = new Map(all.map((d) => [d.id.toUpperCase(), d]));
+  const haveRoll = new Map();
+  const haveEmail = new Map();
+  const haveId = new Map();
+  for (const d of all) {
+    haveId.set(d.id.toUpperCase(), d);
+    const data = d.data() || {};
+    if (data.roll) haveRoll.set(String(data.roll).toUpperCase(), d);
+    if (data.email) haveEmail.set(String(data.email).trim().toLowerCase(), d);
+  }
   let next = Math.max(0, ...all.map((d) => d.data().n || 0)) + 1,
     added = 0,
     updated = 0,
@@ -2398,47 +2425,69 @@ async function addStudents(list) {
       String(now.getDate()).padStart(2, "0");
   const cid = await coachIdentity();
   for (const s of list.slice(0, 200)) {
-    const rid = normRoll(s.roll),
-      name = str(s.name, 40).trim();
-    if (!rid || !name) {
-      skipped.push(name || s.roll || "(blank)");
+    const rawRoll = str(s.roll, 12).trim();
+    const rid = rawRoll ? normRoll(rawRoll) : "";
+    const name = str(s.name, 40).trim();
+    const rawEmail = str(s.email, 120).trim().toLowerCase();
+
+    if (!name) {
+      skipped.push(rawRoll || rawEmail || "(blank name)");
       continue;
     }
-    if (sameAsCoach(cid, name, s.email)) {
+    if (!rawEmail || !EMAIL_RE.test(rawEmail)) {
+      skipped.push(name + " (valid email address required)");
+      continue;
+    }
+    if (sameAsCoach(cid, name, rawEmail)) {
       skipped.push(name + " (Head Coach is staff and cannot be a player)");
       continue;
     }
-    if (!ROLL_RE.test(rid)) {
+    if (rid && !ROLL_RE.test(rid)) {
       skipped.push(name + " (roll number must look like 2401CS01)");
       continue;
     }
-    const extra = {}; // only non-empty private details
+
+    const extra = { email: rawEmail };
     for (const k of PRIVATE) {
-      if (k === "contact") continue;
-      const v = str(s[k], k === "email" ? 120 : 40).trim();
-      if (v && (k !== "email" || EMAIL_RE.test(v))) extra[k] = v;
+      if (k === "contact" || k === "email") continue;
+      const v = str(s[k], 40).trim();
+      if (v) extra[k] = v;
     }
-    const old = have.get(rid);
+
+    const old = (rid ? haveRoll.get(rid) : null) || haveEmail.get(rawEmail);
     if (old && old.data && old.data().removed) {
       skipped.push(name + " (in Removed students)");
       continue;
     }
     if (old) {
-      if (old.ref && Object.keys(extra).length) {
-        b.update(old.ref, extra);
-        updated++;
+      if (old.ref) {
+        const upd = { ...extra };
+        if (rid && (!old.data || !old.data().roll)) upd.roll = rid;
+        if (Object.keys(upd).length) {
+          b.update(old.ref, upd);
+          updated++;
+        }
       }
       continue;
     }
-    b.set(db.collection("players").doc(rid), {
+
+    const docRef = rid
+      ? db.collection("players").doc(rid)
+      : db.collection("players").doc();
+    const docId = docRef.id;
+
+    b.set(docRef, {
       n: next++,
       name,
-      roll: rid,
+      roll: rid || "",
       position: str(s.position, 40).trim(),
       joined,
       ...extra,
     });
-    have.set(rid, { ref: null });
+    const fakeDoc = { id: docId, data: () => ({ name, roll: rid, email: rawEmail }), ref: docRef };
+    if (rid) haveRoll.set(rid, fakeDoc);
+    haveEmail.set(rawEmail, fakeDoc);
+    haveId.set(docId.toUpperCase(), fakeDoc);
     added++;
   }
   if (added || updated) await b.commit();
@@ -3129,12 +3178,16 @@ app.post(
     }
 
     const b = req.body || {};
-    const { newAdminId, name, code } = b;
+    const { newAdminId, name } = b;
     const newEmail = str(b.email, 120).trim();
     if (newEmail && !EMAIL_RE.test(newEmail))
       return res
         .status(400)
         .json({ error: "That e-mail address does not look right." });
+    if (!newAdminId && (!newEmail || !EMAIL_RE.test(newEmail)))
+      return res
+        .status(400)
+        .json({ error: "New coach requires a valid email address for OTP login." });
 
     // Option 1: hand the Coach post to an existing admin
     if (newAdminId) {

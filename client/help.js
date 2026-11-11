@@ -116,7 +116,7 @@ const FAQS_PUBLIC = [
   ],
   [
     "How do I get access?",
-    "Only team members can log in. Ask the captain to add your name and roll number to the team list, then press Log in and sign up with your roll number.",
+    "Only team members can log in. Ask the captain to add your name and email to the team list, then press Log in to receive your instant OTP code.",
   ],
   [
     "Can I see attendance without logging in?",

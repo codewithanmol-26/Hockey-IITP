@@ -2395,12 +2395,6 @@ function drawMenu() {
       m.hidden = true;
       openMyProfile();
     };
-  const codeBtn = m.querySelector("#btn-draw-code");
-  if (codeBtn)
-    codeBtn.onclick = () => {
-      m.hidden = true;
-      openChangeCode();
-    };
 }
 
 function toggleProfileMenu(e) {
@@ -2495,21 +2489,11 @@ function openEditCoach() {
     </div>
   `;
   $("ed-coach-cancel").onclick = () => d.close();
-  $("ed-coach-code").onclick = () => {
-    d.close();
-    openChangeCode(false);
-  };
-  if ($("ed-coach-forgot")) {
-    $("ed-coach-forgot").onclick = () => {
-      d.close();
-      openChangeCode(true);
-    };
-  }
   $("ed-coach-save").onclick = () => {
     const name = ($("ed-coach-name").value || "").trim();
     const email = ($("ed-coach-email").value || "").trim();
     if (!name) return alert("Coach name is required.");
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert("Please enter a valid email address.");
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert("A valid email address is required.");
 
     run(async () => {
       await api("/api/me/profile", {
@@ -2525,13 +2509,6 @@ function openEditCoach() {
     });
   };
   d.showModal();
-}
-
-// ---- change login password / code ----
-let myCodeType = "password";
-
-function openChangeCode() {
-  toast("Passwords have been retired! All logins are passwordless via instant Email OTP.");
 }
 
 function openAdd() {
@@ -2564,13 +2541,20 @@ const bulk = async (path, body, btn) => {
 };
 $("sf").onsubmit = async (e) => {
   e.preventDefault();
+  const name = ($("sn").value || "").trim();
+  const email = ($("sc").value || "").trim();
+  const roll = ($("sr").value || "").trim();
+  if (!name) return alert("Student name is required.");
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return alert("A valid email address is required for OTP login.");
+  if (roll && !/^\d{4}[A-Za-z]{2}\d{2}$/.test(roll))
+    return alert("Roll number must look like 2401CS01.");
+
   if (
     await bulk(
       "/api/players/bulk",
       {
-        players: [
-          { name: $("sn").value, roll: $("sr").value, email: $("sc").value },
-        ],
+        players: [{ name, roll, email }],
       },
       $("sf").querySelector("button"),
     )
@@ -2584,7 +2568,22 @@ $("sba").onclick = async () => {
     .value.split("\n")
     .map((l) => l.split(/\t|,/).map((x) => x.trim()))
     .filter((a) => a.some(Boolean))
-    .map((a) => ({ name: a[0], roll: a[1], email: a[2] }));
+    .map((a) => {
+      const name = a[0] || "";
+      let email = "";
+      let roll = "";
+      if (a[1] && a[1].includes("@")) {
+        email = a[1];
+        roll = a[2] || "";
+      } else if (a[2] && a[2].includes("@")) {
+        roll = a[1] || "";
+        email = a[2];
+      } else {
+        email = a[1] || "";
+        roll = a[2] || "";
+      }
+      return { name, roll, email };
+    });
   if (!players.length) {
     $("sm").textContent = "Type or paste at least one line.";
     return;
@@ -3007,7 +3006,7 @@ function doLogout() {
   let ok = false;
   try {
     ok = confirm(
-      "Log out of this device?\n\nYou will need your roll number and code to log in again.",
+      "Log out of this device?\n\nYou will need your email or roll number to log in via OTP again.",
     );
   } catch (e) {
     ok = true;
@@ -3180,9 +3179,6 @@ function drawSidebar() {
 
   const pBtn = sb.querySelector("#sb-btn-view-prof");
   if (pBtn) pBtn.onclick = () => openMyProfile();
-
-  const cBtn = sb.querySelector("#sb-btn-code");
-  if (cBtn) cBtn.onclick = () => openChangeCode();
 
   const tExp = sb.querySelector("#sb-tool-export");
   if (tExp) tExp.onclick = () => openCustomExport();
@@ -6226,8 +6222,7 @@ function openReplaceCoachDialog() {
 
       <div id="rc-panel-new">
         <label class="fl">New Coach Full Name<input id="rc-name" placeholder="Full name of new coach" maxlength="40"></label>
-        <label class="fl">Login Code<input id="rc-code" type="password" placeholder="Code (4+ characters)" maxlength="30" autocomplete="new-password"></label>
-        <label class="fl">Coach e-mail (for code reset)<input id="rc-email" type="email" placeholder="coach@iitp.ac.in" maxlength="120"></label>
+        <label class="fl">Coach E-mail (required for OTP login)<input id="rc-email" type="email" placeholder="coach@iitp.ac.in" maxlength="120" required></label>
         <p class="hint" style="font-size:0.8rem; margin:6px 0 0;"><b>Staff Requirement:</b> The Head Coach is official staff and cannot be a squad player.</p>
       </div>
 
@@ -6238,7 +6233,7 @@ function openReplaceCoachDialog() {
             ${otherAdmins.map((a) => `<option value="${esc(a.id)}">${esc(a.name)} (${getAdminPost(a)})</option>`).join("")}
           </select>
         </label>
-        <label class="fl">Coach e-mail (for code reset)<input id="rc-email2" type="email" placeholder="coach@iitp.ac.in" maxlength="120"></label>
+        <label class="fl">Coach E-mail (for OTP login)<input id="rc-email2" type="email" placeholder="coach@iitp.ac.in" maxlength="120"></label>
         <p class="hint" style="font-size:0.8rem;">Promoting an existing administrator gives them Coach access. Your own account is removed.</p>
       </div>
 
@@ -6290,10 +6285,13 @@ function openReplaceCoachDialog() {
     errEl.textContent = "";
     if (mode === "new") {
       const name = inputName.value.trim();
-      const code = d.querySelector("#rc-code").value;
-      const playerId = null;
-      if (!name || code.length < 4) {
-        errEl.textContent = "Please enter a full name and code of 4+ characters.";
+      const email = d.querySelector("#rc-email").value.trim();
+      if (!name) {
+        errEl.textContent = "Please enter the full name of the new coach.";
+        return;
+      }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errEl.textContent = "Please enter a valid email address for the new coach (required for OTP login).";
         return;
       }
       if (!confirm(`Appoint "${name}" as Head Coach? Your own account will be removed and you will be logged out.`)) return;
@@ -6302,7 +6300,7 @@ function openReplaceCoachDialog() {
         try {
           await api("/api/admins/replace-coach", {
             method: "POST",
-            body: { name, code, email: d.querySelector("#rc-email").value.trim() },
+            body: { name, email },
           });
           d.close();
           d.remove();
@@ -6652,7 +6650,7 @@ function openEditAdmin(adminId) {
 
   d.innerHTML = `
     <h2>✏️ Edit ${esc(roleName)} (${esc(a.name)})</h2>
-    <p class="mute" style="margin-bottom:12px;">Modify post, name, linked squad player, or reset login code.</p>
+    <p class="mute" style="margin-bottom:12px;">Modify post, name, linked squad player, or email.</p>
     
     <label class="fl">Full Name
       <input id="eda-name" value="${esc(a.name)}" maxlength="40" placeholder="Full name">
@@ -6675,10 +6673,6 @@ function openEditAdmin(adminId) {
 
     <label class="fl" id="eda-em-wrap" ${a.playerId ? "hidden" : ""}>Email for OTP
       <input id="eda-email" type="email" value="${esc(a.email || "")}" placeholder="Email address (for OTP verification)" maxlength="120">
-    </label>
-
-    <label class="fl">New Login Code (Leave empty to keep unchanged)
-      <input id="eda-code" type="password" placeholder="New code (4 to 30 characters)" maxlength="30" autocomplete="new-password">
     </label>
 
     <label class="fl">Access Status
@@ -6707,12 +6701,9 @@ function openEditAdmin(adminId) {
     const newPost = $("eda-post").value;
     const pid = $("eda-pl").value || "";
     const email = $("eda-email") ? ($("eda-email").value || "").trim() : "";
-    const code = ($("eda-code").value || "").trim();
     const disabled = $("eda-dis").value === "1";
 
     if (!name) return alert("Administrator name is required.");
-    if (code && code.length < 4)
-      return alert("New code must be at least 4 characters.");
     if (!pid) {
       if (!email)
         return alert("Email address is required for OTP verification.");
@@ -6729,7 +6720,6 @@ function openEditAdmin(adminId) {
         email: pid ? (email || null) : email,
         disabled,
       };
-      if (code) body.code = code;
 
       await api("/api/admins/" + adminId, {
         method: "PUT",
@@ -6814,8 +6804,6 @@ function vProfile() {
       </div></div>`;
     $("view").innerHTML = h;
     if ($("pedit")) $("pedit").onclick = () => openEdit(p, own);
-    if ($("pcode")) $("pcode").onclick = () => openChangeCode();
-    if ($("powncode")) $("powncode").onclick = () => openChangeCode();
     if ($("pmkcap"))
       $("pmkcap").onclick = () => {
         if (!confirm("Appoint " + p.name + " as Team Captain?")) return;
@@ -6894,20 +6882,6 @@ function vProfile() {
       };
     bindCover("p", id);
     if (document.querySelector("[data-ph]")) bindPhoto(own, photoPath, p.photo);
-    if ($("prst"))
-      $("prst").onclick = () => {
-        if (
-          confirm(
-            "Reset the login code for " +
-              p.name +
-              "? They will sign up again with a new e-mail code and choose a new code.",
-          )
-        )
-          run(async () => {
-            await api("/api/players/" + id + "/account", { method: "DELETE" });
-            await load(true);
-          });
-      };
     if ($("prm"))
       $("prm").onclick = () => {
         if (
@@ -7002,8 +6976,6 @@ function vProfile() {
 
       if ($("aedit")) $("aedit").onclick = () => openEditCoach();
       if ($("aedit_top")) $("aedit_top").onclick = () => openEditCoach();
-      if ($("pcode")) $("pcode").onclick = () => openChangeCode();
-      if ($("pcode_top")) $("pcode_top").onclick = () => openChangeCode();
       if ($("arep_coach")) $("arep_coach").onclick = () => openReplaceCoachDialog();
       return;
     }
@@ -7089,7 +7061,6 @@ function vProfile() {
     }
     $("view").innerHTML =
       `${back}<div class="card prof"><div class="cover">${canPh ? `<button type="button" class="cover-edit-btn" data-cv="e" aria-label="Edit cover" title="Edit background">${ico("edit")} <span>Edit cover</span></button>` : ""}</div><div class="pavw">${avatar(name, ph, 104, "big")}${canPh ? `<button type="button" class="photo-edit-badge" data-ph="e" aria-label="Edit photo" title="Edit photo">${ico("edit")}</button>` : ""}</div><h2 class="pname">${esc(name)}</h2><p class="mute pc2">${sub}${own ? " · this is you" : ""}</p>${canPh ? photoBtns(own, photoPath, ph, adminActionBtns.join("")) : ""}</div><div class="card"><h2>Details</h2>${acts}</div>`;
-    if ($("pcode")) $("pcode").onclick = () => openChangeCode();
     if ($("aedit")) $("aedit").onclick = () => openEditCoach();
     if (k === "s") bindCover("s", id);
     if ($("apv"))
@@ -7179,18 +7150,16 @@ function openEdit(p, own) {
   }
   const f = (id, l, v, o = "") =>
     `<label class="fl">${l}<input id="ed-${id}" value="${esc(v || "")}" ${o}></label>`;
-  d.innerHTML = `<h2>${own ? "Edit my profile" : "Edit " + esc(p.name)}</h2>${f("n", "Name", p.name, 'maxlength="40"')}${own ? "" : f("r", "Roll number", p.roll, 'maxlength="12"')}${f("p", "Position", p.position, 'maxlength="40"')}${f("e", "E-mail", p.email, 'type="email" inputmode="email" maxlength="120"')}${f("jn", "Jersey name", p.jerseyName, 'maxlength="40"')}${f("jo", "Jersey number", p.jerseyNo, 'maxlength="4"')}${f("sz", "Jersey size", p.size, 'maxlength="6"')}${own ? "" : f("j", "Joined date", p.joined, 'type="date"')}${own ? `<div style="margin:14px 0 6px"><button type="button" class="sec full" id="ed-code">🔑 Change Password</button></div>` : ""}
+  d.innerHTML = `<h2>${own ? "Edit my profile" : "Edit " + esc(p.name)}</h2>${f("n", "Name", p.name, 'maxlength="40"')}${own ? "" : f("r", "Roll number (optional)", p.roll, 'maxlength="12"')}${f("p", "Position", p.position, 'maxlength="40"')}${f("e", "E-mail (required)", p.email, 'type="email" inputmode="email" maxlength="120" required')}${f("jn", "Jersey name", p.jerseyName, 'maxlength="40"')}${f("jo", "Jersey number", p.jerseyNo, 'maxlength="4"')}${f("sz", "Jersey size", p.size, 'maxlength="6"')}${own ? "" : f("j", "Joined date", p.joined, 'type="date"')}
   <div class="ctl"><button class="pri" id="eds">Save</button><button id="edc">Cancel</button></div>`;
   $("edc").onclick = () => d.close();
-  if ($("ed-code")) {
-    $("ed-code").onclick = () => {
-      d.close();
-      openChangeCode();
-    };
-  }
   $("eds").onclick = () => {
     const g = (i) => $("ed-" + i).value.trim();
     if (!g("n")) return alert("Name is required.");
+    if (!g("e") || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g("e")))
+      return alert("A valid email address is required for OTP login.");
+    if (!own && g("r") && !/^\d{4}[A-Za-z]{2}\d{2}$/.test(g("r")))
+      return alert("Roll number must look like 2401CS01.");
     const body = {
       name: g("n"),
       position: g("p"),
