@@ -8,6 +8,14 @@
   <meta name="theme-color" content="#0b2a4a">
   <meta name="description"
     content="Official web portal of the Indian Institute of Technology Patna Field Hockey Team. Practice schedules, player attendance, team roster, match rules, and team announcements.">
+  <meta name="author" content="Anmol Kumar">
+  <meta name="creator" content="Anmol Kumar (codewithanmol404@gmail.com)">
+  <meta name="publisher" content="IIT Patna Hockey Team">
+  <meta name="contact" content="codewithanmol404@gmail.com">
+  <meta name="keywords"
+    content="IIT Patna Hockey, IIT Patna Sports, IITP Hockey Team, Inter IIT Hockey, Field Hockey IIT Patna, IIT Patna Athletics, IIT Patna Practice Schedule, IIT Patna Team Roster">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+  <link rel="author" href="mailto:codewithanmol404@gmail.com">
   <meta name="google-site-verification" content="google78670953cdad02ae">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -24,19 +32,69 @@
     content="Official portal for IIT Patna Field Hockey Team: live practice schedules, turnout analytics, team roster, and announcements.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://hockey-iitp.anmol.website/">
-  <meta property="og:image" content="icons/iitp-hockey-crest.svg">
+  <meta property="og:site_name" content="IIT Patna Hockey Portal">
+  <meta property="og:locale" content="en_IN">
+  <meta property="og:image" content="https://hockey-iitp.anmol.website/icons/icon-512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="IIT Patna Hockey Crest">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="IIT Patna Hockey · Official Team Portal">
+  <meta name="twitter:description"
+    content="Official web portal of the Indian Institute of Technology Patna Field Hockey Team: live practice schedules, turnout analytics, team roster, and announcements.">
+  <meta name="twitter:image" content="https://hockey-iitp.anmol.website/icons/icon-512.png">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SportsTeam",
-    "name": "IIT Patna Hockey Team",
-    "sport": "Field Hockey",
-    "url": "https://hockey-iitp.anmol.website/",
-    "logo": "https://hockey-iitp.anmol.website/icons/iitp-hockey-crest.svg",
-    "parentOrganization": {
-      "@type": "CollegeOrUniversity",
-      "name": "Indian Institute of Technology Patna"
-    }
+    "@graph": [
+      {
+        "@type": "SportsTeam",
+        "@id": "https://hockey-iitp.anmol.website/#team",
+        "name": "IIT Patna Hockey Team",
+        "sport": "Field Hockey",
+        "url": "https://hockey-iitp.anmol.website/",
+        "logo": "https://hockey-iitp.anmol.website/icons/icon-512.png",
+        "image": "https://hockey-iitp.anmol.website/icons/icon-512.png",
+        "description": "Official Field Hockey team of the Indian Institute of Technology Patna (IIT Patna).",
+        "parentOrganization": {
+          "@type": "CollegeOrUniversity",
+          "name": "Indian Institute of Technology Patna",
+          "url": "https://www.iitp.ac.in/"
+        },
+        "coach": {
+          "@type": "Person",
+          "name": "Kiran Chaudhary",
+          "jobTitle": "Head Coach"
+        },
+        "athlete": {
+          "@type": "Person",
+          "name": "Nani R",
+          "jobTitle": "Team Captain"
+        }
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://hockey-iitp.anmol.website/#website",
+        "url": "https://hockey-iitp.anmol.website/",
+        "name": "IIT Patna Hockey Portal",
+        "description": "Official web portal for IIT Patna Field Hockey Team schedules, attendance analytics, and announcements.",
+        "inLanguage": "en",
+        "publisher": {
+          "@id": "https://hockey-iitp.anmol.website/#team"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "Anmol Kumar",
+          "email": "codewithanmol404@gmail.com",
+          "url": "https://hockey-iitp.anmol.website/"
+        },
+        "creator": {
+          "@type": "Person",
+          "name": "Anmol Kumar",
+          "email": "codewithanmol404@gmail.com"
+        }
+      }
+    ]
   }
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -47,7 +105,7 @@
   <script>try { var t = localStorage.getItem("hk_theme"); if (t) document.documentElement.dataset.theme = t } catch (e) { }</script>
   <script>
     (function () {
-      var v = "138";
+      var v = "139";
       try {
         var old = localStorage.getItem("hk_v");
         if (old && old !== v) {
@@ -62,8 +120,8 @@
       } catch (e) { }
     })();
   </script>
-  <link rel="preload" href="style.css?v=138" as="style">
-  <link rel="stylesheet" href="style.css?v=138">
+  <link rel="preload" href="style.css?v=139" as="style">
+  <link rel="stylesheet" href="style.css?v=139">
 </head>
 
 <body>
@@ -298,10 +356,10 @@
   </script>
   <script src="config.js"></script>
   <script src="icons.js?v=89"></script>
-  <script src="public.js?v=138"></script>
-  <script src="extras.js?v=138"></script>
+  <script src="public.js?v=139"></script>
+  <script src="extras.js?v=139"></script>
   <script src="help.js?v=83"></script>
-  <script src="app.js?v=138"></script>
+  <script src="app.js?v=139"></script>
   <script src="chat.js?v=85"></script>
 </body>
 

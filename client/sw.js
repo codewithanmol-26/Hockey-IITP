@@ -1,13 +1,13 @@
 // Makes the page installable and able to show alerts. Only the app files are cached; /api (the data) is never cached.
-const V = "hk-v138",
+const V = "hk-v139",
   SHELL = [
     "./",
     "index.html",
     "favicon.ico",
-    "style.css?v=138",
-    "app.js?v=138",
-    "public.js?v=138",
-    "extras.js?v=138",
+    "style.css?v=139",
+    "app.js?v=139",
+    "public.js?v=139",
+    "extras.js?v=139",
     "help.js",
     "icons.js?v=89",
     "config.js",
